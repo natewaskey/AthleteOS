@@ -46,10 +46,11 @@
           </label>
         </div>
         <label>Title <input name="title" placeholder="e.g. Tempo run" maxlength="80" /></label>
-        <div class="grid-3">
+        <div class="grid-2">
           <label>Duration (min) <input type="number" name="duration" min="1" step="1" required /></label>
-          <label data-endurance>Distance (km) <input type="number" name="distance" min="0" step="0.01" /></label>
           <label>Effort (RPE 1–10) <input type="number" name="rpe" min="1" max="10" step="1" value="6" required /></label>
+          <label data-endurance>Distance (<span data-unit="distance">mi</span>) <input type="number" name="distance" min="0" step="any" /></label>
+          <label data-elevation>Elevation gain (<span data-unit="elevation">ft</span>) <input type="number" name="elevation" min="0" step="any" /></label>
         </div>
         <p class="hint" id="rpe-hint"></p>
         <fieldset data-strength hidden>
@@ -78,7 +79,7 @@
           <label>Stress <input type="range" name="stress" min="1" max="5" value="2" /><span class="scale-ends"><span>Calm</span><span>Stressed</span></span></label>
           <label>Mood <input type="range" name="mood" min="1" max="5" value="4" /><span class="scale-ends"><span>Low</span><span>Great</span></span></label>
         </div>
-        <label>Body weight (kg) <input type="number" name="weight" min="0" step="0.1" /></label>
+        <label>Body weight (<span data-unit="weight">lb</span>) <input type="number" name="weight" min="0" step="any" /></label>
         <input type="hidden" name="date" />
         <div class="dialog-actions">
           <button type="button" class="btn btn-ghost" data-action="close-dialog">Cancel</button>

@@ -4,7 +4,8 @@ A private training operating system for athletes. Log workouts, check in each mo
 
 ## Features
 
-- **Workout log**: run, bike, swim, strength (sets × reps × weight), mobility and other sessions, each with duration, distance, effort (RPE) and notes. You can edit or delete any entry.
+- **Imperial or metric**: miles, lb, ft and yards by default (pace in min/mi, speed in mph, swims in yd and /100yd), or km, kg and m. Switch in Settings; data is stored in metric internally, so switching never changes your history.
+- **Workout log**: run, bike, swim, strength (sets × reps × weight), mobility and other sessions, each with duration, distance, elevation gain, effort (RPE) and notes. You can edit or delete any entry.
 - **Readiness score (0–100)** from a 20-second morning check-in covering sleep, sleep quality, soreness, stress, mood and resting HR, combined with how your recent load compares to your norm.
 - **Training load**: session-RPE load, acute:chronic workload ratio (ACWR) with a zone gauge, a 6-week acute/chronic trend chart, weekly load bars and a monotony warning.
 - **Personal records**: best pace and longest distance per endurance sport, and estimated 1RM (Epley) per lift.

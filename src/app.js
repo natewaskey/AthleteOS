@@ -73,12 +73,56 @@
     toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
   }
 
+  // ---------- units (storage is metric; everything shown/entered uses the profile's system) ----------
+
+  const units = () => state.profile.units;
+  const U = () => C.unitLabels(units());
+
+  function fmtDist(km, sport) {
+    const v = C.kmToDisplay(km, units(), sport);
+    return `${num(v, sport === 'swim' ? 0 : 2)} ${C.distanceUnit(units(), sport)}`;
+  }
+
+  function fmtWeight(kg, digits = 1) {
+    return `${num(C.kgToDisplay(kg, units()), digits)} ${U().weight}`;
+  }
+
+  function fmtElevation(m) {
+    return `${num(C.mToDisplay(m, units()))} ${U().elevation}`;
+  }
+
+  function fmtSpeed(secPerKm) {
+    return `${num(C.speedFromPace(secPerKm, units()), 1)} ${U().speed}`;
+  }
+
+  // Value for an input, remembering the exact stored number so an untouched field
+  // round-trips without conversion drift (e.g. 10 km -> "6.21" mi -> 9.994 km).
+  function setConverted(input, stored, toDisplay, digits) {
+    const shown = stored == null ? '' : String(+toDisplay(stored).toFixed(digits));
+    input.value = shown;
+    input.dataset.shown = shown;
+    input.dataset.stored = stored == null ? '' : String(stored);
+  }
+
+  function readConverted(input, fromDisplay) {
+    if (input.dataset.shown !== undefined && input.value === input.dataset.shown) {
+      return input.dataset.stored === '' ? null : Number(input.dataset.stored);
+    }
+    return fromDisplay(input.value);
+  }
+
+  function clearConverted(input) {
+    delete input.dataset.shown;
+    delete input.dataset.stored;
+  }
+
   function workoutMeta(w) {
     const parts = [C.formatDuration(w.duration)];
-    if (w.distance) parts.push(`${num(w.distance, 2)} km`);
-    if (w.distance && ['run', 'swim'].includes(w.sport)) parts.push(`${C.formatPace(C.pace(w))}/km`);
-    if (w.distance && w.sport === 'bike') parts.push(`${num(w.distance / (w.duration / 60), 1)} km/h`);
-    if (w.exercises.length) parts.push(`${w.exercises.length} exercises · ${num(C.tonnage(w))} kg`);
+    if (w.distance) parts.push(fmtDist(w.distance, w.sport));
+    if (w.distance && ['run', 'swim'].includes(w.sport)) parts.push(C.paceLabel(C.pace(w), units(), w.sport));
+    if (w.distance && w.sport === 'bike') parts.push(fmtSpeed(C.pace(w)));
+    if (w.elevation) parts.push(`↑ ${fmtElevation(w.elevation)}`);
+    if (w.exercises.length) parts.push(`${w.exercises.length} ${w.exercises.length === 1 ? 'exercise' : 'exercises'} · ${fmtWeight(C.tonnage(w), 0)}`);
     parts.push(`RPE ${w.rpe}`);
     return parts.join(' · ');
   }
@@ -202,8 +246,8 @@
 
           <section class="card span-3"><h3>This week</h3><div class="stat">${thisWeek.sessions}<small>sessions</small></div>
             <div class="muted">${C.formatDuration(thisWeek.minutes)}</div></section>
-          <section class="card span-3"><h3>Distance</h3><div class="stat">${num(thisWeek.distance, 1)}<small>km</small></div>
-            <div class="muted">last week ${num(lastWeek.distance, 1)} km</div></section>
+          <section class="card span-3"><h3>Distance</h3><div class="stat">${num(C.kmToDisplay(thisWeek.distance, units()), 1)}<small>${U().distance}</small></div>
+            <div class="muted">last week ${num(C.kmToDisplay(lastWeek.distance, units()), 1)} ${U().distance}</div></section>
           <section class="card span-3"><h3>Weekly load</h3><div class="stat">${num(thisWeek.load)}<small>AU</small></div>
             <div class="muted">${weekDelta == null ? 'no data last week' : `${weekDelta >= 0 ? '▲' : '▼'} ${Math.abs(weekDelta)}% vs last week`}</div></section>
           <section class="card span-3"><h3>Streak</h3><div class="stat">${streak}<small>${streak === 1 ? 'day' : 'days'}</small></div>
@@ -278,8 +322,8 @@
                   ${endurance
                     .map(
                       (r) => `<tr><td>${SPORT_ICON[r.sport]} ${cap(r.sport)}</td>
-                      <td class="num">${r.sport === 'bike' ? num(3600 / r.bestPace, 1) + ' km/h' : C.formatPace(r.bestPace) + ' /km'}<div class="muted" style="font-size:.78rem">${esc(fmtDate(r.bestPaceDate))}</div></td>
-                      <td class="num">${num(r.longest, 1)} km<div class="muted" style="font-size:.78rem">${esc(fmtDate(r.longestDate))}</div></td></tr>`
+                      <td class="num">${r.sport === 'bike' ? fmtSpeed(r.bestPace) : C.paceLabel(r.bestPace, units(), r.sport)}<div class="muted" style="font-size:.78rem">${esc(fmtDate(r.bestPaceDate))}</div></td>
+                      <td class="num">${fmtDist(r.longest, r.sport)}<div class="muted" style="font-size:.78rem">${esc(fmtDate(r.longestDate))}</div></td></tr>`
                     )
                     .join('')}</tbody></table></div>`
                 : '<p class="muted">Log runs, rides or swims with a distance to see records here.</p>'
@@ -293,7 +337,7 @@
                   ${strength
                     .map(
                       (r) => `<tr><td>${esc(r.name)}<div class="muted" style="font-size:.78rem">${esc(fmtDate(r.date))}</div></td>
-                      <td class="num">${num(r.weight, 1)} kg × ${r.reps}</td><td class="num"><strong>${num(r.e1rm, 1)} kg</strong></td></tr>`
+                      <td class="num">${fmtWeight(r.weight)} × ${r.reps}</td><td class="num"><strong>${fmtWeight(r.e1rm)}</strong></td></tr>`
                     )
                     .join('')}</tbody></table></div>
                   <p class="hint" style="margin-top:.6rem">Estimated with the Epley formula: weight × (1 + reps / 30).</p>`
@@ -321,6 +365,7 @@
                 <label>Target <input type="number" name="target" min="1" step="any" required /></label>
                 <label>Per <select name="period"><option value="week">Week</option><option value="month">Month</option></select></label>
               </div>
+              <p class="hint">Distance goals are in ${U().distance} (${U().swim} for swim goals).</p>
               <button class="btn btn-primary" type="submit" style="width:100%">Add goal</button>
             </form>
           </section>
@@ -337,6 +382,10 @@
             <form id="profile-form">
               <label>Name <input name="name" value="${esc(state.profile.name)}" maxlength="60" /></label>
               <label>Primary sport <select name="sport">${C.SPORTS.map((s) => `<option value="${s}" ${s === state.profile.sport ? 'selected' : ''}>${cap(s)}</option>`).join('')}</select></label>
+              <label>Units <select name="units">
+                <option value="imperial" ${C.unitSystem(state.profile.units) === 'imperial' ? 'selected' : ''}>Imperial (mi, lb, ft, yd)</option>
+                <option value="metric" ${C.unitSystem(state.profile.units) === 'metric' ? 'selected' : ''}>Metric (km, kg, m)</option>
+              </select></label>
               <label>Theme <select name="theme">${['system', 'light', 'dark'].map((x) => `<option value="${x}" ${x === theme ? 'selected' : ''}>${cap(x)}</option>`).join('')}</select></label>
               <button class="btn btn-primary" type="submit">Save profile</button>
             </form>
@@ -392,7 +441,11 @@
         const p = C.goalProgress(g, state.workouts, t);
         const m = C.GOAL_METRICS[g.metric];
         const label = `${m.label}${g.sport !== 'any' ? ' · ' + cap(g.sport) : ''}`;
-        const fmt = (v) => (g.metric === 'minutes' ? C.formatDuration(v) : `${num(v, 1)}${m.unit ? ' ' + m.unit : ''}`);
+        const fmt = (v) => {
+          if (g.metric === 'minutes') return C.formatDuration(v);
+          if (g.metric === 'distance') return fmtDist(v, g.sport === 'swim' ? 'swim' : 'run');
+          return `${num(v, 1)}${m.unit ? ' ' + m.unit : ''}`;
+        };
         return `<li style="display:block">
           <div class="row"><strong>${esc(label)}</strong><span class="muted" style="font-size:.85rem">per ${g.period}</span><div class="spacer"></div>
             <span style="font-variant-numeric:tabular-nums">${fmt(p.value)} / ${fmt(g.target)}</span>
@@ -440,15 +493,25 @@
       <input name="ex-name" placeholder="Exercise" value="${esc(e.name || '')}" aria-label="Exercise name" list="exercise-names" />
       <input name="ex-sets" type="number" min="1" placeholder="Sets" value="${e.sets || ''}" aria-label="Sets" />
       <input name="ex-reps" type="number" min="1" placeholder="Reps" value="${e.reps || ''}" aria-label="Reps" />
-      <input name="ex-weight" type="number" min="0" step="0.5" placeholder="kg" value="${e.weight ?? ''}" aria-label="Weight in kg" />
+      <input name="ex-weight" type="number" min="0" step="any" placeholder="${U().weight}" aria-label="Weight in ${U().weight}" />
       <button type="button" class="btn btn-sm btn-ghost" data-action="remove-exercise" aria-label="Remove exercise">✕</button>`;
+    if (e.weight != null) setConverted($('[name="ex-weight"]', div), e.weight, (kg) => C.kgToDisplay(kg, units()), 1);
     return div;
+  }
+
+  // Fill every <span data-unit="..."> with the current unit label.
+  function syncUnitLabels() {
+    $$('[data-unit]').forEach((el) => {
+      el.textContent = el.dataset.unit === 'distance' ? C.distanceUnit(units(), wForm.sport.value) : U()[el.dataset.unit];
+    });
   }
 
   function syncSportFields() {
     const sport = wForm.sport.value;
     const endurance = ['run', 'bike', 'swim', 'other'].includes(sport);
     $('[data-endurance]', wForm).hidden = !endurance;
+    $('[data-elevation]', wForm).hidden = !['run', 'bike', 'other'].includes(sport);
+    syncUnitLabels();
     $('[data-strength]', wForm).hidden = sport !== 'strength';
     if (sport === 'strength' && !$('#exercise-rows').children.length) $('#exercise-rows').append(exerciseRow());
   }
@@ -480,7 +543,11 @@
     wForm.sport.value = w ? w.sport : state.profile.sport || 'run';
     wForm.title.value = w ? w.title : '';
     wForm.duration.value = w ? w.duration : '';
-    wForm.distance.value = w && w.distance != null ? w.distance : '';
+    if (w) setConverted(wForm.distance, w.distance, (km) => C.kmToDisplay(km, units(), w.sport), w.sport === 'swim' ? 0 : 2);
+    else clearConverted(wForm.distance);
+    if (w) setConverted(wForm.elevation, w.elevation, (m) => C.mToDisplay(m, units()), 0);
+    else clearConverted(wForm.elevation);
+    wForm.dataset.originalSport = w ? w.sport : '';
     wForm.rpe.value = w ? w.rpe : 6;
     wForm.notes.value = w ? w.notes : '';
     if (w) w.exercises.forEach((e) => $('#exercise-rows').append(exerciseRow(e)));
@@ -491,7 +558,11 @@
   }
 
   wForm.addEventListener('input', (e) => {
-    if (e.target.name === 'sport') syncSportFields();
+    if (e.target.name === 'sport') {
+      // The distance unit may change (mi <-> yd), so a remembered stored value no longer matches.
+      if (wForm.sport.value !== wForm.dataset.originalSport) clearConverted(wForm.distance);
+      syncSportFields();
+    }
     syncRpeHint();
   });
 
@@ -501,7 +572,7 @@
       name: row.querySelector('[name="ex-name"]').value,
       sets: row.querySelector('[name="ex-sets"]').value,
       reps: row.querySelector('[name="ex-reps"]').value,
-      weight: row.querySelector('[name="ex-weight"]').value,
+      weight: readConverted(row.querySelector('[name="ex-weight"]'), (v) => C.displayToKg(v, units())),
     }));
     const sport = wForm.sport.value;
     const w = C.normalizeWorkout({
@@ -510,7 +581,8 @@
       sport,
       title: wForm.title.value,
       duration: wForm.duration.value,
-      distance: ['run', 'bike', 'swim', 'other'].includes(sport) ? wForm.distance.value : '',
+      distance: ['run', 'bike', 'swim', 'other'].includes(sport) ? readConverted(wForm.distance, (v) => C.displayToKm(v, units(), sport)) : null,
+      elevation: ['run', 'bike', 'other'].includes(sport) ? readConverted(wForm.elevation, (v) => C.displayToM(v, units())) : null,
       rpe: wForm.rpe.value,
       notes: wForm.notes.value,
       exercises: sport === 'strength' ? exercises : [],
@@ -541,13 +613,18 @@
     cForm.stress.value = src.stress ?? 2;
     cForm.mood.value = src.mood ?? 4;
     cForm.restingHR.value = src.restingHR ?? '';
-    cForm.weight.value = src.weight ?? (prev && prev.weight != null ? prev.weight : '');
+    const lastWeight = src.weight ?? (prev && prev.weight != null ? prev.weight : null);
+    setConverted(cForm.weight, lastWeight, (kg) => C.kgToDisplay(kg, units()), 1);
+    syncUnitLabels();
     cDialog.showModal();
   }
 
   cForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const c = C.normalizeCheckin(Object.fromEntries(new FormData(cForm)));
+    const c = C.normalizeCheckin({
+      ...Object.fromEntries(new FormData(cForm)),
+      weight: readConverted(cForm.weight, (v) => C.displayToKg(v, units())),
+    });
     state.checkins = state.checkins.filter((x) => x.date !== c.date).concat(c);
     save();
     cDialog.close();
@@ -619,14 +696,16 @@
   document.addEventListener('submit', (e) => {
     if (e.target.id === 'goal-form') {
       e.preventDefault();
-      state.goals.push(C.normalizeGoal(Object.fromEntries(new FormData(e.target))));
+      const g = Object.fromEntries(new FormData(e.target));
+      if (g.metric === 'distance') g.target = C.displayToKm(g.target, units(), g.sport === 'swim' ? 'swim' : 'run');
+      state.goals.push(C.normalizeGoal(g));
       save();
       toast('Goal added');
       render();
     } else if (e.target.id === 'profile-form') {
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target));
-      state.profile = { name: f.name.trim(), sport: f.sport };
+      state.profile = { name: f.name.trim(), sport: f.sport, units: C.unitSystem(f.units) };
       save();
       applyTheme(f.theme);
       toast('Profile saved');

@@ -9,6 +9,87 @@
 
   const SPORTS = ['run', 'bike', 'swim', 'strength', 'mobility', 'other'];
 
+  // ---------- units ----------
+  // Data is always stored metric (km, kg, m); these convert only for display and input.
+
+  const KM_PER_MI = 1.609344;
+  const KG_PER_LB = 0.45359237;
+  const M_PER_FT = 0.3048;
+  const M_PER_YD = 0.9144;
+
+  const UNIT_SYSTEMS = {
+    imperial: { distance: 'mi', swim: 'yd', weight: 'lb', elevation: 'ft', speed: 'mph', swimPace: '100yd' },
+    metric: { distance: 'km', swim: 'm', weight: 'kg', elevation: 'm', speed: 'km/h', swimPace: '100m' },
+  };
+
+  function unitSystem(units) {
+    return units === 'metric' ? 'metric' : 'imperial';
+  }
+
+  function unitLabels(units) {
+    return UNIT_SYSTEMS[unitSystem(units)];
+  }
+
+  // Swims use yards/metres; every other sport uses miles/kilometres.
+  function distanceUnit(units, sport) {
+    const u = unitLabels(units);
+    return sport === 'swim' ? u.swim : u.distance;
+  }
+
+  function kmToDisplay(km, units, sport) {
+    if (km == null) return null;
+    const metric = unitSystem(units) === 'metric';
+    if (sport === 'swim') return metric ? km * 1000 : (km * 1000) / M_PER_YD;
+    return metric ? km : km / KM_PER_MI;
+  }
+
+  function displayToKm(value, units, sport) {
+    if (value === '' || value == null || !isFinite(Number(value))) return null;
+    const v = Number(value);
+    const metric = unitSystem(units) === 'metric';
+    if (sport === 'swim') return metric ? v / 1000 : (v * M_PER_YD) / 1000;
+    return metric ? v : v * KM_PER_MI;
+  }
+
+  function kgToDisplay(kg, units) {
+    if (kg == null) return null;
+    return unitSystem(units) === 'metric' ? kg : kg / KG_PER_LB;
+  }
+
+  function displayToKg(value, units) {
+    if (value === '' || value == null || !isFinite(Number(value))) return null;
+    return unitSystem(units) === 'metric' ? Number(value) : Number(value) * KG_PER_LB;
+  }
+
+  function mToDisplay(m, units) {
+    if (m == null) return null;
+    return unitSystem(units) === 'metric' ? m : m / M_PER_FT;
+  }
+
+  function displayToM(value, units) {
+    if (value === '' || value == null || !isFinite(Number(value))) return null;
+    return unitSystem(units) === 'metric' ? Number(value) : Number(value) * M_PER_FT;
+  }
+
+  // Pace string with unit: min/mi or min/km for land sports, per 100yd/100m for swims.
+  function paceLabel(secPerKm, units, sport) {
+    if (secPerKm == null || !isFinite(secPerKm)) return '—';
+    const u = unitLabels(units);
+    if (sport === 'swim') {
+      const metersPer100 = unitSystem(units) === 'metric' ? 100 : 100 * M_PER_YD;
+      return `${formatPace((secPerKm * metersPer100) / 1000)} /${u.swimPace}`;
+    }
+    const perUnit = unitSystem(units) === 'metric' ? secPerKm : secPerKm * KM_PER_MI;
+    return `${formatPace(perUnit)} /${u.distance}`;
+  }
+
+  // Speed in mph or km/h from seconds per km.
+  function speedFromPace(secPerKm, units) {
+    if (!secPerKm) return null;
+    const kmh = 3600 / secPerKm;
+    return unitSystem(units) === 'metric' ? kmh : kmh / KM_PER_MI;
+  }
+
   // ---------- dates ----------
 
   // Local calendar date as YYYY-MM-DD (avoids UTC off-by-one around midnight).
@@ -55,6 +136,7 @@
     const duration = Math.max(0, Number(input.duration) || 0); // minutes
     const rpe = clamp(Math.round(Number(input.rpe) || 0), 1, 10);
     const distance = input.distance === '' || input.distance == null ? null : Math.max(0, Number(input.distance) || 0); // km
+    const elevation = input.elevation === '' || input.elevation == null ? null : Math.max(0, Number(input.elevation) || 0); // m
     const exercises = Array.isArray(input.exercises)
       ? input.exercises
           .map((e) => ({
@@ -72,6 +154,7 @@
       title: String(input.title || '').trim() || defaultTitle(sport),
       duration,
       distance,
+      elevation,
       rpe,
       exercises,
       notes: String(input.notes || '').trim(),
@@ -300,7 +383,7 @@
   const GOAL_METRICS = {
     sessions: { label: 'Sessions', unit: '' },
     minutes: { label: 'Training time', unit: 'min' },
-    distance: { label: 'Distance', unit: 'km' },
+    distance: { label: 'Distance', unit: 'km' }, // stored in km; UI converts
     load: { label: 'Training load', unit: 'AU' },
   };
 
@@ -335,7 +418,7 @@
   const SCHEMA_VERSION = 1;
 
   function emptyState() {
-    return { version: SCHEMA_VERSION, profile: { name: '', sport: 'run' }, workouts: [], checkins: [], goals: [] };
+    return { version: SCHEMA_VERSION, profile: { name: '', sport: 'run', units: 'imperial' }, workouts: [], checkins: [], goals: [] };
   }
 
   function migrate(raw) {
@@ -353,14 +436,17 @@
   // A few weeks of plausible data so first-time users can see everything working.
   function sampleState(todayISO) {
     const s = emptyState();
-    s.profile = { name: 'Demo Athlete', sport: 'run' };
+    s.profile = { name: 'Demo Athlete', sport: 'run', units: 'imperial' };
+    const mi = (n) => n * KM_PER_MI;
+    const lb = (n) => n * KG_PER_LB;
+    const ft = (n) => n * M_PER_FT;
     const plan = [
-      ['run', 'Easy run', 45, 8, 4],
+      ['run', 'Easy run', 45, mi(5), 4, ft(250)],
       ['strength', 'Lower body', 50, null, 7],
-      ['run', 'Intervals 6x800m', 55, 10, 8],
+      ['run', 'Track intervals', 55, mi(6), 8, ft(60)],
       null,
-      ['bike', 'Endurance ride', 75, 30, 5],
-      ['run', 'Long run', 95, 18, 6],
+      ['bike', 'Endurance ride', 75, mi(19), 5, ft(900)],
+      ['run', 'Long run', 95, mi(11), 6, ft(600)],
       ['mobility', 'Yoga flow', 30, null, 2],
     ];
     for (let d = 34; d >= 0; d--) {
@@ -368,14 +454,14 @@
       const p = plan[(parseISODate(date).getDay() + 6) % 7];
       if (!p) continue;
       const progress = 1 + (34 - d) / 120;
-      const [sport, title, dur, dist, rpe] = p;
-      const w = { date, sport, title, duration: Math.round(dur * progress), rpe, distance: dist ? +(dist * progress).toFixed(1) : null };
+      const [sport, title, dur, dist, rpe, elev] = p;
+      const w = { date, sport, title, duration: Math.round(dur * progress), rpe, distance: dist ? +(dist * progress).toFixed(3) : null, elevation: elev ?? null };
       if (sport === 'strength') {
-        const bump = Math.floor((34 - d) / 7) * 2.5;
+        const bump = Math.floor((34 - d) / 7) * 5; // +5 lb per week
         w.exercises = [
-          { name: 'Back squat', sets: 4, reps: 5, weight: 90 + bump },
-          { name: 'Romanian deadlift', sets: 3, reps: 8, weight: 70 + bump },
-          { name: 'Split squat', sets: 3, reps: 10, weight: 20 },
+          { name: 'Back squat', sets: 4, reps: 5, weight: lb(195 + bump) },
+          { name: 'Romanian deadlift', sets: 3, reps: 8, weight: lb(155 + bump) },
+          { name: 'Split squat', sets: 3, reps: 10, weight: lb(45) },
         ];
       }
       s.workouts.push(normalizeWorkout(w));
@@ -391,13 +477,13 @@
           stress: 2 + (wobble % 2),
           mood: 4 - (wobble % 2),
           restingHR: 52 + (wobble % 3),
-          weight: 72 + (wobble - 2) * 0.2,
+          weight: lb(160 + (wobble - 2) * 0.4),
         })
       );
     }
     s.goals = [
       normalizeGoal({ metric: 'sessions', period: 'week', target: 5 }),
-      normalizeGoal({ metric: 'distance', sport: 'run', period: 'week', target: 35 }),
+      normalizeGoal({ metric: 'distance', sport: 'run', period: 'week', target: mi(22) }),
       normalizeGoal({ metric: 'minutes', period: 'month', target: 1200 }),
     ];
     return s;
@@ -412,6 +498,18 @@
   const Core = {
     SPORTS,
     GOAL_METRICS,
+    UNIT_SYSTEMS,
+    unitSystem,
+    unitLabels,
+    distanceUnit,
+    kmToDisplay,
+    displayToKm,
+    kgToDisplay,
+    displayToKg,
+    mToDisplay,
+    displayToM,
+    paceLabel,
+    speedFromPace,
     SCHEMA_VERSION,
     toISODate,
     parseISODate,

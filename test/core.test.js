@@ -139,3 +139,36 @@ test('migrate tolerates junk and sample data is self-consistent', () => {
   assert.ok(C.readiness(round.checkins.at(-1), round.checkins, round.workouts, TODAY).score > 0);
   assert.ok(C.acwr(round.workouts, TODAY).ratio > 0);
 });
+
+test('unit conversions round-trip and default to imperial', () => {
+  assert.equal(C.emptyState().profile.units, 'imperial');
+  assert.equal(C.unitSystem(undefined), 'imperial');
+  assert.ok(Math.abs(C.kmToDisplay(10, 'imperial', 'run') - 6.2137) < 1e-4);
+  assert.ok(Math.abs(C.displayToKm(26.2, 'imperial', 'run') - 42.165) < 1e-3);
+  assert.equal(C.kmToDisplay(10, 'metric', 'run'), 10);
+  assert.ok(Math.abs(C.kmToDisplay(1, 'imperial', 'swim') - 1093.61) < 0.01); // yards
+  assert.equal(C.kmToDisplay(1.5, 'metric', 'swim'), 1500); // metres
+  assert.ok(Math.abs(C.displayToKm(C.kmToDisplay(7.3, 'imperial', 'swim'), 'imperial', 'swim') - 7.3) < 1e-9);
+  assert.ok(Math.abs(C.kgToDisplay(100, 'imperial') - 220.462) < 1e-3);
+  assert.ok(Math.abs(C.displayToKg(225, 'imperial') - 102.058) < 1e-3);
+  assert.ok(Math.abs(C.mToDisplay(100, 'imperial') - 328.084) < 1e-3);
+  assert.equal(C.displayToKm('', 'imperial', 'run'), null);
+  assert.equal(C.distanceUnit('imperial', 'swim'), 'yd');
+  assert.equal(C.distanceUnit('metric', 'bike'), 'km');
+});
+
+test('pace and speed labels respect units', () => {
+  // 5:00 /km == 8:03 /mi
+  assert.equal(C.paceLabel(300, 'metric', 'run'), '5:00 /km');
+  assert.equal(C.paceLabel(300, 'imperial', 'run'), '8:03 /mi');
+  // 1000 s/km swim == 1:40 /100m == 1:31 /100yd
+  assert.equal(C.paceLabel(1000, 'metric', 'swim'), '1:40 /100m');
+  assert.equal(C.paceLabel(1000, 'imperial', 'swim'), '1:31 /100yd');
+  assert.ok(Math.abs(C.speedFromPace(120, 'metric') - 30) < 1e-9);
+  assert.ok(Math.abs(C.speedFromPace(120, 'imperial') - 18.641) < 1e-3);
+});
+
+test('elevation is stored on workouts', () => {
+  assert.equal(C.normalizeWorkout({ elevation: 120 }).elevation, 120);
+  assert.equal(C.normalizeWorkout({ elevation: '' }).elevation, null);
+});
