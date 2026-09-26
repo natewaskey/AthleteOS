@@ -9,14 +9,33 @@
   const BASE = 'vendor/mediapipe/';
   const MAX_SECONDS = 90;
   let landmarkerPromise = null;
+  let modelPromise = null;
 
   const url = (p) => new URL(BASE + p, document.baseURI).href;
+
+  // The model ships as a .task file; hosts that can't serve that type get a base64 text copy.
+  function model() {
+    if (!modelPromise) {
+      modelPromise = (async () => {
+        const res = await fetch(url('pose_landmarker_full.task')).catch(() => null);
+        if (res && res.ok) return new Uint8Array(await res.arrayBuffer());
+        const txt = await fetch(url('pose_landmarker_full.task.b64.txt'));
+        if (!txt.ok) throw new Error('pose model not found');
+        const bin = atob((await txt.text()).trim());
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      })();
+      modelPromise.catch(() => (modelPromise = null));
+    }
+    return modelPromise;
+  }
 
   async function create(delegate) {
     const vision = await import(url('vision_bundle.mjs'));
     const fileset = { wasmLoaderPath: url('wasm/vision_wasm_internal.js'), wasmBinaryPath: url('wasm/vision_wasm_internal.wasm') };
     return vision.PoseLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: url('pose_landmarker_full.task'), delegate },
+      baseOptions: { modelAssetBuffer: await model(), delegate },
       runningMode: 'VIDEO',
       numPoses: 1,
       minPoseDetectionConfidence: 0.5,
