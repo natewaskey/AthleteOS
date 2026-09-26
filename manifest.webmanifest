@@ -1,0 +1,11 @@
+{
+  "name": "AthleteOS",
+  "short_name": "AthleteOS",
+  "description": "Log training, track load and readiness, and chase your goals.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "athleteos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Training log, load management and readiness tracking for athletes. Zero dependencies.",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

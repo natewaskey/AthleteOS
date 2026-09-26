@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1115" />
+    <meta name="description" content="AthleteOS: log training, track load and readiness, and chase your goals." />
+    <title>AthleteOS</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L11 10 L16 18 L21 8 L28 22" /></svg>
+        <span>Athlete<strong>OS</strong></span>
+      </div>
+      <button class="btn btn-primary" data-action="open-log">+ Log workout</button>
+    </header>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="today" aria-selected="true">Today</button>
+      <button role="tab" data-tab="history">History</button>
+      <button role="tab" data-tab="records">Records</button>
+      <button role="tab" data-tab="goals">Goals</button>
+      <button role="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <main id="view" tabindex="-1"></main>
+
+    <dialog id="workout-dialog">
+      <form id="workout-form" method="dialog">
+        <h2 id="workout-dialog-title">Log workout</h2>
+        <div class="grid-2">
+          <label>Date <input type="date" name="date" required /></label>
+          <label>Sport
+            <select name="sport">
+              <option value="run">Run</option>
+              <option value="bike">Bike</option>
+              <option value="swim">Swim</option>
+              <option value="strength">Strength</option>
+              <option value="mobility">Mobility</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+        </div>
+        <label>Title <input name="title" placeholder="e.g. Tempo run" maxlength="80" /></label>
+        <div class="grid-3">
+          <label>Duration (min) <input type="number" name="duration" min="1" step="1" required /></label>
+          <label data-endurance>Distance (km) <input type="number" name="distance" min="0" step="0.01" /></label>
+          <label>Effort (RPE 1–10) <input type="number" name="rpe" min="1" max="10" step="1" value="6" required /></label>
+        </div>
+        <p class="hint" id="rpe-hint"></p>
+        <fieldset data-strength hidden>
+          <legend>Exercises</legend>
+          <div id="exercise-rows"></div>
+          <button type="button" class="btn btn-ghost" data-action="add-exercise">+ Add exercise</button>
+        </fieldset>
+        <label>Notes <textarea name="notes" rows="2" maxlength="500"></textarea></label>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-dialog">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="checkin-dialog">
+      <form id="checkin-form" method="dialog">
+        <h2>Morning check-in</h2>
+        <div class="grid-2">
+          <label>Sleep (hours) <input type="number" name="sleep" min="0" max="14" step="0.25" value="7.5" required /></label>
+          <label>Resting HR (bpm) <input type="number" name="restingHR" min="25" max="220" step="1" /></label>
+        </div>
+        <div class="scales">
+          <label>Sleep quality <input type="range" name="sleepQuality" min="1" max="5" value="3" /><span class="scale-ends"><span>Poor</span><span>Great</span></span></label>
+          <label>Soreness <input type="range" name="soreness" min="1" max="5" value="2" /><span class="scale-ends"><span>None</span><span>Very sore</span></span></label>
+          <label>Stress <input type="range" name="stress" min="1" max="5" value="2" /><span class="scale-ends"><span>Calm</span><span>Stressed</span></span></label>
+          <label>Mood <input type="range" name="mood" min="1" max="5" value="4" /><span class="scale-ends"><span>Low</span><span>Great</span></span></label>
+        </div>
+        <label>Body weight (kg) <input type="number" name="weight" min="0" step="0.1" /></label>
+        <input type="hidden" name="date" />
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-dialog">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save check-in</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script src="src/core.js"></script>
+    <script src="src/app.js"></script>
+  </body>
+</html>
