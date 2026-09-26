@@ -1,6 +1,6 @@
 // Offline-first cache for the static app shell. Bump CACHE when shipping changes.
-const CACHE = 'athleteos-v3';
-const ASSETS = ['./', './index.html', './src/styles.css', './src/core.js', './src/body.js', './src/media.js', './src/app.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'athleteos-v4';
+const ASSETS = ['./', './index.html', './src/styles.css', './src/core.js', './src/body.js', './src/media.js', './src/movement.js', './src/pose.js', './src/form-ui.js', './src/app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

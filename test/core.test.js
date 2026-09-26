@@ -159,7 +159,7 @@ test('demo team exercises every coach flag', () => {
   assert.ok(st.sam.flags.some((f) => f.text.startsWith('No check-in')));
   assert.ok(st.taylor.readiness.score < 40);
   assert.ok(C.unreadCount(s.messages, 'coach') >= 2);
-  assert.equal(C.unreadCount(s.messages, 'athlete', 'riley'), 1);
+  assert.equal(C.unreadCount(s.messages, 'athlete', 'riley'), 2);
 });
 
 test('body map soreness derives overall score and pain', () => {

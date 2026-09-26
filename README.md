@@ -22,6 +22,29 @@ Use the **Athlete / Coach** switch in the top bar. Both views read the same data
 - **Inbox** with a thread per athlete, video playback, and an announcement that goes to the whole team.
 - Roster management: add and remove athletes.
 
+### Form analysis (movement tracking)
+Record a set on your phone and AthleteOS analyses it **on-device**. The video never leaves the phone.
+
+- **Exercises:** squat, deadlift, lunge, bench press, push-up, overhead press, and running form.
+- **How it works:** [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) tracks 33 body points in every frame. `src/movement.js` turns those into joint angles and positions, counts reps, and scores each rep's key moment (bottom of a squat, start of a deadlift, lockout of a press, foot strike for running) against form rules.
+- **What it checks:**
+  - **Squat:** depth, torso angle, heels, knee tracking and hip shift (front view), tempo
+  - **Deadlift:** back angle, bar over mid-foot, shoulders over bar, hips rising with the chest, lockout
+  - **Lunge:** front and back knee depth, torso, knee travel, knee tracking
+  - **Bench:** bar to chest, wrists over elbows, touch point, lockout, glutes staying down
+  - **Push-up:** depth, body line (sag or pike), lockout
+  - **Overhead press:** lockout, bar over mid-foot, back lean
+  - **Running:** cadence, overstriding, knee bend at landing, forward lean, vertical bounce, foot strike, arm carriage
+- **You vs target:** a target figure (green dashed) is built from *your own limb lengths*, anchored at your feet, in the ideal key position. It is drawn over your actual position as an overlay or side by side, with numbered markers on the joints that need work. The same target ghost appears on the video at each rep's key moment.
+- **Video player** with a live skeleton overlay (colour-coded problem areas, live joint angle, rep counter), 0.25×/0.5×/1× speed, and an angle-over-time chart with a rep strip (tap to jump).
+- **Suggestions:** a coaching cue and a drill for every issue, ordered by severity. Coaches can add their own cues, which appear first and also go to the athlete's messages.
+- **Input:** athletes log the weight, reps and how it felt, and anyone can post comments pinned to a moment in the video. You can re-run the analysis as a different exercise or camera angle, then send it to the coach.
+- **Coach:** a Form tab with every shared form check and "New" badges, plus form checks on each athlete's page.
+
+Accuracy notes: film straight side-on (or front-on for knee tracking) with your whole body in frame and the camera steady. Joint positions from a single camera are estimates. Spine rounding and elbow flare can't be seen reliably, so those are left to coach review. The demo team's form checks use simulated movement, and their skeletons play without a video.
+
+MediaPipe files are vendored in `vendor/mediapipe/` (Apache-2.0), so analysis works offline and without any server.
+
 ### Prototype limitations
 Everything is stored in the browser (`localStorage` for data, IndexedDB for videos). The coach and athlete views share one device's data, and you switch between them with the toggle. Real accounts and cross-device sync need a backend (e.g. Supabase or Firebase for auth, database and video storage). `src/media.js` and the state layer are written so a backend can be dropped in.
 
@@ -49,11 +72,15 @@ index.html            app shell + dialogs
 src/core.js           pure logic: sports catalog, load, ACWR, readiness, body areas, coach flags, demo team
 src/body.js           clickable front/back body map (inline SVG)
 src/media.js          video storage (IndexedDB)
+src/movement.js       form analysis engine: angles, rep detection, exercise rules, target poses, simulator
+src/pose.js           on-device pose detection (MediaPipe) over a video
+src/form-ui.js        form analysis screens: player + overlay, comparison, chart, suggestions, comments
 src/app.js            UI controller: athlete + coach views, messaging, dialogs, charts
+vendor/mediapipe/     MediaPipe library, WebAssembly runtime and pose model (Apache-2.0)
 src/styles.css        design tokens, light/dark themes, responsive layout
 sw.js                 offline cache
 manifest.webmanifest  PWA manifest
-test/core.test.js     unit tests for core logic
+test/*.test.js        unit tests for core logic and movement analysis
 ```
 
 ## How the numbers work

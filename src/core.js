@@ -657,6 +657,7 @@
       text: String(input.text || '').trim().slice(0, 4000),
       ts: Number(input.ts) || Date.now(),
       videoId: input.videoId || null,
+      analysisId: input.analysisId || null,
       readByCoach: input.from === 'coach' ? true : !!input.readByCoach,
       readByAthlete: input.from === 'athlete' ? true : !!input.readByAthlete,
     };
@@ -672,6 +673,50 @@
       size: Math.max(0, Number(input.size) || 0),
       ts: Number(input.ts) || Date.now(),
       caption: String(input.caption || '').trim().slice(0, 500),
+    };
+  }
+
+  // ---------- form analyses ----------
+
+  const FORM_EXERCISES = ['squat', 'deadlift', 'lunge', 'bench', 'pushup', 'ohp', 'running'];
+
+  function normalizeFormComment(input) {
+    return {
+      id: input.id || uid(),
+      from: input.from === 'coach' ? 'coach' : 'athlete',
+      t: input.t == null || input.t === '' ? null : Math.max(0, Number(input.t) || 0), // seconds into the video
+      text: String(input.text || '').trim().slice(0, 2000),
+      ts: Number(input.ts) || Date.now(),
+    };
+  }
+
+  /*
+   * A saved movement analysis. Pose frames live in IndexedDB under the same id
+   * (or are regenerated from `demo` for sample data); this holds the summary and discussion.
+   */
+  function normalizeAnalysis(input) {
+    const checks = Array.isArray(input.checks) ? input.checks : [];
+    return {
+      id: input.id || uid(),
+      athleteId: String(input.athleteId || ''),
+      videoId: input.videoId || null,
+      exercise: FORM_EXERCISES.includes(input.exercise) ? input.exercise : 'squat',
+      view: ['auto', 'side', 'front'].includes(input.view) ? input.view : 'auto',
+      createdAt: Number(input.createdAt) || Date.now(),
+      aspect: Number(input.aspect) || 16 / 9,
+      duration: Number(input.duration) || 0,
+      score: input.score == null ? null : Math.round(Number(input.score)),
+      reps: Math.max(0, Math.round(Number(input.reps) || 0)),
+      checks: checks.slice(0, 20).map((c) => ({ id: String(c.id), label: String(c.label), status: ['good', 'warn', 'bad'].includes(c.status) ? c.status : 'good', display: String(c.display || '') })),
+      loadKg: input.loadKg == null || input.loadKg === '' ? null : Math.max(0, Number(input.loadKg) || 0),
+      loadReps: input.loadReps == null || input.loadReps === '' ? null : Math.max(0, Math.round(Number(input.loadReps) || 0)),
+      athleteNote: String(input.athleteNote || '').trim().slice(0, 1000),
+      comments: Array.isArray(input.comments) ? input.comments.map(normalizeFormComment) : [],
+      coachCues: Array.isArray(input.coachCues) ? input.coachCues.map(normalizeFormComment) : [],
+      sharedWithCoach: !!input.sharedWithCoach,
+      seenByCoach: !!input.seenByCoach,
+      seenByAthlete: input.seenByAthlete == null ? true : !!input.seenByAthlete,
+      demo: input.demo && typeof input.demo === 'object' ? { opts: { ...(input.demo.opts || {}) } } : null,
     };
   }
 
@@ -699,6 +744,7 @@
       athletes: [normalizeAthlete({ id: 'me', name: '', sport: 'run' })],
       messages: [],
       videos: [],
+      analyses: [],
     };
   }
 
@@ -731,6 +777,7 @@
       athletes,
       messages: (Array.isArray(raw.messages) ? raw.messages.map(normalizeMessage) : []).filter((m) => ids.has(m.athleteId)),
       videos: (Array.isArray(raw.videos) ? raw.videos.map(normalizeVideo) : []).filter((v) => ids.has(v.athleteId)),
+      analyses: (Array.isArray(raw.analyses) ? raw.analyses.map(normalizeAnalysis) : []).filter((a) => ids.has(a.athleteId)),
     };
   }
 
@@ -944,6 +991,25 @@
       { athleteId: 'taylor', from: 'athlete', text: 'Heads up, exams all week so sleep is rough.', ts: hoursAgo(20), readByCoach: true },
       { athleteId: 'taylor', from: 'coach', text: 'Thanks for telling me. We will scale your volume Tuesday.', ts: hoursAgo(19), readByAthlete: true },
     ].map(normalizeMessage);
+    s.analyses = [
+      normalizeAnalysis({
+        id: 'demo-squat', athleteId: 'taylor', exercise: 'squat', createdAt: hoursAgo(26), loadKg: lb(275), loadReps: 5,
+        athleteNote: 'Felt heavy out of the hole on the last two reps.', sharedWithCoach: true, seenByCoach: false,
+        demo: { opts: { reps: 5, depth: -78, lean: 52, heelLift: 0.012 } },
+      }),
+      normalizeAnalysis({
+        id: 'demo-run', athleteId: 'riley', exercise: 'running', createdAt: hoursAgo(30), sharedWithCoach: true, seenByCoach: true, seenByAthlete: false,
+        athleteNote: 'Easy pace on the treadmill, 7:45/mi.', demo: { opts: { seconds: 10, overstride: true, cadence: 158, bounce: 0.02 } },
+        comments: [{ from: 'athlete', t: 2.1, text: 'Does my foot land too far forward here?', ts: hoursAgo(29) }],
+        coachCues: [{ from: 'coach', text: 'Yes, you’re reaching. Aim for 168 spm with a metronome on your easy runs this week.', ts: hoursAgo(4) }],
+      }),
+      normalizeAnalysis({
+        id: 'demo-pushup', athleteId: 'riley', exercise: 'pushup', createdAt: hoursAgo(80), sharedWithCoach: false,
+        demo: { opts: { reps: 6, sag: 9, depth: 0.75 } },
+      }),
+    ];
+    s.messages.push(normalizeMessage({ athleteId: 'taylor', from: 'athlete', text: 'Form check on my squat 275×5, felt off at the bottom.', analysisId: 'demo-squat', ts: hoursAgo(25), readByCoach: false }));
+    s.messages.push(normalizeMessage({ athleteId: 'riley', from: 'coach', text: 'Left feedback on your running form analysis.', analysisId: 'demo-run', ts: hoursAgo(4), readByAthlete: false }));
     return s;
   }
 
@@ -971,6 +1037,9 @@
     athleteStatus,
     normalizeMessage,
     normalizeVideo,
+    FORM_EXERCISES,
+    normalizeAnalysis,
+    normalizeFormComment,
     thread,
     unreadCount,
     paceOrSpeed,

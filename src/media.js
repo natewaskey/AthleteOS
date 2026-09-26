@@ -7,6 +7,7 @@
 
   const DB_NAME = 'athleteos-media';
   const STORE = 'videos';
+  const POSES = 'poses'; // landmark frames for form analyses
   const urlCache = new Map();
   let dbPromise = null;
 
@@ -14,8 +15,10 @@
     if (!dbPromise) {
       dbPromise = new Promise((resolve, reject) => {
         if (!root.indexedDB) return reject(new Error('IndexedDB is not available in this browser'));
-        const req = root.indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+        const req = root.indexedDB.open(DB_NAME, 2);
+        req.onupgradeneeded = () => {
+          for (const name of [STORE, POSES]) if (!req.result.objectStoreNames.contains(name)) req.result.createObjectStore(name);
+        };
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
@@ -24,12 +27,12 @@
     return dbPromise;
   }
 
-  function tx(mode, fn) {
+  function tx(mode, fn, store = STORE) {
     return db().then(
       (d) =>
         new Promise((resolve, reject) => {
-          const t = d.transaction(STORE, mode);
-          const req = fn(t.objectStore(STORE));
+          const t = d.transaction(store, mode);
+          const req = fn(t.objectStore(store));
           t.oncomplete = () => resolve(req && req.result);
           t.onerror = () => reject(t.error);
           t.onabort = () => reject(t.error || new Error('Storage aborted (quota exceeded?)'));
@@ -53,7 +56,16 @@
     clear() {
       urlCache.forEach((u) => URL.revokeObjectURL(u));
       urlCache.clear();
-      return tx('readwrite', (s) => s.clear());
+      return Promise.all([tx('readwrite', (s) => s.clear()), tx('readwrite', (s) => s.clear(), POSES)]);
+    },
+    putPoses(id, data) {
+      return tx('readwrite', (s) => s.put(data, id), POSES);
+    },
+    getPoses(id) {
+      return tx('readonly', (s) => s.get(id), POSES);
+    },
+    removePoses(id) {
+      return tx('readwrite', (s) => s.delete(id), POSES);
     },
     // Object URL for a stored video, cached so re-renders don't reload it. Null if missing.
     async url(id) {

@@ -1,4 +1,4 @@
-/* AthleteOS UI controller. Depends on window.Core, window.BodyMap and window.Media. */
+/* AthleteOS UI controller. Depends on window.Core, BodyMap, Media, Movement, Pose and FormUI. */
 (function () {
   'use strict';
 
@@ -9,8 +9,9 @@
   const MAX_VIDEO_MB = 300;
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
-  const ATHLETE_TABS = [['today', 'Today'], ['history', 'History'], ['records', 'Records'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
-  const COACH_TABS = [['team', 'Team'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const ATHLETE_TABS = [['today', 'Today'], ['history', 'History'], ['form', 'Form'], ['records', 'Records'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const COACH_TABS = [['team', 'Team'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const Form = window.FormUI;
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -307,7 +308,7 @@
       <div class="main"><div class="title">${esc(w.title)}</div>
         <div class="meta">${esc(relDate(w.date))} · ${esc(workoutMeta(w))}</div>
         ${w.notes ? `<div class="meta" style="font-style:italic">${esc(w.notes)}</div>` : ''}
-        ${vids.map((v) => `<button class="btn btn-sm video-chip" data-action="play-video" data-id="${v.id}">🎥 ${esc(v.name)}</button>`).join('')}</div>
+        ${vids.map((v) => `<button class="btn btn-sm video-chip" data-action="play-video" data-id="${v.id}">🎥 ${esc(v.name)}</button>${role() === 'athlete' ? `<button class="btn btn-sm video-chip" data-form-action="analyze-video" data-video-id="${v.id}">📐 Analyze form</button>` : ''}`).join('')}</div>
       <div class="side"><strong>${num(C.sessionLoad(w))}</strong><div class="meta">AU</div></div>
       ${actions ? `<div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm btn-ghost" data-action="edit-workout" data-id="${w.id}">Edit</button><button class="btn btn-sm btn-ghost btn-danger" data-action="delete-workout" data-id="${w.id}" aria-label="Delete">✕</button></div>` : ''}
     </li>`;
@@ -486,6 +487,10 @@
         </div>`;
     },
 
+    form() {
+      return ui.id ? Form.detailView(ui.id) : Form.listView();
+    },
+
     messages() {
       const a = me();
       return `<h1 class="page-title">Messages</h1>
@@ -578,6 +583,10 @@
             <div class="roster">${statuses.map(rosterCard).join('')}</div>
           </section>
         </div>`;
+    },
+
+    form() {
+      return ui.id ? Form.detailView(ui.id) : Form.listView();
     },
 
     messages() {
@@ -740,6 +749,7 @@
               : '<p class="muted">No videos yet. Athletes can send one from a workout or in messages.</p>'
           }
         </section>
+        ${Form.athleteCard(a)}
         <section class="card span-6"><div class="card-head"><h3>Endurance records</h3></div>${endHTML}</section>
         <section class="card span-6"><div class="card-head"><h3>Strength records</h3></div>${strHTML}</section>
       </div>`;
@@ -760,6 +770,7 @@
         const v = m.videoId && state.videos.find((x) => x.id === m.videoId);
         return `${sep}<div class="bubble ${m.from === mine ? 'mine' : 'theirs'}">
           ${v ? `<video data-video-id="${v.id}" preload="metadata" controls playsinline></video>` : ''}
+          ${m.analysisId ? Form.messageCard(m.analysisId) : ''}
           ${m.text ? `<div>${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}
           <time>${esc(new Date(m.ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}</time></div>`;
       })
@@ -855,7 +866,10 @@
       }
       ${!isCoach ? '<button class="btn btn-primary" data-action="open-log">+ Log<span class="hide-sm"> workout</span></button>' : ''}`;
     $('#tabs').innerHTML = tabsFor()
-      .map(([id, label]) => `<button role="tab" data-tab="${id}" aria-selected="${ui.tab === id}">${label}${id === 'messages' && unread ? ` <span class="badge">${unread}</span>` : ''}</button>`)
+      .map(([id, label]) => {
+        const n = id === 'messages' ? unread : id === 'form' ? Form.unseenCount() : 0;
+        return `<button role="tab" data-tab="${id}" aria-selected="${ui.tab === id}">${label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`;
+      })
       .join('');
   }
 
@@ -870,6 +884,7 @@
     renderChrome();
     $('#view').innerHTML = views[ui.tab]();
     hydrateVideos($('#view'));
+    Form.mount($('#view'));
     const th = $('#thread');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -928,6 +943,7 @@
       <p><strong>Session load</strong> = duration (min) × RPE, the session-RPE method (Foster). It works across every activity, from a game to a lift.</p>
       <p><strong>ACWR</strong> compares average daily load over the last 7 days (acute) with the last 28 (chronic). 0.8–1.3 is the sweet spot; spikes above 1.5 deserve respect.</p>
       <p><strong>Readiness</strong> blends sleep (35%), body-map soreness (20%), stress (15%), mood (15%) and load balance (15%), minus penalties for pain and an elevated resting heart rate.</p>
+      <p><strong>Form analysis</strong> tracks 33 body points in your video (on-device, with Google’s MediaPipe), measures joint angles and positions at each rep’s key moment, and compares them with target positions built from your own limb lengths.</p>
       <p class="muted" style="margin-bottom:0">These are guides, not medical advice. Pain that persists should be seen by a professional.</p></section>`;
   }
 
@@ -1156,6 +1172,8 @@
       $('#video-title').textContent = v.caption || v.name;
       $('#video-caption').textContent = `${relTime(v.ts)} · ${fmtBytes(v.size)}`;
       $('#video-player').src = url;
+      $('#video-analyze').hidden = role() !== 'athlete' || v.athleteId !== me().id;
+      $('#video-analyze').dataset.videoId = v.id;
       vDialog.showModal();
     } catch {
       toast('Could not open video');
@@ -1216,6 +1234,8 @@
         state.messages = state.messages.filter((m) => m.athleteId !== id);
         state.videos.filter((v) => v.athleteId === id).forEach((v) => Media.remove(v.id).catch(() => {}));
         state.videos = state.videos.filter((v) => v.athleteId !== id);
+        state.analyses.filter((x) => x.athleteId === id).forEach((x) => Media.removePoses(x.id).catch(() => {}));
+        state.analyses = state.analyses.filter((x) => x.athleteId !== id);
         if (state.session.athleteId === id) state.session.athleteId = state.athletes[0].id;
         save();
         return render();
@@ -1227,6 +1247,7 @@
         state = C.sampleState(today());
         save();
         Media.clear().catch(() => {});
+        Form.clearCaches();
         toast('Demo team loaded. Try the Coach view too!');
         return go(tabsFor()[0][0]);
       case 'reset':
@@ -1234,6 +1255,7 @@
         state = C.emptyState();
         save();
         Media.clear().catch(() => {});
+        Form.clearCaches();
         toast('All data erased');
         return go(tabsFor()[0][0]);
     }
@@ -1363,6 +1385,7 @@
         if (!confirm(`Import ${next.athletes.length} athletes with ${w} workouts and ${next.messages.length} messages? This replaces current data.`)) return;
         state = next;
         save();
+        Form.clearCaches();
         toast('Data imported');
         go(tabsFor()[0][0]);
       } catch {
@@ -1393,6 +1416,27 @@
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+
+  Form.init({
+    C,
+    Media,
+    state: () => state,
+    save,
+    render,
+    renderChrome,
+    go,
+    toast,
+    esc,
+    role,
+    me,
+    athleteById,
+    athleteName,
+    coachName,
+    relTime,
+    units,
+    U,
+    storeVideo,
+  });
 
   const [initialTab, initialId] = location.hash.slice(1).split('/');
   go(initialTab || '', initialId);

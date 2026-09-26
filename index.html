@@ -104,7 +104,8 @@
         <button type="button" class="btn btn-sm btn-ghost" data-action="close-dialog" aria-label="Close">✕</button>
       </div>
       <video id="video-player" controls playsinline></video>
-      <p class="muted" id="video-caption"></p>
+      <div class="row"><p class="muted" id="video-caption" style="margin:.5rem 0"></p><div class="spacer"></div>
+        <button class="btn btn-sm" id="video-analyze" data-form-action="analyze-video" hidden>📐 Analyze form</button></div>
     </dialog>
 
     <div id="toast" role="status" aria-live="polite"></div>
@@ -112,6 +113,9 @@
     <script src="src/core.js"></script>
     <script src="src/body.js"></script>
     <script src="src/media.js"></script>
+    <script src="src/movement.js"></script>
+    <script src="src/pose.js"></script>
+    <script src="src/form-ui.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>
