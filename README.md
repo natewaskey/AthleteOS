@@ -22,6 +22,21 @@ Use the **Athlete / Coach** switch in the top bar. Both views read the same data
 - **Inbox** with a thread per athlete, video playback, and an announcement that goes to the whole team.
 - Roster management: add and remove athletes.
 
+### Training plans (coach-prescribed workouts)
+- **Workout builder:** build a session from blocks: Warm-up, Mobility, Speed & agility, Plyometrics, Power, Strength, Core, Conditioning and Cool-down.
+  - **Exercise library:** 108 exercises with sensible default prescriptions. Tap to add, or type your own.
+  - **Prescription options:** sets × reps / seconds / distance (yd or m), load as weight, %1RM, RPE or bodyweight, rest, tempo, each side, superset groups (A1/A2), and coaching notes per exercise.
+  - Reorder blocks and exercises, save to a **workout library**, duplicate, and edit.
+- **Assigning:** send a workout to selected athletes or the whole team, on one date or repeating weekdays for up to 8 weeks, with an optional note. Athletes get a message.
+  - Each assignment keeps its own copy, so editing the library later doesn't change past sessions.
+- **Coach week calendar:** athletes × days, with sessions colour-coded as planned, today, done, missed or skipped. It shows compliance per athlete and team-wide, and tapping "+" in any cell assigns a session there.
+  - Missed and skipped sessions appear in the Team "Needs attention" list, and roster cards show today's session status.
+- **Athlete workout screen:** "Today's training" appears at the top of the Today screen.
+  - Each exercise shows its prescription. %1RM loads are turned into a working weight from the athlete's own lifting history and rounded to plates.
+  - Log reps and weight per set (or tick off sets for drills). A **rest timer** starts automatically, and "📐 Check form" jumps to form analysis for that lift.
+  - Finishing records duration, RPE and notes and **logs the workout**, which updates training load and records. Skipping asks for a reason and tells the coach.
+- **Coach review:** prescribed vs. actual for every exercise (e.g. "Did: 5×310, 5×315, 5×310, 5×310 lb"), plus the athlete's RPE, duration and notes.
+
 ### Form analysis (movement tracking)
 Record a set on your phone and AthleteOS analyses it **on-device**. The video never leaves the phone.
 
@@ -75,6 +90,7 @@ src/media.js          video storage (IndexedDB)
 src/movement.js       form analysis engine: angles, rep detection, exercise rules, target poses, simulator
 src/pose.js           on-device pose detection (MediaPipe) over a video
 src/form-ui.js        form analysis screens: player + overlay, comparison, chart, suggestions, comments
+src/plan-ui.js        training plans: workout builder, library, assigning, week calendar, workout screen
 src/app.js            UI controller: athlete + coach views, messaging, dialogs, charts
 vendor/mediapipe/     MediaPipe library, WebAssembly runtime and pose model (Apache-2.0)
 src/styles.css        design tokens, light/dark themes, responsive layout

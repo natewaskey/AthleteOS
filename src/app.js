@@ -9,9 +9,10 @@
   const MAX_VIDEO_MB = 300;
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
-  const ATHLETE_TABS = [['today', 'Today'], ['history', 'History'], ['form', 'Form'], ['records', 'Records'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
-  const COACH_TABS = [['team', 'Team'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['records', 'Records'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
   const Form = window.FormUI;
+  const Plan = window.PlanUI;
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -390,7 +391,7 @@
     today() {
       const a = me();
       const t = today();
-      if (!a.workouts.length && !a.checkins.length) return onboarding();
+      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return onboarding();
       const weeks = C.weeklySummary(a.workouts, t, 8);
       const recent = sortedWorkouts(a).slice(0, 5);
       const th = C.thread(state.messages, a.id);
@@ -401,6 +402,7 @@
         <h1 class="page-title">${esc(greet())}${a.name ? ', ' + esc(a.name.split(' ')[0]) : ''}</h1>
         <p class="muted" style="margin-top:0">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
         <div class="grid">
+          ${Plan.todayCard(a)}
           ${readinessCard(a)}
           ${loadCard(a)}
           ${weekStatCards(a)}
@@ -487,6 +489,10 @@
         </div>`;
     },
 
+    plan() {
+      return Plan.view(ui.id);
+    },
+
     form() {
       return ui.id ? Form.detailView(ui.id) : Form.listView();
     },
@@ -545,6 +551,7 @@
       statuses.sort((x, y) => rank[x.worst] - rank[y.worst] || athleteName(x.athlete).localeCompare(athleteName(y.athlete)));
       const checkedIn = statuses.filter((s) => s.checkin).length;
       const alerts = statuses.flatMap((s) => s.flags.filter((f) => f.level !== 'info').map((f) => ({ ...f, a: s.athlete })));
+      for (const x of Plan.alerts()) if (athleteById(x.athleteId)) alerts.push({ ...x, a: athleteById(x.athleteId) });
       const unread = C.unreadCount(state.messages, 'coach');
       const avgReady = statuses.filter((s) => s.readiness).map((s) => s.readiness.score);
 
@@ -583,6 +590,10 @@
             <div class="roster">${statuses.map(rosterCard).join('')}</div>
           </section>
         </div>`;
+    },
+
+    plan() {
+      return Plan.view(ui.id);
     },
 
     form() {
@@ -676,6 +687,7 @@
           ${s.load.ratio == null ? '—' : `<span class="pill ${zonePill}">${num(s.load.ratio, 2)}</span>`}</div>
       </div>
       <div class="chips">${s.checkin ? soreChips(s.checkin.soreAreas, 3) || '<span class="muted small">No soreness reported</span>' : ''}</div>
+      ${Plan.todayLine(a.id)}
       <div class="muted small">${s.lastWorkout ? `Last trained ${esc(relDate(s.lastWorkout).toLowerCase())}` : 'No training logged'}</div>
     </article>`;
   }
@@ -867,7 +879,7 @@
       ${!isCoach ? '<button class="btn btn-primary" data-action="open-log">+ Log<span class="hide-sm"> workout</span></button>' : ''}`;
     $('#tabs').innerHTML = tabsFor()
       .map(([id, label]) => {
-        const n = id === 'messages' ? unread : id === 'form' ? Form.unseenCount() : 0;
+        const n = id === 'messages' ? unread : id === 'form' ? Form.unseenCount() : id === 'plan' ? Plan.dueCount() : 0;
         return `<button role="tab" data-tab="${id}" aria-selected="${ui.tab === id}">${label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`;
       })
       .join('');
@@ -885,6 +897,7 @@
     $('#view').innerHTML = views[ui.tab]();
     hydrateVideos($('#view'));
     Form.mount($('#view'));
+    Plan.mount();
     const th = $('#thread');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -1236,6 +1249,7 @@
         state.videos = state.videos.filter((v) => v.athleteId !== id);
         state.analyses.filter((x) => x.athleteId === id).forEach((x) => Media.removePoses(x.id).catch(() => {}));
         state.analyses = state.analyses.filter((x) => x.athleteId !== id);
+        state.assignments = state.assignments.filter((x) => x.athleteId !== id);
         if (state.session.athleteId === id) state.session.athleteId = state.athletes[0].id;
         save();
         return render();
@@ -1248,6 +1262,7 @@
         save();
         Media.clear().catch(() => {});
         Form.clearCaches();
+        Plan.reset();
         toast('Demo team loaded. Try the Coach view too!');
         return go(tabsFor()[0][0]);
       case 'reset':
@@ -1256,6 +1271,7 @@
         save();
         Media.clear().catch(() => {});
         Form.clearCaches();
+        Plan.reset();
         toast('All data erased');
         return go(tabsFor()[0][0]);
     }
@@ -1386,6 +1402,7 @@
         state = next;
         save();
         Form.clearCaches();
+        Plan.reset();
         toast('Data imported');
         go(tabsFor()[0][0]);
       } catch {
@@ -1436,6 +1453,28 @@
     units,
     U,
     storeVideo,
+  });
+
+  Plan.init({
+    C,
+    state: () => state,
+    save,
+    render,
+    go,
+    toast,
+    esc,
+    role,
+    me,
+    athleteById,
+    athleteName,
+    coachName,
+    relTime,
+    relDate,
+    fmtDate,
+    units,
+    U,
+    sportOptions,
+    openAnalyze: (o) => Form.openAnalyze(o),
   });
 
   const [initialTab, initialId] = location.hash.slice(1).split('/');

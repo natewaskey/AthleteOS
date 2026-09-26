@@ -237,3 +237,63 @@ test('elevation is stored on workouts', () => {
   assert.equal(C.normalizeWorkout({ elevation: 120 }).elevation, 120);
   assert.equal(C.normalizeWorkout({ elevation: '' }).elevation, null);
 });
+
+test('plan items take library defaults and keep custom values', () => {
+  const sq = C.normalizePlanItem({ name: 'back squat' });
+  assert.equal(sq.sets, 4);
+  assert.equal(sq.loadType, 'pct');
+  assert.equal(sq.loadValue, 75);
+  const custom = C.normalizePlanItem({ name: 'Sandbag carry', sets: 2, measure: 'dist', amount: 30, loadType: 'bw', loadValue: 50 }, 'conditioning');
+  assert.equal(custom.measure, 'dist');
+  assert.equal(custom.loadValue, null); // bodyweight has no load number
+  assert.equal(C.normalizePlanItem({ name: 'Plank' }).measure, 'sec');
+  assert.ok(C.EXERCISE_LIBRARY.length > 100);
+  assert.ok(C.EXERCISE_LIBRARY.every((x) => C.BLOCK_TYPES[x.block]));
+});
+
+test('plans estimate duration and pick what to log as', () => {
+  const p = C.normalizePlan({ name: 'Speed', blocks: [{ type: 'warmup', items: [{ name: 'A-skips' }] }, { type: 'speed', items: [{ name: 'Acceleration sprint' }, { name: 'Flying sprint' }] }] });
+  assert.equal(p.logAs, 'speed-agility');
+  assert.ok(C.estimateMinutes(p) >= 10 && C.estimateMinutes(p) <= 30);
+  assert.equal(C.normalizePlan({ name: 'x', logAs: 'basketball', blocks: [] }).logAs, 'basketball');
+});
+
+test('assignment status, compliance and %1RM loads', () => {
+  const s = C.sampleState(TODAY);
+  const st = (id, off) => C.assignmentStatus(s.assignments.find((a) => a.athleteId === id && a.date === C.addDays(TODAY, off)), TODAY);
+  assert.equal(st('taylor', -5), 'completed');
+  assert.equal(st('taylor', -1), 'missed');
+  assert.equal(st('taylor', 0), 'today');
+  assert.equal(st('taylor', 2), 'upcoming');
+  assert.equal(st('maya', -3), 'skipped');
+  const c = C.compliance(s.assignments, 'taylor', C.addDays(TODAY, -6), TODAY, TODAY);
+  assert.deepEqual([c.done, c.due], [2, 4]);
+  // Taylor's back squat e1RM comes from logged lifts; 75% of it is the working weight.
+  const taylor = s.athletes.find((a) => a.id === 'taylor');
+  const squat = C.normalizePlanItem({ name: 'Back squat' });
+  const e1rm = C.strengthRecords(taylor.workouts).find((r) => r.name === 'Back squat').e1rm;
+  assert.ok(Math.abs(C.resolveLoadKg(squat, taylor) - e1rm * 0.75) < 1e-9);
+  assert.ok(Math.abs(C.resolveLoadKg(squat, s.athletes.find((a) => a.id === 'riley')) - e1rmOf(s, 'riley', 'Back squat') * 0.75) < 1e-9);
+  assert.equal(C.resolveLoadKg(squat, s.athletes.find((a) => a.id === 'maya')), null); // no squat history -> athlete enters weight
+});
+
+function e1rmOf(s, id, lift) {
+  const r = C.strengthRecords(s.athletes.find((a) => a.id === id).workouts).find((x) => x.name === lift);
+  return r ? r.e1rm : NaN;
+}
+
+test('completing an assignment builds a workout with logged lifts', () => {
+  const plan = C.normalizePlan({ name: 'Lift', blocks: [{ type: 'strength', items: [{ name: 'Bench press' }, { name: 'Pull-up' }] }, { type: 'core', items: [{ name: 'Plank' }] }] });
+  const a = C.normalizeAssignment({ athleteId: 'x', date: TODAY, plan });
+  const [bench, pull] = plan.blocks[0].items;
+  a.progress[bench.id] = { sets: [{ reps: 5, weightKg: 100, done: true }, { reps: 5, weightKg: 102.5, done: true }, { reps: 4, weightKg: 102.5, done: false }] };
+  a.progress[pull.id] = { sets: [{ reps: 6, weightKg: null, done: true }] };
+  const w = C.normalizeWorkout(C.workoutFromAssignment(a, { rpe: 8, duration: 50, note: 'good' }));
+  assert.equal(w.sport, 'strength');
+  assert.equal(w.duration, 50);
+  assert.equal(C.sessionLoad(w), 400);
+  assert.deepEqual(w.exercises.map((e) => [e.name, e.sets, e.reps, e.weight]), [['Bench press', 2, 5, 102.5], ['Pull-up', 1, 6, 0]]);
+  const round = C.migrate(JSON.parse(JSON.stringify({ ...C.emptyState(), athletes: [{ id: 'x', name: 'X' }], assignments: [a], templates: [plan] })));
+  assert.equal(round.assignments[0].progress[bench.id].sets.length, 3);
+  assert.equal(round.templates[0].blocks[0].items[0].name, 'Bench press');
+});

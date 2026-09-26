@@ -731,6 +731,300 @@
     ).length;
   }
 
+  // ---------- training plans (coach-prescribed workouts) ----------
+
+  const BLOCK_TYPES = {
+    warmup: { label: 'Warm-up', icon: '🔥', measure: 'reps', sport: 'mobility' },
+    mobility: { label: 'Mobility', icon: '🧘', measure: 'sec', sport: 'mobility' },
+    speed: { label: 'Speed & agility', icon: '⚡', measure: 'dist', sport: 'speed-agility' },
+    plyo: { label: 'Plyometrics', icon: '🦘', measure: 'reps', sport: 'plyometrics' },
+    power: { label: 'Power', icon: '💥', measure: 'reps', sport: 'olympic' },
+    strength: { label: 'Strength', icon: '🏋️', measure: 'reps', sport: 'strength' },
+    core: { label: 'Core', icon: '🧱', measure: 'reps', sport: 'core' },
+    conditioning: { label: 'Conditioning', icon: '🫀', measure: 'sec', sport: 'hiit' },
+    cooldown: { label: 'Cool-down', icon: '🧊', measure: 'sec', sport: 'stretching' },
+  };
+
+  const MEASURES = { reps: 'reps', sec: 'seconds', dist: 'distance' };
+  const LOAD_TYPES = { none: 'No load', weight: 'Weight', pct: '% of 1RM', rpe: 'RPE', bw: 'Bodyweight' };
+
+  /*
+   * Exercise library: [name, block, defaults, formExercise?]
+   * defaults: s = sets, m = measure, a = amount (reps / seconds / metres), r = rest seconds,
+   *           l = load type, v = load value, e = each side
+   */
+  const EXERCISE_LIBRARY = [
+    // warm-up & mobility
+    ["World's greatest stretch", 'warmup', { s: 1, a: 5, e: 1 }],
+    ['90/90 hip switches', 'warmup', { s: 1, a: 8 }],
+    ['Leg swings', 'warmup', { s: 1, a: 10, e: 1 }],
+    ['Walking lunge with rotation', 'warmup', { s: 1, a: 6, e: 1 }],
+    ['Inchworm', 'warmup', { s: 1, a: 5 }],
+    ['Glute bridge', 'warmup', { s: 2, a: 10 }],
+    ['Band pull-apart', 'warmup', { s: 2, a: 15 }],
+    ['Jumping jacks', 'warmup', { s: 1, m: 'sec', a: 45 }],
+    ['Ankle rocks (knee to wall)', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
+    ['Couch stretch', 'mobility', { s: 2, a: 45, e: 1 }],
+    ['Deep squat hold', 'mobility', { s: 2, a: 45 }],
+    ['Hip flexor stretch', 'mobility', { s: 2, a: 40, e: 1 }],
+    ['Thoracic rotations', 'mobility', { s: 2, m: 'reps', a: 8, e: 1 }],
+    ['Cat-cow', 'mobility', { s: 1, m: 'reps', a: 10 }],
+    ['Hip CARs', 'mobility', { s: 1, m: 'reps', a: 5, e: 1 }],
+    ['Shoulder CARs', 'mobility', { s: 1, m: 'reps', a: 5, e: 1 }],
+    ['Hamstring floss', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
+    ['Foam roll', 'mobility', { s: 1, a: 300 }],
+    // speed & agility (distance in metres)
+    ['A-skips', 'speed', { s: 3, a: 18.288 }],
+    ['B-skips', 'speed', { s: 3, a: 18.288 }],
+    ['High knees', 'speed', { s: 2, a: 18.288 }],
+    ['Carioca', 'speed', { s: 2, a: 18.288, e: 1 }],
+    ['Acceleration sprint', 'speed', { s: 6, a: 9.144, r: 60 }],
+    ['Flying sprint', 'speed', { s: 4, a: 18.288, r: 120 }],
+    ['Pro agility (5-10-5)', 'speed', { s: 4, m: 'reps', a: 1, r: 60, e: 1 }],
+    ['3-cone drill (L-drill)', 'speed', { s: 4, m: 'reps', a: 1, r: 60 }],
+    ['T-drill', 'speed', { s: 4, m: 'reps', a: 1, r: 60 }],
+    ['Agility ladder: in-in-out-out', 'speed', { s: 3, m: 'reps', a: 2, r: 30 }],
+    ['Agility ladder: Icky shuffle', 'speed', { s: 3, m: 'reps', a: 2, r: 30 }],
+    ['Lateral shuffle', 'speed', { s: 4, a: 9.144, r: 45, e: 1 }],
+    ['Backpedal to sprint', 'speed', { s: 4, a: 18.288, r: 60 }],
+    ['Sled sprint', 'speed', { s: 5, a: 18.288, r: 90, l: 'weight', v: 40.8 }],
+    ['Hill sprint', 'speed', { s: 6, m: 'sec', a: 8, r: 90 }],
+    ['Reaction ball drops', 'speed', { s: 3, m: 'reps', a: 6, r: 30 }],
+    ['Mirror drill', 'speed', { s: 4, m: 'sec', a: 10, r: 45 }],
+    // plyometrics (reps = ground contacts)
+    ['Box jump', 'plyo', { s: 4, a: 3, r: 90 }],
+    ['Depth jump', 'plyo', { s: 3, a: 3, r: 120 }],
+    ['Broad jump', 'plyo', { s: 3, a: 3, r: 90 }],
+    ['Pogo hops', 'plyo', { s: 3, a: 15, r: 45 }],
+    ['Tuck jumps', 'plyo', { s: 3, a: 5, r: 60 }],
+    ['Lateral bound (skater)', 'plyo', { s: 3, a: 4, r: 60, e: 1 }],
+    ['Single-leg hop', 'plyo', { s: 3, a: 4, r: 60, e: 1 }],
+    ['Hurdle hops', 'plyo', { s: 3, a: 5, r: 90 }],
+    ['Split squat jump', 'plyo', { s: 3, a: 4, r: 60, e: 1 }],
+    ['Bounding', 'plyo', { s: 3, m: 'dist', a: 27.432, r: 90 }],
+    ['Drop landing (stick it)', 'plyo', { s: 3, a: 4, r: 45 }],
+    ['Clap push-up', 'plyo', { s: 3, a: 5, r: 60 }],
+    // power
+    ['Power clean', 'power', { s: 5, a: 3, r: 150, l: 'pct', v: 70 }],
+    ['Hang clean', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 70 }],
+    ['Hang snatch', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 65 }],
+    ['Clean pull', 'power', { s: 3, a: 3, r: 120, l: 'pct', v: 90 }],
+    ['Kettlebell swing', 'power', { s: 3, a: 12, r: 60, l: 'weight', v: 24 }],
+    ['Jump squat', 'power', { s: 4, a: 5, r: 90, l: 'weight', v: 20.4 }],
+    ['Med ball slam', 'power', { s: 3, a: 8, r: 45, l: 'weight', v: 6.8 }],
+    ['Med ball chest pass', 'power', { s: 3, a: 6, r: 45, l: 'weight', v: 4.5 }],
+    ['Med ball rotational throw', 'power', { s: 3, a: 6, r: 45, l: 'weight', v: 4.5, e: 1 }],
+    ['Push press', 'power', { s: 4, a: 3, r: 120, l: 'pct', v: 75 }, 'ohp'],
+    // strength
+    ['Back squat', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'squat'],
+    ['Front squat', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 70 }, 'squat'],
+    ['Goblet squat', 'strength', { s: 3, a: 10, r: 90, l: 'weight', v: 22.7 }, 'squat'],
+    ['Deadlift', 'strength', { s: 3, a: 5, r: 180, l: 'pct', v: 75 }, 'deadlift'],
+    ['Trap bar deadlift', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'deadlift'],
+    ['Romanian deadlift', 'strength', { s: 3, a: 8, r: 120, l: 'rpe', v: 7 }, 'deadlift'],
+    ['Bench press', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'bench'],
+    ['Incline dumbbell press', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
+    ['Overhead press', 'strength', { s: 4, a: 6, r: 120, l: 'pct', v: 70 }, 'ohp'],
+    ['Pull-up', 'strength', { s: 4, a: 6, r: 90, l: 'bw' }],
+    ['Chin-up', 'strength', { s: 3, a: 8, r: 90, l: 'bw' }],
+    ['Barbell row', 'strength', { s: 4, a: 8, r: 90, l: 'rpe', v: 8 }],
+    ['Dumbbell row', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8, e: 1 }],
+    ['Lat pulldown', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8 }],
+    ['Split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
+    ['Bulgarian split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 8, e: 1 }, 'lunge'],
+    ['Walking lunge', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
+    ['Step-up', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
+    ['Hip thrust', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
+    ['Single-leg RDL', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
+    ['Nordic hamstring curl', 'strength', { s: 3, a: 5, r: 90, l: 'bw' }],
+    ['Copenhagen plank', 'strength', { s: 3, m: 'sec', a: 20, r: 45, l: 'bw', e: 1 }],
+    ['Push-up', 'strength', { s: 3, a: 15, r: 60, l: 'bw' }, 'pushup'],
+    ['Dips', 'strength', { s: 3, a: 10, r: 60, l: 'bw' }],
+    ['Face pull', 'strength', { s: 3, a: 15, r: 45, l: 'rpe', v: 7 }],
+    ['Farmer carry', 'strength', { s: 3, m: 'dist', a: 27.432, r: 60, l: 'weight', v: 31.8 }],
+    ['Calf raise', 'strength', { s: 3, a: 15, r: 45, l: 'rpe', v: 8 }],
+    // core
+    ['Plank', 'core', { s: 3, m: 'sec', a: 45, r: 30 }],
+    ['Side plank', 'core', { s: 3, m: 'sec', a: 30, r: 30, e: 1 }],
+    ['Dead bug', 'core', { s: 3, a: 10, r: 30, e: 1 }],
+    ['Bird dog', 'core', { s: 3, a: 8, r: 30, e: 1 }],
+    ['Pallof press', 'core', { s: 3, a: 10, r: 30, e: 1 }],
+    ['Hanging leg raise', 'core', { s: 3, a: 10, r: 45 }],
+    ['Ab wheel rollout', 'core', { s: 3, a: 8, r: 45 }],
+    ['Hollow hold', 'core', { s: 3, m: 'sec', a: 30, r: 30 }],
+    ['Russian twist', 'core', { s: 3, a: 20, r: 30 }],
+    // conditioning
+    ['Tempo runs (110s)', 'conditioning', { s: 8, m: 'dist', a: 100.584, r: 45 }, 'running'],
+    ['300-yard shuttle', 'conditioning', { s: 2, m: 'reps', a: 1, r: 300 }],
+    ['Bike intervals', 'conditioning', { s: 8, m: 'sec', a: 30, r: 60 }],
+    ['Row intervals', 'conditioning', { s: 6, m: 'dist', a: 250, r: 60 }],
+    ['Assault bike sprint', 'conditioning', { s: 6, m: 'sec', a: 15, r: 45 }],
+    ['Sled push', 'conditioning', { s: 6, m: 'dist', a: 18.288, r: 60, l: 'weight', v: 61.2 }],
+    ['Jump rope', 'conditioning', { s: 5, m: 'sec', a: 60, r: 30 }],
+    ['Battle ropes', 'conditioning', { s: 6, m: 'sec', a: 20, r: 40 }],
+    ['Stadium stairs', 'conditioning', { s: 6, m: 'reps', a: 1, r: 60 }],
+    ['Easy run', 'conditioning', { s: 1, m: 'sec', a: 1200 }, 'running'],
+    // cool-down
+    ['Easy jog', 'cooldown', { s: 1, a: 300 }],
+    ['Static stretching', 'cooldown', { s: 1, a: 300 }],
+    ['Pigeon stretch', 'cooldown', { s: 1, a: 45, e: 1 }],
+    ["Child's pose", 'cooldown', { s: 1, a: 60 }],
+    ['Box breathing', 'cooldown', { s: 1, a: 120 }],
+  ].map(([name, block, d, form]) => ({
+    name,
+    block,
+    form: form || null,
+    defaults: { sets: d.s ?? 3, measure: d.m || BLOCK_TYPES[block].measure, amount: d.a ?? 10, restSec: d.r ?? 0, loadType: d.l || 'none', loadValue: d.v ?? null, eachSide: !!d.e },
+  }));
+
+  const LIBRARY_BY_NAME = Object.fromEntries(EXERCISE_LIBRARY.map((x) => [x.name.toLowerCase(), x]));
+  const libraryEntry = (name) => LIBRARY_BY_NAME[String(name || '').toLowerCase()] || null;
+
+  function normalizePlanItem(input, blockType = 'strength') {
+    const lib = libraryEntry(input.name);
+    const d = lib ? lib.defaults : { sets: 3, measure: BLOCK_TYPES[blockType]?.measure || 'reps', amount: 10, restSec: 0, loadType: 'none', loadValue: null, eachSide: false };
+    const num = (v, dflt) => (v === '' || v == null || !isFinite(Number(v)) ? dflt : Number(v));
+    const loadType = LOAD_TYPES[input.loadType] ? input.loadType : d.loadType;
+    return {
+      id: input.id || uid(),
+      name: String(input.name ?? '').trim().slice(0, 80),
+      group: String(input.group || '').trim().toUpperCase().slice(0, 3), // superset label, e.g. A1
+      sets: Math.max(1, Math.round(num(input.sets, d.sets))),
+      measure: MEASURES[input.measure] ? input.measure : d.measure,
+      amount: Math.max(0, num(input.amount, d.amount)), // reps, seconds, or metres
+      loadType,
+      loadValue: loadType === 'none' || loadType === 'bw' ? null : num(input.loadValue, d.loadValue),
+      restSec: Math.max(0, Math.round(num(input.restSec, d.restSec))),
+      tempo: String(input.tempo || '').trim().slice(0, 12),
+      eachSide: input.eachSide == null ? d.eachSide : !!input.eachSide,
+      notes: String(input.notes || '').trim().slice(0, 300),
+    };
+  }
+
+  function normalizePlanBlock(input) {
+    const type = BLOCK_TYPES[input.type] ? input.type : 'strength';
+    return {
+      id: input.id || uid(),
+      type,
+      title: String(input.title || '').trim().slice(0, 60),
+      items: Array.isArray(input.items) ? input.items.map((i) => normalizePlanItem(i, type)) : [],
+    };
+  }
+
+  // A workout the coach builds (a template) or the copy frozen into an assignment.
+  function normalizePlan(input) {
+    const blocks = Array.isArray(input.blocks) ? input.blocks.map(normalizePlanBlock) : [];
+    return {
+      id: input.id || uid(),
+      name: String(input.name || '').trim().slice(0, 80) || 'Untitled workout',
+      description: String(input.description || '').trim().slice(0, 500),
+      logAs: SPORT_INFO[input.logAs] ? input.logAs : dominantSport(blocks),
+      blocks,
+      createdAt: Number(input.createdAt) || Date.now(),
+    };
+  }
+
+  // Activity a completed session is logged as: the block type with the most items.
+  function dominantSport(blocks) {
+    const count = {};
+    for (const b of blocks) if (!['warmup', 'cooldown'].includes(b.type)) count[b.type] = (count[b.type] || 0) + b.items.length;
+    const top = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+    return top ? BLOCK_TYPES[top[0]].sport : 'other';
+  }
+
+  function normalizeSetResult(s) {
+    return { reps: s.reps === '' || s.reps == null ? null : Math.max(0, Number(s.reps) || 0), weightKg: s.weightKg === '' || s.weightKg == null ? null : Math.max(0, Number(s.weightKg) || 0), done: !!s.done };
+  }
+
+  function normalizeAssignment(input) {
+    const res = input.result || null;
+    const prog = input.progress && typeof input.progress === 'object' ? input.progress : {};
+    const progress = {};
+    for (const [itemId, p] of Object.entries(prog)) progress[itemId] = { sets: Array.isArray(p.sets) ? p.sets.map(normalizeSetResult) : [], note: String(p.note || '').slice(0, 300) };
+    return {
+      id: input.id || uid(),
+      athleteId: String(input.athleteId || ''),
+      templateId: input.templateId || null,
+      date: input.date || toISODate(new Date()),
+      plan: normalizePlan(input.plan || {}),
+      coachNote: String(input.coachNote || '').trim().slice(0, 500),
+      status: ['assigned', 'completed', 'skipped'].includes(input.status) ? input.status : 'assigned',
+      progress,
+      startedAt: Number(input.startedAt) || null,
+      result: res
+        ? {
+            completedAt: Number(res.completedAt) || Date.now(),
+            rpe: clamp(Math.round(Number(res.rpe) || 6), 1, 10),
+            duration: Math.max(0, Math.round(Number(res.duration) || 0)),
+            note: String(res.note || '').trim().slice(0, 500),
+            workoutId: res.workoutId || null,
+          }
+        : null,
+      skipReason: String(input.skipReason || '').trim().slice(0, 300),
+      assignedAt: Number(input.assignedAt) || Date.now(),
+    };
+  }
+
+  // assigned + in the past = missed. Used for calendar colours and compliance.
+  function assignmentStatus(a, todayISO) {
+    if (a.status === 'completed') return 'completed';
+    if (a.status === 'skipped') return 'skipped';
+    if (a.date < todayISO) return 'missed';
+    return a.date === todayISO ? 'today' : 'upcoming';
+  }
+
+  function compliance(assignments, athleteId, fromISO, toISO, todayISO) {
+    const due = assignments.filter((a) => a.athleteId === athleteId && a.date >= fromISO && a.date <= toISO && a.date <= todayISO);
+    const done = due.filter((a) => a.status === 'completed').length;
+    return { due: due.length, done, pct: due.length ? done / due.length : null };
+  }
+
+  // Working weight for a %1RM prescription from the athlete's best estimated 1RM on that lift.
+  function resolveLoadKg(item, athlete) {
+    if (item.loadType === 'weight') return item.loadValue;
+    if (item.loadType !== 'pct' || !athlete) return null;
+    const rec = strengthRecords(athlete.workouts).find((r) => r.name.toLowerCase() === item.name.toLowerCase());
+    if (!rec || !rec.e1rm) return null;
+    return (rec.e1rm * item.loadValue) / 100;
+  }
+
+  // Rough session length in minutes for planning.
+  function estimateMinutes(plan) {
+    let sec = 0;
+    for (const b of plan.blocks) {
+      sec += 60;
+      for (const i of b.items) {
+        const sides = i.eachSide ? 2 : 1;
+        const work = i.measure === 'sec' ? i.amount : i.measure === 'dist' ? Math.max(5, i.amount / 5) : Math.max(15, i.amount * 4);
+        sec += i.sets * (work * sides + i.restSec);
+      }
+    }
+    return Math.max(5, Math.round(sec / 60 / 5) * 5);
+  }
+
+  // Build the workout log entry for a completed assignment.
+  function workoutFromAssignment(a, { rpe, duration, note }) {
+    const exercises = [];
+    for (const b of a.plan.blocks) {
+      if (!['strength', 'power'].includes(b.type)) continue;
+      for (const i of b.items) {
+        const sets = (a.progress[i.id]?.sets || []).filter((s) => s.done && s.reps);
+        if (!sets.length || i.measure !== 'reps') continue;
+        const best = sets.reduce((x, y) => ((y.weightKg || 0) > (x.weightKg || 0) ? y : x));
+        exercises.push({ name: i.name, sets: sets.length, reps: best.reps, weight: best.weightKg || 0 });
+      }
+    }
+    return {
+      date: a.date,
+      sport: a.plan.logAs,
+      title: a.plan.name,
+      duration: duration || estimateMinutes(a.plan),
+      rpe,
+      exercises,
+      notes: note,
+    };
+  }
+
   // ---------- state ----------
 
   const SCHEMA_VERSION = 2;
@@ -745,6 +1039,8 @@
       messages: [],
       videos: [],
       analyses: [],
+      templates: [],
+      assignments: [],
     };
   }
 
@@ -778,6 +1074,8 @@
       messages: (Array.isArray(raw.messages) ? raw.messages.map(normalizeMessage) : []).filter((m) => ids.has(m.athleteId)),
       videos: (Array.isArray(raw.videos) ? raw.videos.map(normalizeVideo) : []).filter((v) => ids.has(v.athleteId)),
       analyses: (Array.isArray(raw.analyses) ? raw.analyses.map(normalizeAnalysis) : []).filter((a) => ids.has(a.athleteId)),
+      templates: Array.isArray(raw.templates) ? raw.templates.map(normalizePlan) : [],
+      assignments: (Array.isArray(raw.assignments) ? raw.assignments.map(normalizeAssignment) : []).filter((a) => ids.has(a.athleteId)),
     };
   }
 
@@ -1010,6 +1308,76 @@
     ];
     s.messages.push(normalizeMessage({ athleteId: 'taylor', from: 'athlete', text: 'Form check on my squat 275×5, felt off at the bottom.', analysisId: 'demo-squat', ts: hoursAgo(25), readByCoach: false }));
     s.messages.push(normalizeMessage({ athleteId: 'riley', from: 'coach', text: 'Left feedback on your running form analysis.', analysisId: 'demo-run', ts: hoursAgo(4), readByAthlete: false }));
+
+    // Coach's workout library and this week's assignments.
+    const it = (name, extra = {}) => ({ name, ...extra });
+    s.templates = [
+      normalizePlan({
+        id: 'tpl-lower', name: 'Lower strength + plyos', description: 'Heavy lower-body day with jumps first while fresh.', createdAt: hoursAgo(400),
+        blocks: [
+          { type: 'warmup', items: [it("World's greatest stretch"), it('90/90 hip switches'), it('Leg swings')] },
+          { type: 'plyo', items: [it('Box jump', { notes: 'Step down, don’t jump down. Max intent.' }), it('Broad jump')] },
+          { type: 'strength', items: [it('Back squat', { group: 'A1' }), it('Copenhagen plank', { group: 'A2' }), it('Romanian deadlift', { group: 'B1' }), it('Nordic hamstring curl', { group: 'B2' })] },
+          { type: 'core', items: [it('Pallof press')] },
+          { type: 'cooldown', items: [it('Static stretching')] },
+        ],
+      }),
+      normalizePlan({
+        id: 'tpl-speed', name: 'Speed & agility', description: 'Acceleration, max velocity and change of direction. Full recovery between reps.', createdAt: hoursAgo(390),
+        blocks: [
+          { type: 'warmup', items: [it('A-skips'), it('B-skips'), it('High knees')] },
+          { type: 'speed', items: [it('Acceleration sprint'), it('Flying sprint'), it('Pro agility (5-10-5)'), it('Agility ladder: Icky shuffle')] },
+          { type: 'plyo', items: [it('Pogo hops'), it('Lateral bound (skater)')] },
+          { type: 'cooldown', items: [it('Easy jog')] },
+        ],
+      }),
+      normalizePlan({
+        id: 'tpl-upper', name: 'Upper strength', description: 'Press and pull supersets.', createdAt: hoursAgo(380),
+        blocks: [
+          { type: 'warmup', items: [it('Band pull-apart'), it('Inchworm')] },
+          { type: 'power', items: [it('Med ball chest pass')] },
+          { type: 'strength', items: [it('Bench press', { group: 'A1' }), it('Pull-up', { group: 'A2' }), it('Overhead press', { group: 'B1' }), it('Dumbbell row', { group: 'B2' })] },
+          { type: 'core', items: [it('Dead bug'), it('Side plank')] },
+        ],
+      }),
+      normalizePlan({
+        id: 'tpl-recovery', name: 'Recovery & mobility', description: 'Low-intensity flush. Move well, breathe, go home.', createdAt: hoursAgo(370),
+        blocks: [
+          { type: 'mobility', items: [it('Foam roll'), it('Couch stretch'), it('Ankle rocks (knee to wall)'), it('Thoracic rotations'), it('Deep squat hold')] },
+          { type: 'cooldown', items: [it('Box breathing')] },
+        ],
+      }),
+    ];
+    const tpl = Object.fromEntries(s.templates.map((t) => [t.id, t]));
+    const schedule = {
+      taylor: [[-5, 'tpl-lower', 'completed'], [-3, 'tpl-upper', 'completed'], [-1, 'tpl-speed', 'assigned'], [0, 'tpl-lower', 'assigned'], [2, 'tpl-upper', 'assigned']],
+      jordan: [[-4, 'tpl-speed', 'completed'], [-2, 'tpl-lower', 'completed'], [0, 'tpl-recovery', 'assigned'], [1, 'tpl-speed', 'assigned']],
+      maya: [[-6, 'tpl-lower', 'completed'], [-3, 'tpl-speed', 'skipped'], [0, 'tpl-recovery', 'assigned'], [3, 'tpl-lower', 'assigned']],
+      sam: [[-4, 'tpl-upper', 'completed'], [-1, 'tpl-upper', 'completed'], [1, 'tpl-recovery', 'assigned']],
+      riley: [[-5, 'tpl-recovery', 'completed'], [-2, 'tpl-lower', 'completed'], [0, 'tpl-speed', 'assigned'], [2, 'tpl-recovery', 'assigned']],
+    };
+    const notes = { 'tpl-recovery': 'Keep it easy today. Quality over quantity.', 'tpl-lower': 'Hit your squat numbers, but stop a set early if the knee talks to you.' };
+    s.assignments = [];
+    for (const [athleteId, list] of Object.entries(schedule)) {
+      const athlete = s.athletes.find((x) => x.id === athleteId);
+      for (const [off, tid, status] of list) {
+        const plan = normalizePlan(JSON.parse(JSON.stringify(tpl[tid])));
+        const a = normalizeAssignment({ athleteId, templateId: tid, date: addDays(todayISO, off), plan, status, coachNote: off === 0 ? notes[tid] || '' : '', assignedAt: hoursAgo(170) });
+        if (status === 'completed') {
+          for (const b of plan.blocks) {
+            for (const i of b.items) {
+              const kg = resolveLoadKg(i, athlete);
+              const w = kg ? Math.round(kg / (KG_PER_LB * 5)) * 5 * KG_PER_LB : null;
+              a.progress[i.id] = { sets: Array.from({ length: i.sets }, (_, k) => ({ reps: i.measure === 'reps' ? i.amount - (k === i.sets - 1 && b.type === 'strength' ? 1 : 0) : i.amount, weightKg: w, done: true })), note: '' };
+            }
+          }
+          a.result = { completedAt: parseISODate(a.date).getTime() + 17 * 3600 * 1000, rpe: tid === 'tpl-recovery' ? 3 : 7, duration: estimateMinutes(plan), note: tid === 'tpl-lower' ? 'Last squat set was a grind.' : '', workoutId: null };
+        }
+        if (status === 'skipped') a.skipReason = 'Tournament travel day.';
+        s.assignments.push(a);
+      }
+    }
+    s.messages.push(normalizeMessage({ athleteId: 'jordan', from: 'coach', text: 'Swapped today to Recovery & mobility because of the knee. Let’s get it looked at.', ts: hoursAgo(0.5), readByAthlete: false }));
     return s;
   }
 
@@ -1037,6 +1405,20 @@
     athleteStatus,
     normalizeMessage,
     normalizeVideo,
+    BLOCK_TYPES,
+    MEASURES,
+    LOAD_TYPES,
+    EXERCISE_LIBRARY,
+    libraryEntry,
+    normalizePlanItem,
+    normalizePlanBlock,
+    normalizePlan,
+    normalizeAssignment,
+    assignmentStatus,
+    compliance,
+    resolveLoadKg,
+    estimateMinutes,
+    workoutFromAssignment,
     FORM_EXERCISES,
     normalizeAnalysis,
     normalizeFormComment,

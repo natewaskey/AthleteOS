@@ -1135,3 +1135,195 @@ label.check input { width: auto; }
 }
 .msg-analysis .main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .msg-analysis .sport-dot { width: 32px; height: 32px; }
+
+/* ======================================================================
+   v4: training plans
+   ====================================================================== */
+
+.avatar.sm { width: 30px; height: 30px; font-size: 0.72rem; }
+.plan-today { border-left: 4px solid var(--accent); }
+.plan-due { flex-wrap: nowrap; padding: 0.5rem 0; }
+.plan-due + .plan-due { border-top: 1px solid var(--border); }
+
+/* ---------- coach calendar ---------- */
+
+.plan-cal { min-width: 820px; table-layout: fixed; }
+.plan-cal th:first-child { width: 170px; position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.plan-cal th, .plan-cal td { vertical-align: top; padding: 0.4rem; }
+.plan-cal thead th { text-align: center; }
+.plan-cal thead th:first-child { text-align: left; }
+.plan-cal .is-today { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.plan-cal td { border-left: 1px solid var(--border); }
+
+.cal-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  padding: 0.3rem 0.4rem;
+  margin-bottom: 0.3rem;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-chip small { display: block; font-weight: 500; color: var(--muted); }
+.cal-chip.completed { border-left-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--surface)); }
+.cal-chip.skipped { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--surface)); }
+.cal-chip.missed { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+.cal-chip.today { border-left-color: var(--info); background: color-mix(in srgb, var(--info) 12%, var(--surface)); }
+.cal-chip.upcoming { border-left-color: var(--muted); }
+
+.cal-add {
+  display: block;
+  width: 100%;
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: 1px dashed transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  padding: 0.1rem;
+}
+td:hover .cal-add, .cal-add:focus-visible { border-color: var(--border); color: var(--text); }
+.cal-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.75rem; font-size: 0.78rem; color: var(--muted); }
+.cal-legend i.cal-chip { display: inline-block; width: 16px; height: 12px; padding: 0; margin: 0 0.3rem 0 0; vertical-align: -1px; }
+
+/* ---------- library ---------- */
+
+.template-card { display: flex; flex-direction: column; }
+.block-summary { list-style: none; margin: 0.6rem 0 0; padding: 0; font-size: 0.82rem; }
+.block-summary li { display: flex; gap: 0.35rem; padding: 0.15rem 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.block-summary li .muted { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- builder ---------- */
+
+.block-card { margin-bottom: 1rem; }
+.block-head { flex-wrap: wrap; margin-bottom: 0.6rem; }
+.block-icon { font-size: 1.3rem; }
+.item-row { border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem; margin-bottom: 0.5rem; background: var(--bg); }
+.item-main { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+.item-main .group-in { width: 3.4rem; flex: none; text-align: center; text-transform: uppercase; }
+.item-main .name-in { flex: 1; font-weight: 600; }
+.item-move { display: flex; flex: none; }
+.item-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 0 0.5rem; align-items: end; }
+.item-fields label { margin-bottom: 0.4rem; font-size: 0.75rem; }
+.item-fields input, .item-fields select { padding: 0.4rem 0.45rem; }
+.item-fields label.check { align-self: center; }
+.notes-in { font-size: 0.85rem; padding: 0.4rem 0.55rem; }
+.quick-add { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+.quick-add .chip { cursor: pointer; }
+.chip-custom { border-style: dashed; }
+.add-block .row { gap: 0.4rem; }
+.builder-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  margin-top: 1rem;
+  background: linear-gradient(transparent, var(--bg) 30%);
+}
+
+/* ---------- athlete session ---------- */
+
+.session-block { margin-bottom: 1rem; }
+.session-item { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+.session-block h3 + .session-item { border-top: 0; }
+.session-item.complete .main strong::after { content: ' ✓'; color: var(--good); }
+.item-num {
+  flex: none;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.3rem;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  background: var(--surface-2);
+}
+.session-item .main { flex: 1; }
+.actual { color: var(--good); font-weight: 600; margin-top: 0.2rem; }
+
+.set-table { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.6rem 0 0 2.6rem; }
+.set-row { display: flex; align-items: center; gap: 0.5rem; }
+.set-row > .muted { width: 3rem; flex: none; }
+.set-row label { flex-direction: row; align-items: center; gap: 0.3rem; margin: 0; font-weight: 400; }
+.set-row input { width: 4.6rem; padding: 0.4rem; text-align: center; }
+.set-row input:disabled { opacity: 0.8; }
+.set-row.done input { border-color: color-mix(in srgb, var(--good) 60%, var(--border)); }
+.set-check {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.set-check[aria-pressed='true'], .set-row.done .set-check.static { background: var(--good); border-color: var(--good); color: #fff; }
+.set-check.static { cursor: default; }
+.set-bubbles { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0 0 2.6rem; }
+.set-bubble {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+span.set-bubble { cursor: default; }
+.set-bubble[aria-pressed='true'], .set-bubble.on { background: var(--good); border-color: var(--good); color: #fff; }
+.result-card { margin-bottom: 1rem; border-left: 4px solid var(--good); }
+.finish-card { border-top: 4px solid var(--accent); }
+@media (max-width: 520px) {
+  .set-table, .set-bubbles { margin-left: 0; }
+}
+
+#rest-timer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.6rem 0.8rem 0.6rem 1rem;
+  border-radius: 14px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.25);
+  font-weight: 600;
+}
+#rest-timer strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+#rest-timer.done { background: var(--good); color: #fff; }
+
+/* ---------- assign dialog ---------- */
+
+.athlete-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.1rem 0.75rem; margin-top: 0.3rem; }
+.day-pick { margin: 0; cursor: pointer; }
+.day-pick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.day-pick span { display: inline-block; padding: 0.35rem 0.6rem; border-radius: 8px; border: 1px solid var(--border); color: var(--text); font-weight: 600; font-size: 0.82rem; }
+.day-pick input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.day-pick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actual.muted { color: var(--muted); font-weight: 500; }
+.plan-cal tbody th { text-transform: none; letter-spacing: normal; color: var(--text); font-size: 0.88rem; font-weight: 600; }
