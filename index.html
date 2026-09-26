@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f1115" />
-    <meta name="description" content="AthleteOS: log training, track load and readiness, and chase your goals." />
+    <meta name="description" content="AthleteOS: training, readiness and communication for athletes and coaches." />
     <title>AthleteOS</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -16,16 +16,10 @@
         <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L11 10 L16 18 L21 8 L28 22" /></svg>
         <span>Athlete<strong>OS</strong></span>
       </div>
-      <button class="btn btn-primary" data-action="open-log">+ Log workout</button>
+      <div class="topbar-controls" id="role-bar"></div>
     </header>
 
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="today" aria-selected="true">Today</button>
-      <button role="tab" data-tab="history">History</button>
-      <button role="tab" data-tab="records">Records</button>
-      <button role="tab" data-tab="goals">Goals</button>
-      <button role="tab" data-tab="settings">Settings</button>
-    </nav>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
 
     <main id="view" tabindex="-1"></main>
 
@@ -34,23 +28,19 @@
         <h2 id="workout-dialog-title">Log workout</h2>
         <div class="grid-2">
           <label>Date <input type="date" name="date" required /></label>
-          <label>Sport
-            <select name="sport">
-              <option value="run">Run</option>
-              <option value="bike">Bike</option>
-              <option value="swim">Swim</option>
-              <option value="strength">Strength</option>
-              <option value="mobility">Mobility</option>
-              <option value="other">Other</option>
-            </select>
+          <label>Activity <select name="sport" id="sport-select"></select></label>
+        </div>
+        <div class="grid-2">
+          <label class="span-all">Title <input name="title" placeholder="e.g. Tempo run" maxlength="80" /></label>
+          <label data-session-type hidden>Session type
+            <select name="sessionType"><option value="">—</option></select>
           </label>
         </div>
-        <label>Title <input name="title" placeholder="e.g. Tempo run" maxlength="80" /></label>
         <div class="grid-2">
           <label>Duration (min) <input type="number" name="duration" min="1" step="1" required /></label>
           <label>Effort (RPE 1–10) <input type="number" name="rpe" min="1" max="10" step="1" value="6" required /></label>
-          <label data-endurance>Distance (<span data-unit="distance">mi</span>) <input type="number" name="distance" min="0" step="any" /></label>
-          <label data-elevation>Elevation gain (<span data-unit="elevation">ft</span>) <input type="number" name="elevation" min="0" step="any" /></label>
+          <label data-endurance><span>Distance (<span data-unit="distance">mi</span>)</span> <input type="number" name="distance" min="0" step="any" /></label>
+          <label data-elevation><span>Elevation gain (<span data-unit="elevation">ft</span>)</span> <input type="number" name="elevation" min="0" step="any" /></label>
         </div>
         <p class="hint" id="rpe-hint"></p>
         <fieldset data-strength hidden>
@@ -59,6 +49,15 @@
           <button type="button" class="btn btn-ghost" data-action="add-exercise">+ Add exercise</button>
         </fieldset>
         <label>Notes <textarea name="notes" rows="2" maxlength="500"></textarea></label>
+        <fieldset>
+          <legend>Video (optional)</legend>
+          <label class="file-pick">
+            <input type="file" name="video" accept="video/*" />
+            <span class="btn btn-sm">🎥 Choose video</span>
+            <span class="muted file-name" data-file-name>No video selected</span>
+          </label>
+          <label class="check"><input type="checkbox" name="sendToCoach" checked /> Send to my coach for review</label>
+        </fieldset>
         <div class="dialog-actions">
           <button type="button" class="btn btn-ghost" data-action="close-dialog">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
@@ -66,20 +65,30 @@
       </form>
     </dialog>
 
-    <dialog id="checkin-dialog">
+    <dialog id="checkin-dialog" class="wide">
       <form id="checkin-form" method="dialog">
-        <h2>Morning check-in</h2>
-        <div class="grid-2">
-          <label>Sleep (hours) <input type="number" name="sleep" min="0" max="14" step="0.25" value="7.5" required /></label>
-          <label>Resting HR (bpm) <input type="number" name="restingHR" min="25" max="220" step="1" /></label>
+        <h2>Daily check-in</h2>
+        <div class="checkin-layout">
+          <section>
+            <h3>Where are you sore?</h3>
+            <p class="hint">Tap an area once for mild, twice for sore, three times for pain. Tap again to clear.</p>
+            <div id="checkin-body"></div>
+            <div id="checkin-areas" class="chips"></div>
+          </section>
+          <section>
+            <div class="grid-2">
+              <label>Sleep (hours) <input type="number" name="sleep" min="0" max="14" step="0.25" value="7.5" required /></label>
+              <label>Resting HR (bpm) <input type="number" name="restingHR" min="25" max="220" step="1" /></label>
+            </div>
+            <div class="scales">
+              <label>Sleep quality <input type="range" name="sleepQuality" min="1" max="5" value="3" /><span class="scale-ends"><span>Poor</span><span>Great</span></span></label>
+              <label>Stress <input type="range" name="stress" min="1" max="5" value="2" /><span class="scale-ends"><span>Calm</span><span>Stressed</span></span></label>
+              <label>Mood / energy <input type="range" name="mood" min="1" max="5" value="4" /><span class="scale-ends"><span>Low</span><span>Great</span></span></label>
+              <label><span>Body weight (<span data-unit="weight">lb</span>)</span> <input type="number" name="weight" min="0" step="any" /></label>
+            </div>
+            <label>Anything your coach should know? <textarea name="note" rows="2" maxlength="500" placeholder="e.g. Knee hurts on landings"></textarea></label>
+          </section>
         </div>
-        <div class="scales">
-          <label>Sleep quality <input type="range" name="sleepQuality" min="1" max="5" value="3" /><span class="scale-ends"><span>Poor</span><span>Great</span></span></label>
-          <label>Soreness <input type="range" name="soreness" min="1" max="5" value="2" /><span class="scale-ends"><span>None</span><span>Very sore</span></span></label>
-          <label>Stress <input type="range" name="stress" min="1" max="5" value="2" /><span class="scale-ends"><span>Calm</span><span>Stressed</span></span></label>
-          <label>Mood <input type="range" name="mood" min="1" max="5" value="4" /><span class="scale-ends"><span>Low</span><span>Great</span></span></label>
-        </div>
-        <label>Body weight (<span data-unit="weight">lb</span>) <input type="number" name="weight" min="0" step="any" /></label>
         <input type="hidden" name="date" />
         <div class="dialog-actions">
           <button type="button" class="btn btn-ghost" data-action="close-dialog">Cancel</button>
@@ -88,9 +97,21 @@
       </form>
     </dialog>
 
+    <dialog id="video-dialog" class="wide">
+      <div class="row" style="margin-bottom: 0.5rem">
+        <h2 id="video-title" style="margin: 0">Video</h2>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-sm btn-ghost" data-action="close-dialog" aria-label="Close">✕</button>
+      </div>
+      <video id="video-player" controls playsinline></video>
+      <p class="muted" id="video-caption"></p>
+    </dialog>
+
     <div id="toast" role="status" aria-live="polite"></div>
 
     <script src="src/core.js"></script>
+    <script src="src/body.js"></script>
+    <script src="src/media.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>

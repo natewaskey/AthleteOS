@@ -18,7 +18,7 @@ test('date helpers', () => {
 });
 
 test('normalizeWorkout clamps and cleans input', () => {
-  const x = C.normalizeWorkout({ sport: 'lacrosse', duration: '-5', rpe: 14, distance: '', exercises: [{ name: ' ', sets: 3, reps: 5 }] });
+  const x = C.normalizeWorkout({ sport: 'curling', duration: '-5', rpe: 14, distance: '', exercises: [{ name: ' ', sets: 3, reps: 5 }] });
   assert.equal(x.sport, 'other');
   assert.equal(x.duration, 0);
   assert.equal(x.rpe, 10);
@@ -128,20 +128,85 @@ test('goal progress for week and month periods', () => {
   assert.equal(month.done, true);
 });
 
-test('migrate tolerates junk and sample data is self-consistent', () => {
+test('migrate tolerates junk, upgrades v1 data, and sample team is self-consistent', () => {
   assert.deepEqual(C.migrate(null), C.emptyState());
-  assert.deepEqual(C.migrate({ workouts: 'nope' }).workouts, []);
+  assert.deepEqual(C.migrate({ workouts: 'nope' }).athletes[0].workouts, []);
+
+  const v1 = { version: 1, profile: { name: 'Pat', sport: 'swim', units: 'metric' }, workouts: [{ date: TODAY, sport: 'run', duration: 30, rpe: 5 }], checkins: [], goals: [] };
+  const up = C.migrate(v1);
+  assert.equal(up.version, 2);
+  assert.equal(up.settings.units, 'metric');
+  assert.equal(up.athletes.length, 1);
+  assert.equal(up.athletes[0].name, 'Pat');
+  assert.equal(up.athletes[0].workouts.length, 1);
+  assert.equal(up.session.athleteId, up.athletes[0].id);
+
   const s = C.sampleState(TODAY);
-  assert.ok(s.workouts.length > 20);
-  assert.ok(s.checkins.length === 14);
+  assert.equal(s.athletes.length, 5);
   const round = C.migrate(JSON.parse(JSON.stringify(s)));
-  assert.equal(round.workouts.length, s.workouts.length);
-  assert.ok(C.readiness(round.checkins.at(-1), round.checkins, round.workouts, TODAY).score > 0);
-  assert.ok(C.acwr(round.workouts, TODAY).ratio > 0);
+  assert.deepEqual(round.athletes.map((a) => a.workouts.length), s.athletes.map((a) => a.workouts.length));
+  assert.equal(round.messages.length, s.messages.length);
+  for (const a of round.athletes) assert.ok(C.acwr(a.workouts, TODAY).ratio > 0, a.name);
+});
+
+test('demo team exercises every coach flag', () => {
+  const s = C.sampleState(TODAY);
+  const st = Object.fromEntries(s.athletes.map((a) => [a.id, C.athleteStatus(a, TODAY)]));
+  assert.deepEqual(st.jordan.pain, ['knee-l']);
+  assert.equal(st.jordan.worst, 'bad');
+  assert.equal(st.maya.load.zone.key, 'danger');
+  assert.equal(st.sam.checkin, null);
+  assert.ok(st.sam.flags.some((f) => f.text.startsWith('No check-in')));
+  assert.ok(st.taylor.readiness.score < 40);
+  assert.ok(C.unreadCount(s.messages, 'coach') >= 2);
+  assert.equal(C.unreadCount(s.messages, 'athlete', 'riley'), 1);
+});
+
+test('body map soreness derives overall score and pain', () => {
+  assert.equal(C.deriveSoreness({}), 1);
+  assert.equal(C.deriveSoreness({ 'knee-l': 1 }), 2);
+  assert.equal(C.deriveSoreness({ 'knee-l': 3 }), 4);
+  assert.equal(C.deriveSoreness({ a: 1, b: 1, c: 1, d: 3 }), 5);
+  const c = C.normalizeCheckin({ date: TODAY, sleep: 8, soreAreas: { 'knee-l': 3, 'quad-r': 1, bogus: 2, 'calf-l': 0 } });
+  assert.deepEqual(c.soreAreas, { 'knee-l': 3, 'quad-r': 1 });
+  assert.equal(c.soreness, 4);
+  assert.deepEqual(C.painAreas(c), ['knee-l']);
+  const noPain = { ...c, soreAreas: { 'quad-r': 1, 'knee-l': 2 } };
+  assert.ok(C.readiness(c, [], [], TODAY).score < C.readiness(noPain, [], [], TODAY).score);
+  const perfectButHurt = C.normalizeCheckin({ date: TODAY, sleep: 9, sleepQuality: 5, stress: 1, mood: 5, soreAreas: { 'ankle-r': 3 } });
+  assert.ok(C.readiness(perfectButHurt, [], [], TODAY).score <= 54, 'pain caps readiness at "keep it easy"');
+  const hist = [0, 1, 2].map((d) => C.normalizeCheckin({ date: C.addDays(TODAY, -d), soreAreas: { 'shin-r': d === 0 ? 2 : 1 } }));
+  assert.deepEqual(C.recurringSoreness(hist, TODAY), [{ id: 'shin-r', label: 'Right shin', days: 3, maxLevel: 2 }]);
+});
+
+test('sport catalog drives units and summaries', () => {
+  assert.ok(C.SPORTS.length > 50);
+  assert.equal(C.sportInfo('basketball').team, true);
+  assert.equal(C.sportInfo('nope').id, 'other');
+  assert.equal(C.distanceUnit('imperial', 'row'), 'm');
+  assert.equal(C.distanceUnit('imperial', 'open-water'), 'yd');
+  assert.equal(C.distanceUnit('imperial', 'hike'), 'mi');
+  assert.equal(C.kmToDisplay(2, 'imperial', 'row'), 2000);
+  assert.equal(C.paceOrSpeed(240, 'metric', 'row'), '2:00 /500m');
+  assert.equal(C.paceOrSpeed(120, 'metric', 'mtb'), '30 km/h');
+  assert.equal(C.paceOrSpeed(300, 'metric', 'trail-run'), '5:00 /km');
+  assert.equal(C.normalizeWorkout({ sport: 'soccer', sessionType: 'Game' }).sessionType, 'Game');
+  assert.equal(C.normalizeWorkout({ sport: 'soccer', sessionType: 'Nap' }).sessionType, null);
+  assert.equal(C.normalizeWorkout({ sport: 'yoga' }).title, 'Yoga');
+});
+
+test('messages: threads sort by time and read flags follow the sender', () => {
+  const m1 = C.normalizeMessage({ athleteId: 'a', from: 'athlete', text: 'hi', ts: 2 });
+  const m2 = C.normalizeMessage({ athleteId: 'a', from: 'coach', text: 'yo', ts: 1 });
+  assert.equal(m1.readByAthlete, true);
+  assert.equal(m1.readByCoach, false);
+  assert.deepEqual(C.thread([m1, m2], 'a').map((m) => m.text), ['yo', 'hi']);
+  assert.equal(C.unreadCount([m1, m2], 'coach'), 1);
+  assert.equal(C.unreadCount([m1, m2], 'athlete', 'a'), 1);
 });
 
 test('unit conversions round-trip and default to imperial', () => {
-  assert.equal(C.emptyState().profile.units, 'imperial');
+  assert.equal(C.emptyState().settings.units, 'imperial');
   assert.equal(C.unitSystem(undefined), 'imperial');
   assert.ok(Math.abs(C.kmToDisplay(10, 'imperial', 'run') - 6.2137) < 1e-4);
   assert.ok(Math.abs(C.displayToKm(26.2, 'imperial', 'run') - 42.165) < 1e-3);

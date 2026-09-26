@@ -4,15 +4,26 @@ A private training operating system for athletes. Log workouts, check in each mo
 
 ## Features
 
-- **Imperial or metric**: miles, lb, ft and yards by default (pace in min/mi, speed in mph, swims in yd and /100yd), or km, kg and m. Switch in Settings; data is stored in metric internally, so switching never changes your history.
-- **Workout log**: run, bike, swim, strength (sets × reps × weight), mobility and other sessions, each with duration, distance, elevation gain, effort (RPE) and notes. You can edit or delete any entry.
-- **Readiness score (0–100)** from a 20-second morning check-in covering sleep, sleep quality, soreness, stress, mood and resting HR, combined with how your recent load compares to your norm.
-- **Training load**: session-RPE load, acute:chronic workload ratio (ACWR) with a zone gauge, a 6-week acute/chronic trend chart, weekly load bars and a monotony warning.
-- **Personal records**: best pace and longest distance per endurance sport, and estimated 1RM (Epley) per lift.
-- **Goals**: weekly or monthly targets for sessions, time, distance or load, optionally per sport, with live progress bars.
-- **Your data stays yours**: saved in `localStorage`, with JSON export and import for backups and moving between devices.
-- **Installable PWA**: works offline once loaded, adapts to light and dark mode, and works on phones.
-- Demo data so you can try everything right away, plus keyboard shortcuts (`n` logs a workout, `c` starts a check-in).
+### Two perspectives
+Use the **Athlete / Coach** switch in the top bar. Both views read the same data, so you can log as an athlete and immediately see it as the coach.
+
+**Athlete**
+- **Daily check-in with a body map.** Tap areas on a front/back body diagram: once for mild, twice for sore, three times for pain. Add sleep, stress, mood, resting HR, body weight and a note for the coach. This produces a readiness score from 0 to 100, and any pain caps it at "Keep it easy".
+- **Workout log** covering 57 activities in 6 groups: endurance (run, trail, track, bike, swim, row…), strength and conditioning (lifting, HIIT, plyos, speed and agility…), team sports (football, basketball, soccer, baseball, volleyball, hockey, lacrosse…), individual sports (tennis, wrestling, boxing, gymnastics, golf…), recovery (yoga, mobility, rehab…) and other. Each activity shows the right fields: distance and pace, elevation, sets × reps × weight, or session type (Practice, Game, Scrimmage, Skills, Film…).
+- **Video upload.** Attach a video to a workout (and optionally send it to the coach), or send one straight from Messages.
+- **Messages** with your coach, text and video.
+- Training load (ACWR), personal records, goals, imperial or metric units.
+
+**Coach**
+- **Team dashboard.** Who has checked in, average team readiness, urgent alerts, and unread messages.
+- **Needs attention** list: reported pain, low readiness, load spikes, soreness that keeps coming back, and missed check-ins.
+- **Roster cards** for each athlete, showing readiness, ACWR, today's sore areas and when they last trained.
+- **Athlete detail.** Today's body map, recurring soreness over the last 7 days, the check-in history table, load trend, recent training, all of the athlete's videos, and their records.
+- **Inbox** with a thread per athlete, video playback, and an announcement that goes to the whole team.
+- Roster management: add and remove athletes.
+
+### Prototype limitations
+Everything is stored in the browser (`localStorage` for data, IndexedDB for videos). The coach and athlete views share one device's data, and you switch between them with the toggle. Real accounts and cross-device sync need a backend (e.g. Supabase or Firebase for auth, database and video storage). `src/media.js` and the state layer are written so a backend can be dropped in.
 
 ## Run it
 
@@ -35,8 +46,10 @@ npm test           # node --test, no install needed (Node 18+)
 
 ```
 index.html            app shell + dialogs
-src/core.js           pure logic: load, ACWR, readiness, records, goals (shared by browser and tests)
-src/app.js            UI controller, rendering, SVG charts, persistence
+src/core.js           pure logic: sports catalog, load, ACWR, readiness, body areas, coach flags, demo team
+src/body.js           clickable front/back body map (inline SVG)
+src/media.js          video storage (IndexedDB)
+src/app.js            UI controller: athlete + coach views, messaging, dialogs, charts
 src/styles.css        design tokens, light/dark themes, responsive layout
 sw.js                 offline cache
 manifest.webmanifest  PWA manifest
@@ -47,6 +60,6 @@ test/core.test.js     unit tests for core logic
 
 - **Session load** = duration (min) × RPE (Foster's session-RPE method).
 - **ACWR** = mean daily load over 7 days ÷ mean daily load over 28 days. Zones: <0.8 detraining, 0.8–1.3 sweet spot, 1.3–1.5 caution, >1.5 spike.
-- **Readiness** = sleep 35%, soreness 20%, stress 15%, mood 15%, load balance 15%, minus a penalty when resting HR is more than 3 bpm above your 14-day baseline.
+- **Readiness** = sleep 35%, body-map soreness 20%, stress 15%, mood 15%, load balance 15%, minus a penalty when resting HR is more than 3 bpm above your 14-day baseline. Any area marked "pain" caps readiness at 54 ("Keep it easy").
 
 These are training guides, not medical advice.
