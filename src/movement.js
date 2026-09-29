@@ -139,6 +139,15 @@
 
   const visible = (...pts) => pts.every((p) => p && p.v >= VIS_MIN);
 
+  // Front-on, knee angles barely change as you bend (the leg folds toward the camera), so
+  // track hip height above the ankles instead, scaled so standing ≈ 100.
+  function hipHeight(j, ctx) {
+    if (!ctx || !visible(j.hip, j.an)) return null;
+    const hip = visible(j.ohip) ? mid(j.hip, j.ohip) : j.hip;
+    const an = visible(j.oan) ? mid(j.an, j.oan) : j.an;
+    return (100 * (an.y - hip.y)) / (ctx.L.leg || 1);
+  }
+
   function chooseSide(frames) {
     let l = 0, r = 0;
     for (const f of frames) {
@@ -274,7 +283,7 @@
       keyIs: 'min',
       target: { value: 90, label: 'Parallel ≈ 90° or less' },
       tips: 'Side-on for depth and back angle, or facing the camera for knee tracking. Whole body in frame, phone at hip height.',
-      signal: (j) => (visible(j.hip, j.kn, j.an) ? angle3(j.hip, j.kn, j.an) : null),
+      signal: (j, ctx) => (ctx && ctx.view === 'front' ? hipHeight(j, ctx) : visible(j.hip, j.kn, j.an) ? angle3(j.hip, j.kn, j.an) : null),
       evaluate(ctx, rep) {
         const { L } = ctx;
         const k = ctx.J[rep.key];
@@ -427,8 +436,9 @@
       keyIs: 'min',
       target: { value: 90, label: 'Front knee ≈ 90°' },
       tips: 'Film side-on, whole body in frame. For knee tracking, film from the front.',
-      // The front leg is whichever knee is more bent.
-      signal: (j) => {
+      // The front leg is whichever knee is more bent (front-on: hip height).
+      signal: (j, ctx) => {
+        if (ctx && ctx.view === 'front') return hipHeight(j, ctx);
         const a = visible(j.hip, j.kn, j.an) ? angle3(j.hip, j.kn, j.an) : null;
         const b = visible(j.ohip, j.okn, j.oan) ? angle3(j.ohip, j.okn, j.oan) : null;
         return a == null ? b : b == null ? a : Math.min(a, b);
@@ -662,6 +672,78 @@
       },
     },
 
+    landing: {
+      label: 'Jump landing screen',
+      icon: '🦘',
+      views: ['front', 'side'],
+      signalLabel: 'Knee bend (side) / hip height (front)',
+      keyLabel: 'Landing (deepest point)',
+      keyIs: 'min',
+      target: null,
+      tips: 'Face the camera, step off a 12–18 inch box, land on both feet and hold for 2 seconds. Do 3–5 reps. A side view checks landing depth.',
+      // Front-on: hip height. Side-on: deepest knee bend of either leg.
+      signal: (j, ctx) => {
+        if (ctx && ctx.view !== 'side') return hipHeight(j, ctx);
+        const a = visible(j.hip, j.kn, j.an) ? angle3(j.hip, j.kn, j.an) : null;
+        const b = visible(j.ohip, j.okn, j.oan) ? angle3(j.ohip, j.okn, j.oan) : null;
+        return a == null ? b : b == null ? a : Math.min(a, b);
+      },
+      evaluate(ctx, rep) {
+        const k = ctx.J[rep.key];
+        const out = [];
+        if (ctx.view !== 'side') {
+          const kneeW = Math.abs(k.kn.x - k.okn.x), ankleW = Math.abs(k.an.x - k.oan.x);
+          const ratio = ankleW ? kneeW / ankleW : null;
+          out.push(check('valgus', 'Knees on landing', ratio, grade(ratio, [0.85, 9], [0.7, 9]), {
+            display: ratio == null ? '—' : ratio >= 0.85 ? 'Knees stay over toes' : 'Knees collapse inward (valgus)',
+            target: 'Knees stay at least as wide as the feet', joint: 'kn', weight: 3,
+            cue: 'Land with your knees pushed out over your toes, like you’re spreading the floor apart.',
+            drill: 'Drop landings with a mini band above the knees, lateral band walks, single-leg glute bridges. Knee valgus on landing is a key ACL risk factor.',
+          }));
+          const a1 = angle3(k.hip, k.kn, k.an), a2 = angle3(k.ohip, k.okn, k.oan);
+          const diff = Math.abs(a1 - a2);
+          out.push(check('symmetry', 'Left/right symmetry', diff, grade(diff, [0, 12], [0, 20]), {
+            display: diff <= 12 ? 'Even' : `${Math.round(diff)}° difference between legs`, target: 'Both knees bend about the same', joint: 'kn',
+            cue: 'Land evenly on both feet. Don’t favour one leg.',
+            drill: 'Single-leg landings on the weaker side and mirror work.',
+          }));
+        }
+        let soft;
+        if (ctx.view === 'side') {
+          const depth = angle3(k.hip, k.kn, k.an);
+          soft = { value: depth, status: grade(depth, [0, 115], [0, 135]), display: `${r0(depth)}° knee bend` };
+        } else {
+          // Hip drop from standing, as a share of leg length.
+          const standing = percentile(ctx.J.map((jj) => hipHeight(jj, ctx)), 0.9);
+          const drop = standing ? (standing - hipHeight(k, ctx)) / 100 : null;
+          soft = { value: drop, status: grade(drop, [0.22, 9], [0.12, 9]), display: drop == null ? '—' : `Hips dropped ${Math.round(drop * 100)}% of leg length` };
+        }
+        out.push(check('soft', 'Soft landing', soft.value, soft.status, {
+          display: soft.display, target: 'Bend hips and knees deeply to absorb the landing', joint: 'kn', weight: 1.5,
+          cue: 'Land softly: bend your hips and knees to absorb the landing, and land quietly on the balls of your feet.',
+          drill: 'Snap-downs and drop landings focusing on quiet landings.',
+        }));
+        if (ctx.view === 'side') {
+          const lean = fromVertical(k.hip, k.sh);
+          out.push(check('trunk', 'Trunk position', lean, grade(lean, [10, 50], [0, 60]), {
+            display: `${r0(lean)}° forward`, target: 'Hips back, chest over knees (≈ 20–45°)', joint: 'sh',
+            cue: 'Hinge at the hips as you land so your glutes and hamstrings share the load. Don’t land upright and stiff.',
+            drill: 'Box jump landings holding an athletic position for 2 seconds.',
+          }));
+        }
+        return out;
+      },
+      ideal(ctx, j) {
+        if (ctx.view !== 'side') return frontKneesOverToes(j);
+        const f = ctx.facing, L = ctx.L;
+        const an = j.an;
+        const kn = add(an, dir(30, f), L.shin);
+        const hip = add(kn, dir(-115, f), L.thigh);
+        const sh = add(hip, dir(35, f), L.torso);
+        return withFeet({ an, kn, hip, sh, nose: add(sh, dir(35, f), L.head) }, j, ctx);
+      },
+    },
+
     running: {
       label: 'Running form',
       icon: '🏃',
@@ -728,6 +810,40 @@
     if (minDown && !upOnly && down < minDown * 0.6) tempo.status = 'warn';
     out.push(tempo);
     return out;
+  }
+
+  // ---------- rep speed ----------
+
+  // Point whose travel best tracks the bar/body for each lift.
+  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', lunge: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr' };
+
+  /*
+   * Concentric speed per rep (body-lengths per second from the tracked point), and speed loss
+   * from the fastest rep to the last one: a fatigue signal (velocity-based training uses
+   * ~20–25% loss as a sensible place to end a set).
+   */
+  function velocityCheck(exercise, ctx, reps) {
+    const key = VELOCITY_POINT[exercise];
+    if (!key || reps.length < 2) return null;
+    const up = exercise === 'ohp' ? (r) => [r.start, r.key] : (r) => [r.key, r.end];
+    for (const r of reps) {
+      const [a, b] = up(r);
+      const pa = ctx.J[a][key], pb = ctx.J[b][key];
+      const dt = ctx.frames[b].t - ctx.frames[a].t;
+      r.velocity = pa && pb && dt > 0 ? Math.abs(pa.y - pb.y) / (ctx.L.leg || 1) / dt : null;
+    }
+    const v = reps.map((r) => r.velocity).filter((x) => x != null);
+    if (v.length < 2) return null;
+    const best = Math.max(...v);
+    const last = reps[reps.length - 1].velocity;
+    const loss = best ? Math.max(0, (best - last) / best) : 0;
+    return check('velocity', 'Rep speed', loss, grade(loss, [0, 0.25], [0, 0.4]), {
+      display: loss < 0.05 ? 'Consistent speed' : `${Math.round(loss * 100)}% slower by the last rep`,
+      target: 'Speed loss under ~25% keeps reps crisp', weight: 0.5, reps: reps.length, off: 0,
+      cue: 'Your reps slowed a lot by the end of the set, a sign you were close to failure. For strength and power, end the set when reps slow noticeably.',
+      drill: 'Cluster sets (short rests within the set) or fewer reps per set at the same weight.',
+      series: reps.map((r) => r.velocity),
+    });
   }
 
   // ---------- running (gait) ----------
@@ -877,7 +993,7 @@
     const J = good.map((f) => joints(f, side, aspect));
     const L = segmentLengths(good, side, aspect);
     const ctx = { frames: good, J, L, side, facing, view: v, aspect, screenRight: 1 };
-    const series = J.map((j) => ex.signal(j));
+    const series = J.map((j) => ex.signal(j, ctx));
     const warnings = [];
     if (detected === 'angled') warnings.push('The camera looks angled. Film straight side-on (or straight from the front) for the most accurate numbers.');
     if (!ex.views.includes(v)) warnings.push(`${ex.label} is best analysed from the ${ex.views.join(' or ')}. Some checks were skipped.`);
@@ -896,7 +1012,9 @@
       const checks = ex.evaluate(ctx, rep);
       return { n: i + 1, ...rep, t: good[rep.key].t, checks, score: scoreOf(checks) };
     });
+    const vel = velocityCheck(exercise, ctx, repResults);
     const checks = summarise(repResults);
+    if (vel) checks.push(vel);
     const worst = repResults.reduce((a, b) => ((b.score ?? 100) < (a.score ?? 100) ? b : a));
     return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: repResults, checks, series, keyIndex: worst.key, keyRep: worst.n, warnings, frames: good });
   }
@@ -908,7 +1026,7 @@
     rest.suggestions = rest.checks
       .filter((c) => (c.status === 'bad' || c.status === 'warn') && c.cue)
       .sort((a, b) => (a.status === b.status ? b.weight - a.weight : a.status === 'bad' ? -1 : 1))
-      .map((c) => ({ id: c.id, severity: c.status, title: c.label, cue: c.cue, drill: c.drill, detail: c.reps > 1 ? `${c.off} of ${c.reps} reps` : '' }));
+      .map((c) => ({ id: c.id, severity: c.status, title: c.label, cue: c.cue, drill: c.drill, detail: c.reps > 1 && c.off ? `${c.off} of ${c.reps} reps` : '' }));
     rest.strengths = rest.checks.filter((c) => c.status === 'good' && !c.info && c.weight >= 1).map((c) => c.label);
     return rest;
   }
@@ -933,7 +1051,7 @@
    * opts: { reps, fps, aspect, facing, depth, lean, heelLift, valgus, sag, hipsFirst, overstride, cadence, seconds }
    */
   function simulate(exercise, opts = {}) {
-    const o = { reps: 5, fps: 15, aspect: 16 / 9, facing: 1, repSeconds: 2.4, ...opts };
+    const o = { reps: 5, fps: 15, aspect: 16 / 9, facing: 1, repSeconds: exercise === 'landing' ? 1.6 : 2.4, ...(exercise === 'landing' && !opts.view ? { view: 'front' } : {}), ...opts };
     const A = o.aspect;
     const S = { shin: 0.2, thigh: 0.21, torso: 0.26, upper: 0.15, fore: 0.14, foot: 0.07, heelAnkle: 0.035, head: 0.085 };
     const f = o.facing;
@@ -944,11 +1062,19 @@
     for (let i = 0; i < n; i++) {
       const t = i / o.fps;
       const phaseT = Math.max(0, t - 0.3);
-      const cyc = (phaseT % o.repSeconds) / o.repSeconds; // 0..1 per rep
+      let cyc = (phaseT % o.repSeconds) / o.repSeconds; // 0..1 per rep
+      // Fatigue: later reps rise more slowly (compress the descent, stretch the ascent).
+      if (o.fatigue) {
+        const repIdx = Math.floor(phaseT / o.repSeconds);
+        const slow = 1 + o.fatigue * repIdx;
+        const split = 0.5 / slow;
+        cyc = cyc < split ? (cyc / split) * 0.5 : 0.5 + ((cyc - split) / (1 - split)) * 0.5;
+      }
       const p = t < 0.3 || phaseT >= o.reps * o.repSeconds ? 0 : cyc < 0.5 ? ease(cyc * 2) : ease((1 - cyc) * 2); // 0 top -> 1 key -> 0
       const up = cyc >= 0.5; // ascending half
       let pose;
-      if (exercise === 'squat' && o.view === 'front') pose = simFrontSquat(p, S, o);
+      if (exercise === 'landing') pose = o.view === 'side' ? simSquat(p, S, { depth: o.depth ?? -80, lean: o.lean ?? 35 }, f) : simFrontSquat(p, S, { ...o, depth: o.depth ?? -80 });
+      else if (exercise === 'squat' && o.view === 'front') pose = simFrontSquat(p, S, o);
       else if (exercise === 'squat') pose = simSquat(p, S, o, f);
       else if (exercise === 'deadlift') pose = simDeadlift(p, S, o, f, up);
       else if (exercise === 'lunge') pose = simLunge(p, S, o, f);

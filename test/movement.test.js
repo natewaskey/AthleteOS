@@ -122,3 +122,32 @@ test('no person / no reps produce helpful errors', () => {
   const still = M.simulate('squat', { reps: 0 });
   assert.match(M.analyze(still.frames, { exercise: 'squat', aspect: still.aspect }).error, /No complete squat reps/);
 });
+
+test('jump landing screen flags knee valgus and stiff landings', () => {
+  const good = run('landing');
+  assert.equal(good.view, 'front');
+  assert.equal(good.reps.length, 5);
+  assert.equal(status(good, 'valgus'), 'good');
+  const bad = run('landing', { valgus: 0.55 });
+  assert.equal(status(bad, 'valgus'), 'bad');
+  assert.ok(bad.score < good.score);
+  const side = run('landing', { view: 'side' });
+  assert.equal(side.view, 'side');
+  assert.equal(status(side, 'soft'), 'good');
+});
+
+test('front-view reps are counted from hip height', () => {
+  const r = run('squat', { view: 'front', reps: 4 });
+  assert.equal(r.reps.length, 4);
+  assert.ok(r.series.every((v) => v == null || (v > 20 && v < 110)), 'hip-height scale');
+});
+
+test('rep speed loss flags grinding sets', () => {
+  const fresh = run('squat', { reps: 6 });
+  const tired = run('squat', { reps: 6, fatigue: 0.25 });
+  assert.equal(status(fresh, 'velocity'), 'good');
+  assert.equal(status(tired, 'velocity'), 'bad');
+  const v = tired.checks.find((c) => c.id === 'velocity');
+  assert.equal(v.series.length, 6);
+  assert.ok(v.series[0] > v.series[5]);
+});

@@ -27,6 +27,9 @@
   const playerTime = new Map(); // analysis id -> last time, so re-renders keep position
   const uiState = { compareRep: null, compareMode: 'overlay', skeleton: true, ghost: true };
   let active = null; // { id, player, result, frames, aspect, raf }
+  // Telestrator: strokes are normalised 0..1 to the video frame.
+  const draw = { active: false, tool: 'line', color: '#facc15', strokes: [], current: null };
+  const DRAW_COLORS = ['#facc15', '#ef4444', '#22d3ee', '#ffffff'];
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -130,6 +133,7 @@
       <div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">${coach ? 'Team form checks' : 'Form analysis'}</h1><div class="spacer"></div>
         ${coach ? '' : '<button class="btn btn-primary" data-form-action="new">📐 Analyze a video</button>'}</div>
       ${intro}
+      ${trendsHTML(list)}
       ${
         coach
           ? ''
@@ -142,6 +146,22 @@
           ? `<div class="analysis-grid">${list.map((an) => analysisCard(an, coach)).join('')}</div>`
           : `<div class="card empty">${coach ? 'No form checks shared yet. Athletes can send one from the Form tab.' : 'No analyses yet. Pick an exercise above to start.'}</div>`
       }`;
+  }
+
+  // Score over time per exercise (needs 2+ analysed checks of the same lift).
+  function trendsHTML(list) {
+    if (!root.ProgressUI) return '';
+    const byEx = {};
+    for (const an of list) if (an.score != null) (byEx[an.exercise] = byEx[an.exercise] || []).push(an);
+    const multi = Object.entries(byEx).filter(([, l]) => l.length >= 2);
+    if (!multi.length) return '';
+    return `<section class="card" style="margin-bottom:1rem"><div class="card-head"><h3>Form trends</h3></div><div class="trend-grid">${multi
+      .map(([ex, l]) => {
+        const pts = [...l].sort((a, b) => a.createdAt - b.createdAt).map((a) => ({ date: ctx.C.toISODate(new Date(a.createdAt)), value: a.score }));
+        const delta = pts[pts.length - 1].value - pts[0].value;
+        return `<div><div class="row"><strong>${exInfo(ex).icon} ${esc(exInfo(ex).label)}</strong><div class="spacer"></div><span class="${delta >= 0 ? 'good-text' : 'pain-text'} small">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta)} pts</span></div>${root.ProgressUI.lineChart(pts, { fmt: (v) => Math.round(v), height: 130 })}</div>`;
+      })
+      .join('')}</div></section>`;
   }
 
   function analysisCard(an, coach) {
@@ -250,11 +270,23 @@
           <div class="card-head"><h3>${esc(e.signalLabel)} over time</h3><span class="muted small">Tap the chart to jump there</span></div>
           <div id="form-chart">${chartSVG(result)}</div>
           ${reps.length ? `<div class="rep-strip">${reps.map((r) => `<button class="rep-btn ${repStatus(r)}" data-form-action="rep" data-rep="${r.n}" aria-pressed="${compareRep && compareRep.n === r.n}">Rep ${r.n}<small>${r.score ?? '–'}</small></button>`).join('')}</div>` : ''}
+          ${velocityHTML(result)}
         </section>
 
         ${suggestionsCard(an, result)}
         ${discussionCards(an, result)}
       </div>`;
+  }
+
+  function velocityHTML(result) {
+    const v = (result.checks || []).find((c) => c.id === 'velocity');
+    if (!v || !v.series) return '';
+    const max = Math.max(...v.series.filter((x) => x != null));
+    return `<div class="velocity"><div class="small"><strong>Rep speed</strong> <span class="muted">· how fast each rep came up (relative)</span></div>
+      <div class="vel-bars">${v.series.map((x, i) => {
+        const pct = x == null || !max ? 0 : Math.round((x / max) * 100);
+        return `<div class="vel-bar ${pct < 75 ? 'bad' : pct < 85 ? 'warn' : ''}" title="Rep ${i + 1}: ${pct}% of fastest"><i style="height:${pct}%"></i><span>${i + 1}</span></div>`;
+      }).join('')}</div></div>`;
   }
 
   function repStatus(r) {
@@ -269,6 +301,7 @@
         </div>
         <label class="check"><input type="checkbox" data-form-toggle="skeleton" ${uiState.skeleton ? 'checked' : ''}/> Skeleton</label>
         <label class="check"><input type="checkbox" data-form-toggle="ghost" ${uiState.ghost ? 'checked' : ''}/> Target ghost</label>
+        <button class="btn btn-sm" data-form-action="draw" aria-pressed="${!!draw.active}">✏️ Draw</button>
         <div class="spacer"></div>
         <span class="muted small" id="form-time">0:00</span>
       </div>
@@ -327,7 +360,7 @@
         comments.length
           ? comments
               .map(
-                (c) => `<li>${c.t != null ? `<button class="btn btn-sm time-chip" data-form-action="seek" data-t="${c.t}">${fmtT(c.t)}</button>` : '<span class="time-chip muted small">general</span>'}
+                (c) => `<li>${c.t != null ? `<button class="btn btn-sm time-chip" data-form-action="seek" data-t="${c.t}">${c.drawing ? '✏️ ' : ''}${fmtT(c.t)}</button>` : '<span class="time-chip muted small">general</span>'}
                 <div class="main"><strong>${esc(c.from === 'coach' ? ctx.coachName() : ctx.athleteName(ctx.athleteById(an.athleteId)) || 'Athlete')}</strong> <span class="muted small">· ${esc(ctx.relTime(c.ts))}</span><div>${esc(c.text)}</div></div></li>`
               )
               .join('')
@@ -619,6 +652,14 @@
         g.fillText(txt, p.x + lw * 3, p.y);
       }
     }
+    // Drawings: saved ones near their timestamp, plus the one being made.
+    const an = byId(active && active.id);
+    const saved = an ? an.comments.filter((c) => c.drawing && c.t != null && Math.abs(c.t - t) < 0.4) : [];
+    for (const c of saved) for (const st of c.drawing) drawStroke(g, st, w, h, lw);
+    if (draw.active) {
+      for (const st of draw.strokes) drawStroke(g, st, w, h, lw);
+      if (draw.current) drawStroke(g, draw.current, w, h, lw);
+    }
     // Rep counter badge.
     if (rep) {
       g.font = `700 ${Math.round(lw * 4.5)}px system-ui, sans-serif`;
@@ -628,6 +669,91 @@
       g.fillStyle = '#fff';
       g.fillText(txt, lw * 5, lw * 8);
     }
+  }
+
+  function drawStroke(g, st, w, h, lw) {
+    const pts = st.pts.map(([x, y]) => [x * w, y * h]);
+    if (!pts.length) return;
+    g.save();
+    g.strokeStyle = st.color;
+    g.fillStyle = st.color;
+    g.lineWidth = lw * 0.9;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(...pts[0]);
+    for (const p of pts.slice(1)) g.lineTo(...p);
+    g.stroke();
+    for (const p of st.tool === 'pen' ? [] : pts) {
+      g.beginPath();
+      g.arc(p[0], p[1], lw * 1.1, 0, Math.PI * 2);
+      g.fill();
+    }
+    if (st.tool === 'angle' && pts.length === 3) {
+      const [a, b, c] = pts;
+      const ang = Math.round((Math.abs(Math.atan2(a[1] - b[1], a[0] - b[0]) - Math.atan2(c[1] - b[1], c[0] - b[0])) * 180) / Math.PI);
+      const deg = ang > 180 ? 360 - ang : ang;
+      g.font = `700 ${Math.round(lw * 5)}px system-ui, sans-serif`;
+      g.fillStyle = 'rgba(0,0,0,.7)';
+      g.fillRect(b[0] + lw * 2, b[1] - lw * 6, g.measureText(`${deg}°`).width + lw * 2, lw * 6.5);
+      g.fillStyle = st.color;
+      g.fillText(`${deg}°`, b[0] + lw * 3, b[1] - lw * 1.2);
+    }
+    g.restore();
+  }
+
+  function drawToolbar() {
+    return `<div class="draw-toolbar" role="toolbar" aria-label="Drawing tools">
+      ${['line', 'angle', 'pen'].map((t) => `<button class="btn btn-sm" data-draw-tool="${t}" aria-pressed="${draw.tool === t}">${t === 'line' ? '╱ Line' : t === 'angle' ? '∠ Angle' : '✎ Pen'}</button>`).join('')}
+      ${DRAW_COLORS.map((c) => `<button class="swatch" data-draw-color="${c}" style="--c:${c}" aria-pressed="${draw.color === c}" aria-label="Colour ${c}"></button>`).join('')}
+      <button class="btn btn-sm" data-form-action="draw-undo">↶ Undo</button>
+      <button class="btn btn-sm" data-form-action="draw-clear">Clear</button>
+      <input class="draw-note" placeholder="Note for this drawing…" maxlength="300"/>
+      <button class="btn btn-sm btn-primary" data-form-action="draw-save">Save to comments</button>
+    </div>`;
+  }
+
+  function setupDrawLayer(container) {
+    let layer = $('.draw-layer', container);
+    if (!draw.active) {
+      if (layer) layer.remove();
+      const tb = $('.draw-toolbar');
+      if (tb) tb.remove();
+      return;
+    }
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.className = 'draw-layer';
+      container.append(layer);
+      container.insertAdjacentHTML('afterend', drawToolbar());
+    }
+    const norm = (e) => {
+      const r = layer.getBoundingClientRect();
+      return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))];
+    };
+    layer.onpointerdown = (e) => {
+      e.preventDefault();
+      if (active) active.player.pause();
+      layer.setPointerCapture(e.pointerId);
+      const p = norm(e);
+      if (draw.tool === 'angle') {
+        // Three taps: vertex in the middle.
+        if (!draw.current || draw.current.tool !== 'angle') draw.current = { tool: 'angle', color: draw.color, pts: [] };
+        draw.current.pts.push(p);
+        if (draw.current.pts.length === 3) (draw.strokes.push(draw.current), (draw.current = null));
+        return;
+      }
+      draw.current = { tool: draw.tool, color: draw.color, pts: [p, p] };
+    };
+    layer.onpointermove = (e) => {
+      if (!draw.current || draw.tool === 'angle' || !e.buttons) return;
+      const p = norm(e);
+      if (draw.tool === 'line') draw.current.pts[1] = p;
+      else draw.current.pts.push(p);
+    };
+    layer.onpointerup = () => {
+      if (draw.current && draw.tool !== 'angle') (draw.strokes.push(draw.current), (draw.current = null));
+    };
   }
 
   function nearestContact(list, i) {
@@ -667,6 +793,9 @@
         const prev = playerTime.get(an.id);
         if (prev) player.seek(prev);
         active = { id: an.id, player, result, data, raf: 0 };
+        draw.active = false;
+        draw.strokes = [];
+        draw.current = null;
         if (!url && an.videoId) container.insertAdjacentHTML('afterbegin', '<p class="muted small player-note">Original video isn’t on this device. Showing the tracked skeleton only.</p>');
         const tick = () => {
           if (!holder.isConnected || !active || active.player !== player) return;
@@ -841,6 +970,19 @@
   // ---------- events ----------
 
   function onClick(e) {
+    const tool = e.target.closest('[data-draw-tool]');
+    if (tool) {
+      draw.tool = tool.dataset.drawTool;
+      draw.current = null;
+      $$('[data-draw-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b === tool)));
+      return;
+    }
+    const sw = e.target.closest('[data-draw-color]');
+    if (sw) {
+      draw.color = sw.dataset.drawColor;
+      $$('[data-draw-color]').forEach((b) => b.setAttribute('aria-pressed', String(b === sw)));
+      return;
+    }
     const open = e.target.closest('[data-form-open]');
     if (open) {
       uiState.compareRep = null;
@@ -882,6 +1024,36 @@
         }
         $$('[data-form-action=compare-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b === el)));
         return;
+      case 'draw': {
+        draw.active = !draw.active;
+        draw.strokes = [];
+        draw.current = null;
+        el.setAttribute('aria-pressed', String(draw.active));
+        if (active) active.player.pause();
+        const c = $('#form-player');
+        if (c) setupDrawLayer(c);
+        return;
+      }
+      case 'draw-undo':
+        if (draw.current) draw.current = null;
+        else draw.strokes.pop();
+        return;
+      case 'draw-clear':
+        draw.strokes = [];
+        draw.current = null;
+        return;
+      case 'draw-save': {
+        if (!an || !draw.strokes.length) return ctx.toast('Draw something first');
+        const note = ($('.draw-note') || {}).value || '';
+        an.comments.push(ctx.C.normalizeFormComment({ from: ctx.role(), t: +active.player.time().toFixed(2), text: note.trim() || '✏️ Drawing', drawing: draw.strokes }));
+        if (ctx.role() === 'coach') an.seenByAthlete = false;
+        else if (an.sharedWithCoach) an.seenByCoach = false;
+        draw.active = false;
+        draw.strokes = [];
+        ctx.save();
+        ctx.toast('Drawing saved. It appears at this moment in the video.');
+        return refreshDetail();
+      }
       case 'seek':
         if (active) active.player.pause(), active.player.seek(Number(el.dataset.t));
         return;

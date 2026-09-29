@@ -754,7 +754,7 @@
 
   // ---------- form analyses ----------
 
-  const FORM_EXERCISES = ['squat', 'deadlift', 'lunge', 'bench', 'pushup', 'ohp', 'running'];
+  const FORM_EXERCISES = ['squat', 'deadlift', 'lunge', 'bench', 'pushup', 'ohp', 'landing', 'running'];
 
   function normalizeFormComment(input) {
     return {
@@ -763,6 +763,13 @@
       t: input.t == null || input.t === '' ? null : Math.max(0, Number(input.t) || 0), // seconds into the video
       text: String(input.text || '').trim().slice(0, 2000),
       ts: Number(input.ts) || Date.now(),
+      drawing: Array.isArray(input.drawing)
+        ? input.drawing.slice(0, 40).map((st) => ({
+            tool: ['pen', 'line', 'angle'].includes(st.tool) ? st.tool : 'pen',
+            color: /^#[0-9a-f]{6}$/i.test(st.color || '') ? st.color : '#facc15',
+            pts: (Array.isArray(st.pts) ? st.pts : []).slice(0, 400).map((p) => [Math.max(0, Math.min(1, +p[0] || 0)), Math.max(0, Math.min(1, +p[1] || 0))]),
+          }))
+        : null,
     };
   }
 
@@ -1412,13 +1419,21 @@
       normalizeAnalysis({
         id: 'demo-squat', athleteId: 'taylor', exercise: 'squat', createdAt: hoursAgo(26), loadKg: lb(275), loadReps: 5,
         athleteNote: 'Felt heavy out of the hole on the last two reps.', sharedWithCoach: true, seenByCoach: false,
-        demo: { opts: { reps: 5, depth: -78, lean: 52, heelLift: 0.012 } },
+        demo: { opts: { reps: 5, depth: -78, lean: 52, heelLift: 0.012, fatigue: 0.22 } },
+      }),
+      normalizeAnalysis({
+        id: 'demo-squat-old', athleteId: 'taylor', exercise: 'squat', createdAt: hoursAgo(24 * 15), loadKg: lb(255), loadReps: 5, sharedWithCoach: true, seenByCoach: true,
+        demo: { opts: { reps: 5, depth: -70, lean: 58, heelLift: 0.025 } },
       }),
       normalizeAnalysis({
         id: 'demo-run', athleteId: 'riley', exercise: 'running', createdAt: hoursAgo(30), sharedWithCoach: true, seenByCoach: true, seenByAthlete: false,
         athleteNote: 'Easy pace on the treadmill, 7:45/mi.', demo: { opts: { seconds: 10, overstride: true, cadence: 158, bounce: 0.02 } },
         comments: [{ from: 'athlete', t: 2.1, text: 'Does my foot land too far forward here?', ts: hoursAgo(29) }],
         coachCues: [{ from: 'coach', text: 'Yes, you’re reaching. Aim for 168 spm with a metronome on your easy runs this week.', ts: hoursAgo(4) }],
+      }),
+      normalizeAnalysis({
+        id: 'demo-landing', athleteId: 'jordan', exercise: 'landing', view: 'front', createdAt: hoursAgo(20), sharedWithCoach: true, seenByCoach: false,
+        athleteNote: 'Box drop landings from 18 in. Knee felt a little unstable.', demo: { opts: { reps: 5, valgus: 0.62 } },
       }),
       normalizeAnalysis({
         id: 'demo-pushup', athleteId: 'riley', exercise: 'pushup', createdAt: hoursAgo(80), sharedWithCoach: false,
