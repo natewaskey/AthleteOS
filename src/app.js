@@ -10,12 +10,13 @@
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
   const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
-  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['performance', 'Performance'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['performance', 'Performance'], ['health', 'Health'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
   const Form = window.FormUI;
   const Plan = window.PlanUI;
   const Programs = window.ProgramUI;
   const Live = window.LiveUI;
   const Progress = window.ProgressUI;
+  const Health = window.HealthUI;
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -405,6 +406,7 @@
         <h1 class="page-title">${esc(greet())}${a.name ? ', ' + esc(a.name.split(' ')[0]) : ''}</h1>
         <p class="muted" style="margin-top:0">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
         <div class="grid">
+          ${Health.athleteInjuriesCard(a.id)}
           ${Plan.todayCard(a)}
           ${readinessCard(a)}
           ${loadCard(a)}
@@ -421,6 +423,7 @@
             <div class="card-head"><h3>Weekly load · 8 weeks</h3></div>
             ${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}
           </section>
+          ${Health.recoveryCard(a)}
           ${Progress.wallCard()}
           <section class="card span-6">
             <div class="card-head"><h3>Recent</h3><button class="btn btn-sm btn-ghost" data-tab-link="history">All</button></div>
@@ -528,6 +531,13 @@
                 <label>Position / event <input name="position" value="${esc(a.position)}" maxlength="40" placeholder="e.g. Guard" /></label>
               </div>
               ${prefsFields()}
+              <fieldset><legend>Privacy</legend>
+                <label class="check"><input type="checkbox" name="shareNotes" ${a.privacy.shareNotes ? 'checked' : ''}/> Share check-in notes with my coach</label>
+                <label class="check"><input type="checkbox" name="autoShareForm" ${a.privacy.autoShareForm ? 'checked' : ''}/> Automatically share new form checks with my coach</label>
+                <label class="check"><input type="checkbox" name="trackCycle" ${a.trackCycle ? 'checked' : ''}/> Track my menstrual cycle (private, optional)</label>
+                <label class="check"><input type="checkbox" name="shareCycle" ${a.privacy.shareCycle ? 'checked' : ''}/> Share cycle phase with my coach</label>
+              </fieldset>
+              <label>Date of birth <input type="date" name="birthdate" value="${esc(a.birthdate)}"/></label>
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
@@ -560,7 +570,8 @@
       statuses.sort((x, y) => rank[x.worst] - rank[y.worst] || athleteName(x.athlete).localeCompare(athleteName(y.athlete)));
       const checkedIn = statuses.filter((s) => s.checkin).length;
       const alerts = statuses.flatMap((s) => s.flags.filter((f) => f.level !== 'info').map((f) => ({ ...f, a: s.athlete })));
-      for (const x of Plan.alerts()) if (athleteById(x.athleteId)) alerts.push({ ...x, a: athleteById(x.athleteId) });
+      for (const x of [...Health.alerts(), ...Plan.alerts()]) if (athleteById(x.athleteId)) alerts.push({ ...x, a: athleteById(x.athleteId) });
+      alerts.sort((x, y) => (x.level === 'bad' ? 0 : 1) - (y.level === 'bad' ? 0 : 1));
       const unread = C.unreadCount(state.messages, 'coach');
       const avgReady = statuses.filter((s) => s.readiness).map((s) => s.readiness.score);
 
@@ -606,7 +617,11 @@
     },
 
     performance() {
-      return Progress.coachView();
+      return ui.id === 'report' ? Health.reportView() : Progress.coachView();
+    },
+
+    health() {
+      return Health.coachView();
     },
 
     form() {
@@ -703,6 +718,7 @@
       </div>
       <div class="chips">${s.checkin ? soreChips(s.checkin.soreAreas, 3) || '<span class="muted small">No soreness reported</span>' : ''}</div>
       ${Plan.todayLine(a.id)}
+      ${Health.statusPill(a.id)}
       <div class="muted small">${s.lastWorkout ? `Last trained ${esc(relDate(s.lastWorkout).toLowerCase())}` : 'No training logged'}</div>
     </article>`;
   }
@@ -776,6 +792,8 @@
               : '<p class="muted">No videos yet. Athletes can send one from a workout or in messages.</p>'
           }
         </section>
+        ${Health.athleteInjuriesCard(a.id, { coach: true })}
+        ${a.trackCycle && a.privacy.shareCycle && window.Program.cycleInfo(a, t) ? `<section class="card span-6"><div class="card-head"><h3>🌸 Cycle (shared by athlete)</h3></div><p>Day ${window.Program.cycleInfo(a, t).day} · ${esc(window.Program.cycleInfo(a, t).phase)}</p><p class="muted small">${esc(window.Program.cycleInfo(a, t).note)}</p></section>` : ''}
         ${Form.athleteCard(a)}
         <section class="card span-6"><div class="card-head"><h3>Endurance records</h3></div>${endHTML}</section>
         <section class="card span-6"><div class="card-head"><h3>Strength records</h3></div>${strHTML}</section>
@@ -1161,6 +1179,11 @@
     cForm.mood.value = src.mood ?? 4;
     cForm.restingHR.value = src.restingHR ?? '';
     cForm.note.value = src.note ?? '';
+    cForm.hydration.value = src.hydration ?? 3;
+    cForm.fuel.value = src.fuel ?? 3;
+    $('#cycle-fields').hidden = !a.trackCycle;
+    cForm.period.checked = !!src.period;
+    $$('#cycle-fields input[name=symptoms]').forEach((x) => (x.checked = (src.symptoms || []).includes(x.value)));
     setConverted(cForm.weight, src.weight ?? (prev && prev.weight != null ? prev.weight : null), (kg) => C.kgToDisplay(kg, units()), 1);
     draftAreas = { ...(src.soreAreas || {}) };
     drawCheckinBody();
@@ -1191,6 +1214,8 @@
     const a = me();
     const c = C.normalizeCheckin({
       ...Object.fromEntries(new FormData(cForm)),
+      period: cForm.period.checked,
+      symptoms: new FormData(cForm).getAll('symptoms'),
       soreAreas: draftAreas,
       weight: readConverted(cForm.weight, (v) => C.displayToKg(v, units())),
     });
@@ -1286,6 +1311,8 @@
       }
       case 'export':
         return exportData();
+      case 'weekly-report':
+        return go('performance', 'report');
       case 'clear-ai-key':
         window.AI.setKey('');
         toast('API key removed');
@@ -1390,7 +1417,8 @@
     } else if (f.id === 'profile-form') {
       e.preventDefault();
       const d = data();
-      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim() });
+      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '' });
+      me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
     } else if (f.id === 'coach-form') {
       e.preventDefault();
@@ -1508,6 +1536,8 @@
     U,
     storeVideo,
   });
+
+  Health.init({ C, state: () => state, save, render, toast, esc, role, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff: () => (state.staff || []).find((x) => x.id === state.activeStaffId) });
 
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
 

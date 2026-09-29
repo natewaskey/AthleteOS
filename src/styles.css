@@ -1432,3 +1432,37 @@ body.focus-open { overflow: hidden; }
 .celebrate-card .btn { align-self: center; margin-top: 0.5rem; }
 .confetti { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; animation: fall 2.6s ease-in forwards; }
 @keyframes fall { to { top: 110%; transform: translateX(40px) rotate(720deg); } }
+
+/* ======================================================================
+   v7: health, recovery, weekly report
+   ====================================================================== */
+
+.injury-list { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.injury-card { border: 1px solid var(--border); border-left: 4px solid var(--warn); border-radius: 12px; padding: 0.75rem 0.9rem; background: var(--surface); }
+.injury-card.out { border-left-color: var(--bad); }
+.injury-card.cleared { border-left-color: var(--good); }
+.injury-card + .injury-card { margin-top: 0.6rem; }
+.injury-list .injury-card + .injury-card { margin-top: 0; }
+.rtp { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); }
+.rtp-stages { margin: 0.4rem 0 0; padding-left: 1.3rem; }
+.rtp-stages li { padding: 0.35rem 0; display: flex; justify-content: space-between; gap: 0.5rem; align-items: flex-start; }
+.rtp-stages li.done { opacity: 0.75; }
+.rtp-stages li.current { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 8px; padding: 0.4rem 0.5rem; }
+.rtp-action { display: flex; flex-direction: column; align-items: flex-end; gap: 0.3rem; flex: none; }
+.fuel-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.fuel-row .stat { font-size: 1.35rem; }
+.tip { display: flex; gap: 0.6rem; padding: 0.5rem 0; border-top: 1px solid var(--border); }
+.tip > span { font-size: 1.3rem; }
+.tip.private { background: color-mix(in srgb, #ec4899 8%, transparent); border-radius: 8px; padding: 0.5rem; border-top: 0; margin-top: 0.4rem; }
+.report-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+.report-summary div { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column; }
+.report-summary strong { font-size: 1.5rem; }
+.report-summary span { color: var(--muted); font-size: 0.8rem; }
+.report-table td { vertical-align: top; }
+
+@media print {
+  .topbar, .tabs, .no-print, #toast, #rest-timer, #interval-timer { display: none !important; }
+  body, .card, .report-summary div { background: #fff !important; color: #000 !important; box-shadow: none !important; }
+  main { padding: 0; max-width: none; }
+  .report-table { font-size: 11px; }
+}

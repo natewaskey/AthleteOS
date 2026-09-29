@@ -1518,6 +1518,11 @@
       { id: uid(), type: 'shoutout', athleteId: 'maya', text: 'Four games in four days and still first on the ball. Proud of you!', by: 'Coach Rivera', ts: hoursAgo(30), reactions: ['riley', 'sam', 'taylor'] },
       { id: uid(), type: 'pr', athleteId: 'jordan', text: 'set a test PR: Pro agility (5-10-5) 4.32 s', ts: hoursAgo(80), reactions: [] },
     ];
+    const now2 = Date.now();
+    s.injuries = [
+      { id: 'inj-jordan', athleteId: 'jordan', type: 'injury', area: 'knee-l', label: 'Left knee pain (patellar tendon)', date: addDays(todayISO, -1), status: 'limited', restrictions: ['no-jumping'], expectedReturn: addDays(todayISO, 10), notes: 'Pain landing from jumps since Friday’s game. Seeing the athletic trainer Wednesday.', stages: [], createdBy: 'Coach Rivera' },
+      { id: 'inj-sam', athleteId: 'sam', type: 'concussion', area: 'head', label: 'Concussion (flip-turn wall contact)', date: addDays(todayISO, -4), status: 'limited', restrictions: ['no-contact', 'no-jumping', 'no-lower-load', 'no-upper-load'], notes: 'Symptom-free since Saturday. Cleared by school nurse for light aerobic work.', stages: [{ doneAt: now2 - 50 * 3600000, by: 'Coach Rivera' }, { doneAt: now2 - 20 * 3600000, by: 'Coach Rivera' }, {}, {}, {}, {}], createdBy: 'Coach Rivera' },
+    ];
     for (const a of s.athletes) a.badgesSeen = ['first-workout', 'ten-workouts', 'tester', 'test-pr', 'first-pr', 'streak-7', 'checkin-7', 'perfect-week', 'form-80'];
     return s;
   }
