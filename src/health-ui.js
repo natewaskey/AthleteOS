@@ -155,7 +155,7 @@
     return `<div class="report">
       <div class="row no-print" style="margin-bottom:.75rem"><button class="btn btn-sm btn-ghost" data-tab-link="performance">‹ Performance</button><div class="spacer"></div>
         <button class="btn btn-sm" data-health="week" data-delta="-7">‹ Prev week</button><button class="btn btn-sm" data-health="week" data-delta="7">Next week ›</button>
-        <button class="btn btn-primary" data-health="print">🖨️ Print / save PDF</button></div>
+        <button class="btn" data-health="copy-report">📋 Copy as text</button><button class="btn btn-primary" data-health="print">🖨️ Print / save PDF</button></div>
       <h1 class="page-title">Weekly report · ${esc(ctx.state().team.name || 'Team')}</h1>
       <p class="muted">${esc(ctx.fmtDate(reportWeek, { month: 'long', day: 'numeric' }))} – ${esc(ctx.fmtDate(end, { month: 'long', day: 'numeric', year: 'numeric' }))} · prepared by ${esc(ctx.coachName())}</p>
       <div class="report-summary">
@@ -184,13 +184,35 @@
 
   // ---------- events ----------
 
-  function onClick(e) {
+  async function onClick(e) {
     const el = e.target.closest('[data-health]');
     if (!el) return;
     const act = el.dataset.health;
     const state = ctx.state();
     if (act === 'toggle-form') return (showForm = !showForm), ctx.render();
-    if (act === 'print') return window.print();
+    if (act === 'print') {
+      try {
+        window.print();
+      } catch {
+        /* blocked */
+      }
+      // Embedded previews often block printing without telling the page.
+      if (window.self !== window.top) ctx.toast('If the print window didn’t open, use “Copy as text” or open the app in its own tab.');
+      return;
+    }
+    if (act === 'copy-report') {
+      const r = $('.report');
+      let text = '';
+      if (r) {
+        const clone = r.cloneNode(true);
+        clone.querySelectorAll('.no-print').forEach((x) => x.remove());
+        clone.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px';
+        document.body.append(clone);
+        text = clone.innerText.replace(/\n{3,}/g, '\n\n').trim();
+        clone.remove();
+      }
+      return Dialogs.showText(text, { title: 'Weekly report', intro: 'Copy this into an email or document. (If Print didn’t open, your browser may be blocking it in this preview.)', rows: 16 });
+    }
     if (act === 'week') return (reportWeek = C.addDays(reportWeek, +el.dataset.delta)), ctx.render();
     if (act === 'log-from-pain') {
       showForm = true;
@@ -202,7 +224,7 @@
     const inj = injuries().find((i) => i.id === el.dataset.id);
     if (!inj) return;
     if (act === 'delete') {
-      if (!confirm(`Delete this ${inj.type} record?`)) return;
+      if (!(await Dialogs.confirm(`Delete this ${inj.type} record?`, { title: 'Delete record?', ok: 'Delete', danger: true }))) return;
       state.injuries = injuries().filter((i) => i.id !== inj.id);
     }
     if (act === 'stage') {

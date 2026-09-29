@@ -759,7 +759,7 @@
 
   // ---------- events ----------
 
-  function onClick(e) {
+  async function onClick(e) {
     const link = e.target.closest('[data-tab-link-id]');
     if (link) return ctx.go('plan', link.dataset.tabLinkId);
     const el = e.target.closest('[data-plan-action]');
@@ -793,7 +793,7 @@
       }
       case 'delete-template': {
         const t = templates().find((x) => x.id === el.dataset.id);
-        if (!t || !confirm(`Delete “${t.name}” from your library? Sessions already assigned keep their copy.`)) return;
+        if (!t || !(await Dialogs.confirm(`Delete “${t.name}” from your library? Sessions already assigned keep their copy.`, { title: 'Delete workout?', ok: 'Delete', danger: true }))) return;
         state.templates = templates().filter((x) => x.id !== t.id);
         ctx.save();
         return ctx.render();
@@ -807,7 +807,7 @@
         draft.blocks.push(C.normalizePlanBlock({ type: el.dataset.type, items: [] }));
         return rerenderBuilder();
       case 'remove-block':
-        if (draft.blocks[el.dataset.b].items.length && !confirm('Remove this block and its exercises?')) return;
+        if (draft.blocks[el.dataset.b].items.length && !(await Dialogs.confirm('Remove this block and its exercises?', { title: 'Remove block?', ok: 'Remove', danger: true }))) return;
         draft.blocks.splice(Number(el.dataset.b), 1);
         return rerenderBuilder();
       case 'move-block': {
@@ -870,7 +870,7 @@
         return stopRest();
       case 'skip': {
         const a = assignments().find((x) => x.id === el.dataset.id);
-        const reason = prompt('Why are you skipping this session? (your coach will see this)', '');
+        const reason = await Dialogs.prompt('Why are you skipping? Your coach will see this.', { title: `Skip “${a ? a.plan.name : 'session'}”?`, ok: 'Skip session', placeholder: 'e.g. sick, game ran late, sore knee', multiline: true });
         if (reason === null || !a) return;
         a.status = 'skipped';
         a.skipReason = reason.trim();
@@ -884,11 +884,11 @@
         const a = assignments().find((x) => x.id === el.dataset.id);
         if (!a || !canRemove(a)) return;
         const coach = ctx.role() === 'coach';
-        if (!confirm(`Remove “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()}) from ${coach ? `${ctx.athleteName(ctx.athleteById(a.athleteId) || {})}’s` : 'your'} plan?`)) return;
+        if (!(await Dialogs.confirm(`Remove “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()}) from ${coach ? `${ctx.athleteName(ctx.athleteById(a.athleteId) || {})}’s` : 'your'} plan?`, { title: 'Remove session?', ok: 'Remove', danger: true }))) return;
         state.assignments = assignments().filter((x) => x.id !== a.id);
         const wid = a.result && a.result.workoutId;
         const ath = ctx.athleteById(a.athleteId);
-        if (wid && ath && ath.workouts.some((w) => w.id === wid) && confirm('This session was completed. Also delete the workout it logged from training history? (Cancel keeps it.)')) {
+        if (wid && ath && ath.workouts.some((w) => w.id === wid) && (await Dialogs.confirm('This session was completed. Also delete the workout it logged from training history?', { title: 'Delete the logged workout too?', ok: 'Delete workout', cancel: 'Keep workout', danger: true }))) {
           C.deleteWorkout(state, a.athleteId, wid);
         }
         ctx.save();
@@ -900,7 +900,7 @@
         const a = assignments().find((x) => x.id === el.dataset.id);
         if (!a || !canRemove(a)) return;
         const rest = assignments().filter((x) => x.programId === a.programId && x.athleteId === a.athleteId && x.status === 'assigned' && x.date >= today());
-        if (!confirm(`Remove ${rest.length} upcoming session${rest.length === 1 ? '' : 's'} from this program? Completed sessions are kept.`)) return;
+        if (!(await Dialogs.confirm(`Remove ${rest.length} upcoming session${rest.length === 1 ? '' : 's'} from this program? Completed sessions are kept.`, { title: 'Remove rest of program?', ok: 'Remove', danger: true }))) return;
         const ids = new Set(rest.map((x) => x.id));
         state.assignments = assignments().filter((x) => !ids.has(x.id));
         ctx.save();
@@ -953,7 +953,7 @@
     }
   }
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     if (e.target.id === 'plan-builder') return e.preventDefault(); // Enter in a field shouldn't reload the page
     const f = e.target.closest('[data-plan-submit]');
     if (!f) return;
@@ -962,7 +962,7 @@
     if (!a) return;
     saveSetInputs(a);
     const done = Object.values(a.progress).reduce((s, p) => s + p.sets.filter((x) => x.done).length, 0);
-    if (!done && !confirm('No sets are ticked off. Complete the workout anyway?')) return;
+    if (!done && !(await Dialogs.confirm('No sets are ticked off. Complete the workout anyway?', { title: 'Complete workout?', ok: 'Complete' }))) return;
     const res = { rpe: Number(f.rpe.value), duration: Number(f.duration.value), note: f.note.value.trim() };
     const w = C.normalizeWorkout(C.workoutFromAssignment(a, res));
     ctx.me().workouts.push(w);

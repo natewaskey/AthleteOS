@@ -219,9 +219,9 @@
   // ---------- assign ----------
 
   let dialog = null;
-  function openAssign(p) {
+  async function openAssign(p) {
     if (ctx.role() === 'athlete') {
-      const start = prompt('Start date (YYYY-MM-DD)', today());
+      const start = await Dialogs.prompt('When do you want to start?', { title: 'Add to my plan', type: 'date', value: today(), ok: 'Add sessions', required: true });
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
@@ -274,7 +274,7 @@
 
   // ---------- events ----------
 
-  function onClick(e) {
+  async function onClick(e) {
     const open = e.target.closest('[data-prog-open]');
     if (open) return ctx.go('plan', 'program:' + open.dataset.progOpen);
     const wk = e.target.closest('[data-prog-week]');
@@ -313,10 +313,10 @@
         return openAssign(preview);
       case 'delete': {
         const p = programs().find((x) => x.id === el.dataset.id);
-        if (!p || !confirm(`Delete “${p.name}”?`)) return;
+        if (!p || !(await Dialogs.confirm(`Delete “${p.name}”?`, { title: 'Delete program?', ok: 'Delete', danger: true }))) return;
         const st = ctx.state();
         const upcoming = st.assignments.filter((x) => x.programId === p.id && x.status === 'assigned' && x.date >= today() && (ctx.role() === 'coach' || x.athleteId === ctx.me().id));
-        if (upcoming.length && confirm(`Also remove its ${upcoming.length} upcoming session${upcoming.length === 1 ? '' : 's'} from ${ctx.role() === 'coach' ? 'athletes’ plans' : 'your plan'}? Completed sessions are kept.`)) {
+        if (upcoming.length && (await Dialogs.confirm(`Also remove its ${upcoming.length} upcoming session${upcoming.length === 1 ? '' : 's'} from ${ctx.role() === 'coach' ? 'athletes’ plans' : 'your plan'}? Completed sessions are kept.`, { title: 'Remove upcoming sessions?', ok: 'Remove sessions', cancel: 'Keep them', danger: true }))) {
           const ids = new Set(upcoming.map((x) => x.id));
           st.assignments = st.assignments.filter((x) => !ids.has(x.id));
         }

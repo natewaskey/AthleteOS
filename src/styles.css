@@ -1492,3 +1492,11 @@ body.focus-open { overflow: hidden; }
 .wizard fieldset { margin-bottom: 1rem; }
 :focus-visible { outline: 3px solid var(--accent, #ff5a1f); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
+
+/* ---------- in-app confirm / prompt ---------- */
+#app-dialog { width: min(440px, calc(100vw - 32px)); }
+#app-dialog h2 { margin: 0 0 0.5rem; font-size: 1.15rem; }
+.app-dialog-msg { margin: 0 0 1rem; color: var(--text); line-height: 1.45; white-space: pre-line; }
+.btn-danger-solid { background: var(--pain); border-color: var(--pain); color: #fff; }
+.btn-danger-solid:hover { filter: brightness(1.08); }
+.copy-box { width: 100%; font: 0.8rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }

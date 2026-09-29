@@ -1444,7 +1444,7 @@
     true
   );
 
-  document.addEventListener('click', (e) => {
+  document.addEventListener('click', async (e) => {
     const tabBtn = e.target.closest('[data-tab], [data-tab-link]');
     if (tabBtn) {
       go(tabBtn.dataset.tab || tabBtn.dataset.tabLink);
@@ -1483,7 +1483,7 @@
         const owner = (el.dataset.athlete && athleteById(el.dataset.athlete)) || a;
         const w = owner.workouts.find((x) => x.id === id);
         const who = owner === a && role() === 'athlete' ? '' : ` from ${athleteName(owner)}’s training log`;
-        if (!w || !confirm(`Delete “${w.title}” on ${fmtDate(w.date)}${who}? Its training load is removed too.`)) return;
+        if (!w || !(await Dialogs.confirm(`Delete “${w.title}” on ${fmtDate(w.date)}${who}? Its training load is removed too.`, { title: 'Delete workout?', ok: 'Delete', danger: true }))) return;
         const res = C.deleteWorkout(state, owner.id, id);
         save();
         toast(res && res.reopened ? `Workout deleted. “${res.reopened.plan.name}” is back on the plan as not done.` : 'Workout deleted');
@@ -1498,7 +1498,7 @@
         return render();
       case 'remove-athlete': {
         const ath = athleteById(id);
-        if (!ath || !confirm(`Remove ${athleteName(ath)} and all their data?`)) return;
+        if (!ath || !(await Dialogs.confirm(`Remove ${athleteName(ath)} and all their data?`, { title: 'Remove athlete?', ok: 'Remove', danger: true }))) return;
         const { videoIds, poseIds } = P.removeAthlete(state, id);
         videoIds.forEach((v) => Media.remove(v).catch(() => {}));
         poseIds.forEach((x) => Media.removePoses(x).catch(() => {}));
@@ -1514,7 +1514,7 @@
       }
       case 'delete-mine': {
         const a = me();
-        if (!confirm(`Permanently delete ${a.name || 'this athlete'}’s profile, workouts, check-ins, messages, form checks and videos from this device?`)) return;
+        if (!await Dialogs.confirm(`Permanently delete ${a.name || 'this athlete'}’s profile, workouts, check-ins, messages, form checks and videos from this device?`, { title: 'Delete my data?', ok: 'Delete everything', danger: true })) return;
         const { videoIds, poseIds } = P.removeAthlete(state, a.id);
         videoIds.forEach((id) => Media.remove(id).catch(() => {}));
         poseIds.forEach((id) => Media.removePoses(id).catch(() => {}));
@@ -1526,7 +1526,7 @@
       }
       case 'remove-staff': {
         const st = state.staff.find((x) => x.id === el.dataset.id);
-        if (!st || !confirm(`Remove ${st.name || 'this staff member'} from the staff?`)) return;
+        if (!st || !(await Dialogs.confirm(`Remove ${st.name || 'this staff member'} from the staff?`, { title: 'Remove staff member?', ok: 'Remove', danger: true }))) return;
         state.staff = state.staff.filter((x) => x.id !== st.id);
         save();
         return render();
@@ -1542,7 +1542,7 @@
         toast('API key removed');
         return render();
       case 'load-sample':
-        if (hasData() && !confirm('Replace your current data with the demo team?')) return;
+        if (hasData() && !(await Dialogs.confirm('Replace your current data with the demo team?', { title: 'Load demo team?', ok: 'Replace' }))) return;
         state = C.sampleState(today());
         save();
         Media.clear().catch(() => {});
@@ -1552,7 +1552,7 @@
         toast('Demo team loaded. Try the Coach view too!');
         return go(tabsFor()[0][0]);
       case 'reset':
-        if (!confirm('Erase all athletes, workouts, check-ins, messages and videos? This cannot be undone.')) return;
+        if (!(await Dialogs.confirm('Erase all athletes, workouts, check-ins, messages and videos? This cannot be undone.', { title: 'Erase everything?', ok: 'Erase', danger: true }))) return;
         state = C.emptyState();
         save();
         Media.clear().catch(() => {});
@@ -1751,12 +1751,20 @@
   // ---------- import / export ----------
 
   function download(text, filename) {
-    const blob = new Blob([text], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    try {
+      const blob = new Blob([text], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch {
+      /* fall through to the copy dialog */
+    }
+    // Embedded/preview frames can block downloads silently, so always offer the data to copy as well.
+    Dialogs.showText(text, { title: `Export · ${filename}`, intro: 'Your download should start. If it didn’t, copy the data below and save it as a .json file. You can import it later from Settings.', rows: 10 });
   }
 
   function exportData() {
@@ -1766,11 +1774,11 @@
   function importData(file) {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const next = C.migrate(JSON.parse(reader.result));
         const w = next.athletes.reduce((s, a) => s + a.workouts.length, 0);
-        if (!confirm(`Import ${next.athletes.length} athletes with ${w} workouts and ${next.messages.length} messages? This replaces current data.`)) return;
+        if (!(await Dialogs.confirm(`Import ${next.athletes.length} athletes with ${w} workouts and ${next.messages.length} messages? This replaces current data.`, { title: 'Import data?', ok: 'Import' }))) return;
         state = next;
         save();
         Form.clearCaches();

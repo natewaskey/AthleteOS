@@ -131,6 +131,7 @@ npm test           # node --test, no install needed (Node 18+)
 
 ```
 index.html            app shell + dialogs
+src/dialogs.js        in-app confirm/prompt/copy dialogs (native ones are blocked in embedded previews)
 src/core.js           pure logic: sports catalog, load, ACWR, readiness, body areas, coach flags, demo team
 src/body.js           clickable front/back body map (inline SVG)
 src/media.js          video storage (IndexedDB)

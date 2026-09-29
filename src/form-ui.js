@@ -969,7 +969,7 @@
 
   // ---------- events ----------
 
-  function onClick(e) {
+  async function onClick(e) {
     const tool = e.target.closest('[data-draw-tool]');
     if (tool) {
       draw.tool = tool.dataset.drawTool;
@@ -1066,7 +1066,7 @@
         ctx.toast('Sent to your coach');
         return refreshDetail();
       case 'delete':
-        if (!an || !confirm('Delete this analysis? The video stays in your library.')) return;
+        if (!an || !(await Dialogs.confirm('Delete this analysis? The video stays in your library.', { title: 'Delete analysis?', ok: 'Delete', danger: true }))) return;
         ctx.state().analyses = analyses().filter((x) => x.id !== an.id);
         ctx.Media.removePoses(an.id).catch(() => {});
         frameCache.delete(an.id);
