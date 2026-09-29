@@ -263,6 +263,9 @@
       rpe,
       exercises,
       notes: String(input.notes || '').trim(),
+      avgHr: Number(input.avgHr) > 0 ? Math.round(Number(input.avgHr)) : null,
+      maxHr: Number(input.maxHr) > 0 ? Math.round(Number(input.maxHr)) : null,
+      source: ['gpx', 'tcx'].includes(input.source) ? input.source : null,
     };
   }
 
@@ -1403,6 +1406,15 @@
 
     const s = emptyState();
     s.coach = { name: 'Coach Rivera' };
+    s.staff = [
+      { id: 'coach-1', name: 'Coach Rivera', role: 'head' },
+      { id: 'coach-2', name: 'Dana Kim, ATC', role: 'trainer' },
+      { id: 'coach-3', name: 'Marcus Lee', role: 'strength' },
+    ];
+    s.activeStaffId = 'coach-1';
+    s.team = { name: 'Westview Wolves', onboarded: true };
+    riley.birthdate = addDays(todayISO, -Math.round(16.4 * 365.25));
+    riley.guardian = { name: 'Pat Chen', email: 'pat.chen@example.com', consentAt: hoursAgo(24 * 60) };
     s.athletes = [riley, jordan, maya, sam, taylor];
     s.session = { role: 'athlete', athleteId: 'riley' };
     s.messages = [
@@ -1589,6 +1601,7 @@
     ageOn,
     needsConsent,
     STAFF_ROLES,
+    normalizeStaff,
     FORM_EXERCISES,
     normalizeAnalysis,
     normalizeFormComment,

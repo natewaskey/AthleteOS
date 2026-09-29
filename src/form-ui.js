@@ -948,7 +948,7 @@
         },
       });
       if (data.frames.length < 5) throw new Error('No person was detected. Make sure your whole body is in frame and well lit.');
-      const an = ctx.C.normalizeAnalysis({ athleteId: me.id, videoId, exercise, view, aspect: data.aspect, duration: data.duration, seenByAthlete: true });
+      const an = ctx.C.normalizeAnalysis({ athleteId: me.id, videoId, exercise, view, aspect: data.aspect, duration: data.duration, seenByAthlete: true, sharedWithCoach: !!(me.privacy && me.privacy.autoShareForm), seenByCoach: false });
       await ctx.Media.putPoses(an.id, { frames: data.frames, aspect: data.aspect, width: data.width, height: data.height });
       frameCache.set(an.id, { frames: data.frames, aspect: data.aspect });
       storeSummary(an, computeResult(an, { frames: data.frames, aspect: data.aspect }));

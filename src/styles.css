@@ -1482,3 +1482,13 @@ body.focus-open { overflow: hidden; }
 .draw-toolbar .swatch { width: 26px; height: 26px; border-radius: 50%; background: var(--c); border: 2px solid var(--border, #ccc); cursor: pointer; }
 .draw-toolbar .swatch[aria-pressed='true'] { outline: 3px solid var(--accent, #2563eb); outline-offset: 1px; }
 .draw-toolbar .draw-note { flex: 1; min-width: 140px; }
+
+/* ---------- platform ---------- */
+.skip-link { position: absolute; left: 0.5rem; top: -3rem; z-index: 1000; background: var(--accent, #ff5a1f); color: #fff; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; text-decoration: none; }
+.skip-link:focus { top: 0.5rem; }
+#staff-switch { width: auto; max-width: 220px; }
+.perm-table { font-size: 0.85rem; margin-top: 0.5rem; }
+.perm-table td:not(:first-child), .perm-table th { text-align: center; }
+.wizard fieldset { margin-bottom: 1rem; }
+:focus-visible { outline: 3px solid var(--accent, #ff5a1f); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }

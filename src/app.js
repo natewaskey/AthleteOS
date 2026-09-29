@@ -17,6 +17,7 @@
   const Live = window.LiveUI;
   const Progress = window.ProgressUI;
   const Health = window.HealthUI;
+  const P = window.Platform;
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -50,7 +51,11 @@
   const U = () => C.unitLabels(units());
   const athleteById = (id) => state.athletes.find((a) => a.id === id) || null;
   const me = () => athleteById(state.session.athleteId) || state.athletes[0];
-  const coachName = () => state.coach.name || 'Coach';
+  const activeStaff = () => (state.staff || []).find((x) => x.id === state.activeStaffId) || (state.staff || [])[0] || null;
+  const coachName = () => (role() === 'coach' && activeStaff() && activeStaff().name) || state.coach.name || 'Coach';
+  // What the signed-in staff member may do (athlete view: everything for themselves).
+  const can = (perm) => role() !== 'coach' || P.can(activeStaff(), perm);
+  const roleLabel = (st) => C.STAFF_ROLES[st.role] || st.role;
   const athleteName = (a) => a.name || 'Athlete';
 
   function sortedWorkouts(a) {
@@ -395,7 +400,8 @@
     today() {
       const a = me();
       const t = today();
-      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return onboarding();
+      const consentBanner = C.needsConsent(a, t) ? `<div class="banner warn" role="note">🔒 You’re under 18, so a parent or guardian needs to approve sharing your data with your coaches. <button class="btn btn-sm" data-tab-link="settings">Set up consent</button></div>` : '';
+      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding();
       const weeks = C.weeklySummary(a.workouts, t, 8);
       const recent = sortedWorkouts(a).slice(0, 5);
       const th = C.thread(state.messages, a.id);
@@ -405,6 +411,7 @@
       return `
         <h1 class="page-title">${esc(greet())}${a.name ? ', ' + esc(a.name.split(' ')[0]) : ''}</h1>
         <p class="muted" style="margin-top:0">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
+        ${consentBanner}
         <div class="grid">
           ${Health.athleteInjuriesCard(a.id)}
           ${Plan.todayCard(a)}
@@ -451,6 +458,7 @@
             ${used.map((s) => `<option value="${s}" ${s === ui.historyFilter ? 'selected' : ''}>${C.sportInfo(s).icon} ${esc(C.sportInfo(s).label)}</option>`).join('')}
           </select>
         </div>
+        ${importCard()}
         ${
           filtered.length
             ? [...byMonth.entries()]
@@ -541,12 +549,138 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${guardianCard(a)}
+          ${myDataCard(a)}
           ${aiCard()}
           ${dataCard()}
           ${explainerCard()}
         </div>`;
     },
   };
+
+  function guardianCard(a) {
+    const age = C.ageOn(a, today());
+    const g = a.guardian;
+    const minor = age != null && age < 18;
+    return `<section class="card span-6"><div class="card-head"><h3>Parent / guardian</h3>${minor ? (g.consentAt ? '<span class="pill good">Consent given</span>' : '<span class="pill warn">Consent needed</span>') : ''}</div>
+      <p class="muted" style="margin-top:0">${
+        age == null ? 'Add your date of birth in your profile. Athletes under 18 need a parent or guardian to approve data sharing.' : minor ? `You’re ${age}. Until a parent or guardian approves, your coaches can’t see your check-ins, workouts or videos.` : 'You’re 18 or older, so no guardian consent is needed. You can still list an emergency contact.'
+      }</p>
+      <form id="guardian-form">
+        <div class="grid-2">
+          <label>Guardian name <input name="name" value="${esc(g.name)}" maxlength="80" ${minor ? 'required' : ''}/></label>
+          <label>Guardian email <input type="email" name="email" value="${esc(g.email)}" maxlength="120" ${minor ? 'required' : ''}/></label>
+        </div>
+        ${minor ? `<label class="check"><input type="checkbox" name="consent" ${g.consentAt ? 'checked' : ''}/> I’m this athlete’s parent or guardian and I agree to share their training, wellness and video data with their coaching staff.</label>` : ''}
+        ${g.consentAt ? `<p class="hint">Approved ${esc(fmtDate(C.toISODate(new Date(g.consentAt)), { month: 'short', day: 'numeric', year: 'numeric' }))}. Unchecking withdraws consent.</p>` : ''}
+        <button class="btn btn-primary" type="submit">Save</button>
+      </form>
+      <p class="hint" style="margin-top:.6rem">In this on-device prototype the guardian ticks the box here. A production version would email the guardian a signed consent link.</p>
+    </section>`;
+  }
+
+  function myDataCard(a) {
+    return `<section class="card span-6"><div class="card-head"><h3>My data</h3></div>
+      <p class="muted" style="margin-top:0">Download everything tied to you: profile, workouts, check-ins, messages, form checks, injuries and program history. Or delete it all.</p>
+      <div class="row">
+        <button class="btn" data-action="export-mine">Download my data</button>
+        <button class="btn btn-danger" data-action="delete-mine">Delete my data</button>
+      </div>
+      <p class="hint" style="margin-top:.6rem">Deleting removes your athlete profile and everything in it from this device, including videos.</p>
+    </section>`;
+  }
+
+  function importCard() {
+    return `<section class="card" style="margin-bottom:1rem"><div class="row">
+      <div class="main"><strong>⌚ Import from a watch or app</strong><div class="muted small">GPX or TCX files from Garmin, Coros, Polar, Suunto, Apple Health exports or Strava (Activity → Export GPX). Distance, time, climb and heart rate come in automatically.</div></div>
+      <label class="btn" style="margin:0;color:var(--text)">Choose files<input type="file" id="activity-import" accept=".gpx,.tcx,application/gpx+xml,application/xml,text/xml" multiple hidden /></label>
+    </div></section>`;
+  }
+
+  async function importActivities(files) {
+    const a = me();
+    const added = [];
+    const failed = [];
+    for (const file of files) {
+      try {
+        const act = P.parseActivity(await file.text());
+        const w = C.normalizeWorkout({
+          ...act,
+          title: act.title || `${C.sportInfo(act.sport).label} (imported)`,
+          date: act.date || today(),
+          rpe: P.rpeFromHr(act.avgHr, { age: C.ageOn(a, today()) }),
+          notes: `Imported from ${file.name}${act.avgHr ? ` · avg HR ${act.avgHr}, max ${act.maxHr}` : ''}. RPE estimated from heart rate; edit if it felt different.`,
+        });
+        // Skip exact duplicates (same day, sport and duration).
+        if (a.workouts.some((x) => x.date === w.date && x.sport === w.sport && x.duration === w.duration && x.source)) continue;
+        a.workouts.push(w);
+        added.push(w);
+      } catch (err) {
+        failed.push(`${file.name}: ${err.message}`);
+      }
+    }
+    if (added.length) {
+      save();
+      for (const w of added) Progress.onWorkoutLogged(a, w);
+    }
+    toast(added.length ? `Imported ${added.length} activit${added.length === 1 ? 'y' : 'ies'}${failed.length ? `, ${failed.length} failed` : ''}` : failed[0] || 'Nothing new to import');
+    render();
+  }
+
+  function coachWizard() {
+    const st = activeStaff() || { name: '', role: 'head' };
+    return `<div class="card wizard" style="max-width:680px;margin:1rem auto">
+      <h1 class="page-title" style="margin-top:0">Set up your team</h1>
+      <p class="muted">Three quick things and you’re coaching. You can change all of this later in Settings.</p>
+      <form id="wizard-form">
+        <fieldset><legend>1 · You and your team</legend>
+          <div class="grid-2">
+            <label>Your name <input name="coach" value="${esc(st.name || state.coach.name)}" maxlength="60" placeholder="e.g. Coach Rivera" required /></label>
+            <label>Your role <select name="role">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === st.role ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+          </div>
+          <label>Team name <input name="team" value="${esc(state.team.name)}" maxlength="80" placeholder="e.g. Westview Varsity Soccer" /></label>
+        </fieldset>
+        <fieldset><legend>2 · Athletes</legend>
+          <div class="grid-2">
+            <label>Team sport <select name="sport">${sportOptions('soccer')}</select></label>
+            <label>Default group <input name="group" maxlength="30" placeholder="e.g. Varsity" /></label>
+          </div>
+          <label>Names, one per line <textarea name="names" rows="5" placeholder="Riley Chen&#10;Jordan Price&#10;Maya Okafor"></textarea></label>
+        </fieldset>
+        <fieldset><legend>3 · Staff (optional)</legend>
+          <label>Other coaches, one per line as “Name, role” <textarea name="staff" rows="3" placeholder="Dana Kim, trainer&#10;Marcus Lee, strength"></textarea></label>
+          <p class="hint">Roles: head, assistant, strength, trainer. Each role gets sensible permissions.</p>
+        </fieldset>
+        <div class="row"><button class="btn btn-primary" type="submit">Finish setup</button><button class="btn btn-ghost" type="button" data-action="skip-wizard">Skip for now</button><div class="spacer"></div><button class="btn btn-ghost" type="button" data-action="load-sample">Explore the demo team</button></div>
+      </form>
+    </div>`;
+  }
+
+  function staffCard() {
+    const head = can('roster');
+    return `<section class="card span-6"><div class="card-head"><h3>Coaching staff</h3>${state.team.name ? `<span class="muted small">${esc(state.team.name)}</span>` : ''}</div>
+      <ul class="list">${state.staff
+        .map(
+          (x) => `<li><div class="avatar coach">${esc(initials(x.name || 'Coach'))}</div>
+          <div class="main"><strong>${esc(x.name || 'Unnamed')}</strong>${x.id === (activeStaff() || {}).id ? ' <span class="pill info">you</span>' : ''}
+            ${head ? `<select data-staff-role="${x.id}" aria-label="Role for ${esc(x.name)}">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === x.role ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<div class="muted small">${esc(roleLabel(x))}</div>`}</div>
+          ${head && state.staff.length > 1 && x.id !== (activeStaff() || {}).id ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-staff" data-id="${x.id}">Remove</button>` : ''}</li>`
+        )
+        .join('')}</ul>
+      ${
+        head
+          ? `<form id="add-staff-form" class="row" style="margin-top:.75rem;align-items:flex-end">
+          <label style="flex:1;margin:0">Name <input name="name" required maxlength="60" /></label>
+          <label style="margin:0">Role <select name="role">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === 'assistant' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+          <button class="btn" type="submit">+ Add</button></form>`
+          : '<p class="hint">Only the head coach can add staff or change roles.</p>'
+      }
+      <details style="margin-top:.75rem"><summary class="small">What each role can do</summary>
+        <table class="table perm-table"><thead><tr><th></th>${Object.keys(C.STAFF_ROLES).map((r) => `<th>${esc(C.STAFF_ROLES[r].split(' ')[0])}</th>`).join('')}</tr></thead>
+        <tbody>${Object.entries(P.PERMISSIONS).map(([k, label]) => `<tr><td>${esc(label)}</td>${Object.keys(C.STAFF_ROLES).map((r) => `<td>${P.ROLE_PERMS[r].includes(k) ? '✓' : '—'}</td>`).join('')}</tr>`).join('')}</tbody></table>
+      </details>
+    </section>`;
+  }
 
   function onboarding() {
     return `<div class="card empty" style="max-width:600px;margin:2rem auto">
@@ -563,6 +697,7 @@
 
   const coachViews = {
     team() {
+      if (!state.team.onboarded) return coachWizard();
       if (ui.id && athleteById(ui.id)) return coachAthleteDetail(athleteById(ui.id));
       const t = today();
       const statuses = state.athletes.map((a) => C.athleteStatus(a, t));
@@ -577,7 +712,7 @@
 
       return `
         <h1 class="page-title">${esc(greet())}, ${esc(coachName())}</h1>
-        <p class="muted" style="margin-top:0">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))} · ${state.athletes.length} athletes</p>
+        <p class="muted" style="margin-top:0">${state.team.name ? esc(state.team.name) + ' · ' : ''}${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))} · ${state.athletes.length} athletes</p>
         <div class="grid">
           <section class="card span-3"><h3>Checked in</h3><div class="stat">${checkedIn}<small>/ ${state.athletes.length}</small></div>
             <div class="muted">${state.athletes.length - checkedIn ? `${state.athletes.length - checkedIn} still to check in` : 'Everyone is in'}</div></section>
@@ -664,7 +799,8 @@
         <div class="grid">
           <section class="card span-6"><div class="card-head"><h3>Coach profile</h3></div>
             <form id="coach-form">
-              <label>Name <input name="name" value="${esc(state.coach.name)}" maxlength="60" placeholder="e.g. Coach Rivera" /></label>
+              <label>Your name <input name="name" value="${esc((activeStaff() || {}).name || state.coach.name)}" maxlength="60" placeholder="e.g. Coach Rivera" /></label>
+              ${can('roster') ? `<label>Team name <input name="team" value="${esc(state.team.name)}" maxlength="80" /></label>` : ''}
               ${prefsFields()}
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
@@ -675,10 +811,11 @@
                 (a) => `<li><div class="avatar">${esc(initials(athleteName(a)))}</div>
                 <div class="main"><strong>${esc(athleteName(a))}</strong><div class="muted small">${C.sportInfo(a.sport).icon} ${esc(C.sportInfo(a.sport).label)}${a.position ? ' · ' + esc(a.position) : ''}</div>
                   <input class="groups-in" data-groups-for="${a.id}" value="${esc(a.groups.join(', '))}" placeholder="Groups, e.g. Varsity, Sprinters" aria-label="Groups for ${esc(athleteName(a))}" /></div>
-                ${state.athletes.length > 1 ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-athlete" data-id="${a.id}">Remove</button>` : ''}</li>`
+                ${state.athletes.length > 1 && can('roster') ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-athlete" data-id="${a.id}">Remove</button>` : ''}</li>`
               )
               .join('')}</ul>
-            <form id="add-athlete-form" style="margin-top:.75rem">
+            ${can('roster') ? '' : '<p class="hint">Only the head coach can add or remove athletes.</p>'}
+            <form id="add-athlete-form" style="margin-top:.75rem" ${can('roster') ? '' : 'hidden'}>
               <div class="grid-2">
                 <label>Name <input name="name" required maxlength="60" /></label>
                 <label>Sport <select name="sport">${sportOptions()}</select></label>
@@ -687,14 +824,28 @@
               <button class="btn" type="submit">+ Add athlete</button>
             </form>
           </section>
+          ${staffCard()}
           ${aiCard()}
           ${dataCard()}
         </div>`;
     },
   };
 
+  function consentLocked(a) {
+    return C.needsConsent(a, today());
+  }
+
+  function lockedCard(a) {
+    return `<article class="card roster-card status-info" tabindex="0">
+      <div class="row" style="flex-wrap:nowrap"><div class="avatar">${esc(initials(athleteName(a)))}</div>
+        <div class="main"><strong>${esc(athleteName(a))}</strong><div class="muted small">${C.sportInfo(a.sport).icon} ${esc(C.sportInfo(a.sport).label)}</div></div></div>
+      <p class="small" style="margin:.6rem 0 0">🔒 <strong>Awaiting guardian consent.</strong> ${esc(athleteName(a).split(' ')[0])} is under 18. Their data stays hidden from staff until a parent or guardian approves in the athlete’s Settings.</p>
+    </article>`;
+  }
+
   function rosterCard(s) {
     const a = s.athlete;
+    if (consentLocked(a)) return lockedCard(a);
     const info = C.sportInfo(a.sport);
     const unread = C.unreadCount(state.messages, 'coach', a.id);
     const zonePill = { none: '', low: 'info', optimal: 'good', high: 'warn', danger: 'bad' }[s.load.zone.key];
@@ -724,6 +875,7 @@
   }
 
   function coachAthleteDetail(a) {
+    if (consentLocked(a)) return `<button class="btn btn-sm btn-ghost" data-tab-link="team">‹ Team</button><div style="max-width:520px;margin-top:1rem">${lockedCard(a)}</div>`;
     const t = today();
     const s = C.athleteStatus(a, t);
     const info = C.sportInfo(a.sport);
@@ -907,6 +1059,11 @@
       ${
         !isCoach && state.athletes.length > 1
           ? `<select id="athlete-switch" aria-label="Viewing as athlete">${state.athletes.map((x) => `<option value="${x.id}" ${x.id === a.id ? 'selected' : ''}>${esc(athleteName(x))}</option>`).join('')}</select>`
+          : ''
+      }
+      ${
+        isCoach && state.staff.length > 1
+          ? `<select id="staff-switch" aria-label="Signed in as">${state.staff.map((x) => `<option value="${x.id}" ${x.id === (activeStaff() || {}).id ? 'selected' : ''}>${esc(x.name || 'Unnamed')} · ${esc(roleLabel(x).split(' ')[0])}</option>`).join('')}</select>`
           : ''
       }
       ${!isCoach ? '<button class="btn btn-primary" data-action="open-log">+ Log<span class="hide-sm"> workout</span></button>' : ''}`;
@@ -1252,9 +1409,45 @@
 
   // ---------- global events ----------
 
+  // Staff permissions: block edits a role isn't allowed to make, before module handlers run.
+  const GUARDED = [
+    ['plan', '[data-plan-action=assign],[data-plan-action=save-template],[data-plan-action=new-template],[data-plan-action=delete-template],[data-plan-action=edit-template],[data-plan-action=duplicate],[data-plan-action=unassign],[data-plan-action=edit-session],[data-prog-action=assign],[data-prog-action=save],[data-prog-action=delete],[data-prog-action=new],[data-prog-action=to-template]'],
+    ['roster', '[data-action=remove-athlete],[data-action=remove-staff]'],
+  ];
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (role() !== 'coach') return;
+      for (const [perm, sel] of GUARDED) {
+        if (e.target.closest(sel) && !can(perm)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          toast(`${roleLabel(activeStaff())} can’t ${P.PERMISSIONS[perm].toLowerCase()}. Ask the head coach.`);
+          return;
+        }
+      }
+    },
+    true
+  );
+  document.addEventListener(
+    'submit',
+    (e) => {
+      if (role() !== 'coach' || can('performance') || !e.target.matches('[data-prog-form=shoutout],[data-prog-form=test-day]')) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toast(`${roleLabel(activeStaff())} can’t ${P.PERMISSIONS.performance.toLowerCase()}.`);
+    },
+    true
+  );
+
   document.addEventListener('click', (e) => {
     const tabBtn = e.target.closest('[data-tab], [data-tab-link]');
-    if (tabBtn) return go(tabBtn.dataset.tab || tabBtn.dataset.tabLink);
+    if (tabBtn) {
+      go(tabBtn.dataset.tab || tabBtn.dataset.tabLink);
+      // Keyboard / screen-reader users land on the new content, not back at the top of the page.
+      if (e.detail === 0) $('#view').focus({ preventScroll: true });
+      return;
+    }
 
     const openAth = e.target.closest('[data-open-athlete]');
     if (openAth) return go('team', openAth.dataset.openAthlete);
@@ -1298,19 +1491,42 @@
       case 'remove-athlete': {
         const ath = athleteById(id);
         if (!ath || !confirm(`Remove ${athleteName(ath)} and all their data?`)) return;
-        state.athletes = state.athletes.filter((x) => x.id !== id);
-        state.messages = state.messages.filter((m) => m.athleteId !== id);
-        state.videos.filter((v) => v.athleteId === id).forEach((v) => Media.remove(v.id).catch(() => {}));
-        state.videos = state.videos.filter((v) => v.athleteId !== id);
-        state.analyses.filter((x) => x.athleteId === id).forEach((x) => Media.removePoses(x.id).catch(() => {}));
-        state.analyses = state.analyses.filter((x) => x.athleteId !== id);
-        state.assignments = state.assignments.filter((x) => x.athleteId !== id);
+        const { videoIds, poseIds } = P.removeAthlete(state, id);
+        videoIds.forEach((v) => Media.remove(v).catch(() => {}));
+        poseIds.forEach((x) => Media.removePoses(x).catch(() => {}));
         if (state.session.athleteId === id) state.session.athleteId = state.athletes[0].id;
         save();
         return render();
       }
       case 'export':
         return exportData();
+      case 'export-mine': {
+        const data = P.athleteExport(state, me().id);
+        return download(JSON.stringify(data, null, 2), `athleteos-${(me().name || 'me').toLowerCase().replace(/\W+/g, '-')}-${today()}.json`);
+      }
+      case 'delete-mine': {
+        const a = me();
+        if (!confirm(`Permanently delete ${a.name || 'this athlete'}’s profile, workouts, check-ins, messages, form checks and videos from this device?`)) return;
+        const { videoIds, poseIds } = P.removeAthlete(state, a.id);
+        videoIds.forEach((id) => Media.remove(id).catch(() => {}));
+        poseIds.forEach((id) => Media.removePoses(id).catch(() => {}));
+        if (!state.athletes.length) state.athletes.push(C.normalizeAthlete({}));
+        state.session.athleteId = state.athletes[0].id;
+        save();
+        toast('Your data was deleted');
+        return go('today');
+      }
+      case 'remove-staff': {
+        const st = state.staff.find((x) => x.id === el.dataset.id);
+        if (!st || !confirm(`Remove ${st.name || 'this staff member'} from the staff?`)) return;
+        state.staff = state.staff.filter((x) => x.id !== st.id);
+        save();
+        return render();
+      }
+      case 'skip-wizard':
+        state.team.onboarded = true;
+        save();
+        return go('team');
       case 'weekly-report':
         return go('performance', 'report');
       case 'clear-ai-key':
@@ -1381,6 +1597,26 @@
       ui.historyFilter = 'all';
       save();
       render();
+    } else if (t.id === 'staff-switch') {
+      state.activeStaffId = t.value;
+      save();
+      toast(`Signed in as ${coachName()}`);
+      render();
+    } else if (t.dataset && t.dataset.staffRole) {
+      const st = state.staff.find((x) => x.id === t.dataset.staffRole);
+      if (st && C.STAFF_ROLES[t.value]) {
+        if (st.role === 'head' && t.value !== 'head' && state.staff.filter((x) => x.role === 'head').length === 1) {
+          toast('The team needs at least one head coach');
+          return render();
+        }
+        st.role = t.value;
+        save();
+        toast('Role updated');
+        render();
+      }
+    } else if (t.id === 'activity-import') {
+      importActivities([...t.files]);
+      t.value = '';
     } else if (t.id === 'import-file') {
       importData(t.files[0]);
     } else if (t.type === 'file' && t.name === 'video') {
@@ -1423,8 +1659,51 @@
     } else if (f.id === 'coach-form') {
       e.preventDefault();
       const d = data();
-      state.coach.name = d.name.trim();
+      const st = activeStaff();
+      if (st) st.name = d.name.trim();
+      if (!st || st.role === 'head') state.coach.name = d.name.trim();
+      if (d.team != null) state.team.name = d.team.trim();
       savePrefs(d);
+    } else if (f.id === 'guardian-form') {
+      e.preventDefault();
+      const d = data();
+      const a = me();
+      const was = !!a.guardian.consentAt;
+      a.guardian = { name: d.name.trim(), email: d.email.trim(), consentAt: d.consent ? a.guardian.consentAt || Date.now() : null };
+      save();
+      toast(!was && d.consent ? 'Consent recorded. Your coaches can now see your data.' : was && !d.consent ? 'Consent withdrawn' : 'Saved');
+      render();
+    } else if (f.id === 'add-staff-form') {
+      e.preventDefault();
+      const d = data();
+      state.staff.push(C.normalizeStaff([{ name: d.name, role: d.role }])[0]);
+      save();
+      toast('Staff member added');
+      render();
+    } else if (f.id === 'wizard-form') {
+      e.preventDefault();
+      const d = data();
+      const st = activeStaff();
+      st.name = d.coach.trim();
+      st.role = C.STAFF_ROLES[d.role] ? d.role : 'head';
+      state.coach.name = st.name;
+      state.team.name = d.team.trim();
+      const names = d.names.split('\n').map((x) => x.trim()).filter(Boolean);
+      const blank = state.athletes.length === 1 && !state.athletes[0].name && !state.athletes[0].workouts.length && !state.athletes[0].checkins.length;
+      if (names.length) {
+        const fresh = names.map((name) => C.normalizeAthlete({ name, sport: d.sport, groups: d.group.trim() ? [d.group.trim()] : [] }));
+        state.athletes = blank ? fresh : state.athletes.concat(fresh);
+        state.session.athleteId = state.athletes[0].id;
+      }
+      for (const line of d.staff.split('\n').map((x) => x.trim()).filter(Boolean)) {
+        const [name, r = 'assistant'] = line.split(',').map((x) => x.trim());
+        const key = Object.keys(C.STAFF_ROLES).find((k) => k === r.toLowerCase() || C.STAFF_ROLES[k].toLowerCase().startsWith(r.toLowerCase())) || 'assistant';
+        state.staff.push(C.normalizeStaff([{ name, role: key }])[0]);
+      }
+      state.team.onboarded = true;
+      save();
+      toast(names.length ? `Team ready with ${names.length} athletes` : 'Team ready');
+      go('team');
     } else if (f.id === 'ai-form') {
       e.preventDefault();
       const key = f.key.value.trim();
@@ -1463,13 +1742,17 @@
 
   // ---------- import / export ----------
 
-  function exportData() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  function download(text, filename) {
+    const blob = new Blob([text], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `athleteos-${today()}.json`;
+    link.download = filename;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  function exportData() {
+    download(JSON.stringify(state, null, 2), `athleteos-${today()}.json`);
   }
 
   function importData(file) {
