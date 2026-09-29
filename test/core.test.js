@@ -271,8 +271,10 @@ test('assignment status, compliance and %1RM loads', () => {
   // Taylor's back squat e1RM comes from logged lifts; 75% of it is the working weight.
   const taylor = s.athletes.find((a) => a.id === 'taylor');
   const squat = C.normalizePlanItem({ name: 'Back squat' });
-  const e1rm = C.strengthRecords(taylor.workouts).find((r) => r.name === 'Back squat').e1rm;
-  assert.ok(Math.abs(C.resolveLoadKg(squat, taylor) - e1rm * 0.75) < 1e-9);
+  // A recent tested 1RM (385 lb in the demo) takes priority over the estimate from logged sets.
+  const tested = C.testHistory(taylor, 'squat1rm').slice(-1)[0].value;
+  assert.ok(Math.abs(tested - 385 * 0.45359237) < 1e-9);
+  assert.ok(Math.abs(C.resolveLoadKg(squat, taylor) - tested * 0.75) < 1e-9);
   assert.ok(Math.abs(C.resolveLoadKg(squat, s.athletes.find((a) => a.id === 'riley')) - e1rmOf(s, 'riley', 'Back squat') * 0.75) < 1e-9);
   assert.equal(C.resolveLoadKg(squat, s.athletes.find((a) => a.id === 'maya')), null); // no squat history -> athlete enters weight
 });

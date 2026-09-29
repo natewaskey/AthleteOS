@@ -936,6 +936,7 @@
     const res = { rpe: Number(f.rpe.value), duration: Number(f.duration.value), note: f.note.value.trim() };
     const w = C.normalizeWorkout(C.workoutFromAssignment(a, res));
     ctx.me().workouts.push(w);
+    if (ctx.onWorkoutLogged) ctx.onWorkoutLogged(ctx.me(), w);
     a.status = 'completed';
     a.result = { ...res, completedAt: Date.now(), workoutId: w.id };
     ctx.save();

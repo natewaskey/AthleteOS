@@ -1497,6 +1497,28 @@
       }
     }
     s.messages.push(normalizeMessage({ athleteId: 'jordan', from: 'coach', text: 'Swapped today to Recovery & mobility because of the knee. Let’s get it looked at.', ts: hoursAgo(0.5), readByAthlete: false }));
+
+    // Testing history: a preseason test and a recent retest.
+    const tests = {
+      taylor: { dash40: [4.92, 4.81], vertical: [71, 74], broad: [262, 270], squat1rm: [lb(365), lb(385)], bench1rm: [lb(265), lb(275)], clean1rm: [lb(235), lb(245)] },
+      jordan: { dash40: [4.71, 4.66], vertical: [81, 84], proagility: [4.41, 4.32], broad: [272, 277] },
+      maya: { dash40: [5.18, 5.12], proagility: [4.62, 4.58], vertical: [52, 54], mile: [372, 361] },
+      riley: { mile: [298, 289], dash40: [5.31, 5.28], vertical: [48, 50], pullups: [6, 8] },
+      sam: { pullups: [11, 13], pushups: [42, 47], vertical: [58, 60], broad: [228, 233] },
+    };
+    for (const [aid, t] of Object.entries(tests)) {
+      const a = s.athletes.find((x) => x.id === aid);
+      for (const [testId, [pre, post]] of Object.entries(t)) {
+        a.tests.push(normalizeTestResult({ testId, date: addDays(todayISO, -63), value: pre }));
+        a.tests.push(normalizeTestResult({ testId, date: addDays(todayISO, -4), value: post }));
+      }
+    }
+    s.shoutouts = [
+      { id: uid(), type: 'pr', athleteId: 'taylor', text: 'set a test PR: Back squat 1RM 385 lb', ts: hoursAgo(90), reactions: ['jordan', 'coach'] },
+      { id: uid(), type: 'shoutout', athleteId: 'maya', text: 'Four games in four days and still first on the ball. Proud of you!', by: 'Coach Rivera', ts: hoursAgo(30), reactions: ['riley', 'sam', 'taylor'] },
+      { id: uid(), type: 'pr', athleteId: 'jordan', text: 'set a test PR: Pro agility (5-10-5) 4.32 s', ts: hoursAgo(80), reactions: [] },
+    ];
+    for (const a of s.athletes) a.badgesSeen = ['first-workout', 'ten-workouts', 'tester', 'test-pr', 'first-pr', 'streak-7', 'checkin-7', 'perfect-week', 'form-80'];
     return s;
   }
 

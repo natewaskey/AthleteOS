@@ -9,12 +9,13 @@
   const MAX_VIDEO_MB = 300;
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
-  const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['records', 'Records'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
-  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['performance', 'Performance'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
   const Form = window.FormUI;
   const Plan = window.PlanUI;
   const Programs = window.ProgramUI;
   const Live = window.LiveUI;
+  const Progress = window.ProgressUI;
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -420,6 +421,7 @@
             <div class="card-head"><h3>Weekly load · 8 weeks</h3></div>
             ${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}
           </section>
+          ${Progress.wallCard()}
           <section class="card span-6">
             <div class="card-head"><h3>Recent</h3><button class="btn btn-sm btn-ghost" data-tab-link="history">All</button></div>
             ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w)).join('')}</ul>` : '<p class="muted">No workouts yet.</p>'}
@@ -459,6 +461,10 @@
                 .join('')
             : `<div class="card empty"><p>Nothing logged yet.</p><button class="btn btn-primary" data-action="open-log">Log your first workout</button></div>`
         }`;
+    },
+
+    progress() {
+      return Progress.athleteView();
     },
 
     records() {
@@ -597,6 +603,10 @@
 
     plan() {
       return Plan.view(ui.id);
+    },
+
+    performance() {
+      return Progress.coachView();
     },
 
     form() {
@@ -892,6 +902,7 @@
 
   function render() {
     const views = role() === 'coach' ? coachViews : athleteViews;
+    if (ui.tab === 'records' && role() === 'athlete') ui.tab = 'progress';
     if (!views[ui.tab]) ui.tab = tabsFor()[0][0];
     // Opening a thread marks it read before counts are drawn.
     if (ui.tab === 'messages') {
@@ -1096,6 +1107,7 @@
     const sendToCoach = wForm.sendToCoach.checked;
     if (editingId) a.workouts = a.workouts.map((x) => (x.id === editingId ? w : x));
     else a.workouts.push(w);
+    if (!editingId) Progress.onWorkoutLogged(a, w);
     save();
     wDialog.close();
     toast(editingId ? 'Workout updated' : `Logged · ${num(C.sessionLoad(w))} AU`);
@@ -1497,6 +1509,8 @@
     storeVideo,
   });
 
+  Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
+
   Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, athleteById, athleteName, units, U, sportOptions, fmtDate });
   Live.init({ C, state: () => state, save, render, esc, units, U });
 
@@ -1520,6 +1534,7 @@
     U,
     sportOptions,
     openAnalyze: (o) => Form.openAnalyze(o),
+    onWorkoutLogged: (a, w) => Progress.onWorkoutLogged(a, w),
   });
 
   const [initialTab, initialId] = location.hash.slice(1).split('/');
