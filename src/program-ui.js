@@ -224,7 +224,7 @@
       const start = prompt('Start date (YYYY-MM-DD)', today());
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
-      const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed' });
+      const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
       ctx.state().assignments.push(...list);
       ctx.save();
       ctx.toast(`${list.length} sessions added to your plan`);
@@ -313,8 +313,14 @@
         return openAssign(preview);
       case 'delete': {
         const p = programs().find((x) => x.id === el.dataset.id);
-        if (!p || !confirm(`Delete “${p.name}”? Sessions already assigned stay on athletes’ plans.`)) return;
-        ctx.state().programs = programs().filter((x) => x.id !== p.id);
+        if (!p || !confirm(`Delete “${p.name}”?`)) return;
+        const st = ctx.state();
+        const upcoming = st.assignments.filter((x) => x.programId === p.id && x.status === 'assigned' && x.date >= today() && (ctx.role() === 'coach' || x.athleteId === ctx.me().id));
+        if (upcoming.length && confirm(`Also remove its ${upcoming.length} upcoming session${upcoming.length === 1 ? '' : 's'} from ${ctx.role() === 'coach' ? 'athletes’ plans' : 'your plan'}? Completed sessions are kept.`)) {
+          const ids = new Set(upcoming.map((x) => x.id));
+          st.assignments = st.assignments.filter((x) => !ids.has(x.id));
+        }
+        st.programs = programs().filter((x) => x.id !== p.id);
         ctx.save();
         return ctx.render();
       }

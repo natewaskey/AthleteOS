@@ -98,6 +98,11 @@
     return ctx.role() === 'athlete' ? dueNow(ctx.me().id).filter((a) => a.date === today()).length : 0;
   }
 
+  // Coaches can remove any session; athletes only sessions they scheduled themselves (coach sessions get "Skip").
+  function canRemove(a) {
+    return ctx.role() === 'coach' || a.assignedBy === 'athlete';
+  }
+
   function assignmentRow(a, { showAthlete = false } = {}) {
     const st = C.assignmentStatus(a, today());
     const s = STATUS[st];
@@ -107,6 +112,7 @@
       <div class="main"><div class="title">${esc(a.plan.name)}</div>
         <div class="meta">${ath ? esc(ctx.athleteName(ath)) + ' · ' : ''}${esc(ctx.relDate(a.date))} · ${C.estimateMinutes(a.plan)} min · ${esc(blockLabels(a.plan) || 'Session')}</div></div>
       <span class="pill ${s.cls}">${s.label}</span>
+      ${canRemove(a) ? `<button class="btn btn-sm btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}" aria-label="Remove ${esc(a.plan.name)}" title="Remove">✕</button>` : ''}
     </li>`;
   }
 
@@ -500,7 +506,9 @@
           <div class="muted">${coach && athlete ? esc(ctx.athleteName(athlete)) + ' · ' : ''}${esc(ctx.fmtDate(a.date, { weekday: 'long', month: 'short', day: 'numeric' }))} · ≈ ${C.estimateMinutes(a.plan)} min</div></div>
         <span class="pill ${s.cls}">${s.label}</span>
         <div class="spacer"></div>
-        ${doing ? `<span class="muted small" id="session-clock">${a.startedAt ? '' : 'Not started'}</span><button class="btn btn-primary" data-plan-action="focus" data-id="${a.id}">▶ Focus mode</button><button class="btn btn-ghost" data-plan-action="skip" data-id="${a.id}">Skip</button>` : ''}
+        ${doing ? `<span class="muted small" id="session-clock">${a.startedAt ? '' : 'Not started'}</span><button class="btn btn-primary" data-plan-action="focus" data-id="${a.id}">▶ Focus mode</button>${a.assignedBy === 'athlete' ? '' : `<button class="btn btn-ghost" data-plan-action="skip" data-id="${a.id}">Skip</button>`}` : ''}
+        ${!coach && canRemove(a) ? `<button class="btn btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}">Remove</button>` : ''}
+        ${a.programId && canRemove(a) && assignments().some((x) => x.programId === a.programId && x.athleteId === a.athleteId && x.status === 'assigned' && x.date >= today()) ? `<button class="btn btn-ghost btn-danger" data-plan-action="unassign-program" data-id="${a.id}">Remove rest of program</button>` : ''}
         ${coach ? `${a.status === 'assigned' ? `<button class="btn" data-plan-action="edit-session" data-id="${a.id}">✎ Edit session</button>` : ''}<button class="btn" data-open-thread="${a.athleteId}">Message</button><button class="btn btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}">Remove</button>` : ''}
       </div>
       ${injuries.length ? `<div class="banner warn">🩹 ${injuries.map((j) => `${esc(j.label)} (${j.status})${j.restrictions.length ? ': ' + j.restrictions.map((r) => Pg.RESTRICTIONS[r].label.toLowerCase()).join(', ') : ''}`).join(' · ')}</div>` : ''}
@@ -754,9 +762,10 @@
   function onClick(e) {
     const link = e.target.closest('[data-tab-link-id]');
     if (link) return ctx.go('plan', link.dataset.tabLinkId);
-    const open = e.target.closest('[data-plan-open]');
-    if (open) return ctx.go('plan', 'a:' + open.dataset.planOpen);
     const el = e.target.closest('[data-plan-action]');
+    const open = e.target.closest('[data-plan-open]');
+    // A button inside a row (e.g. ✕) wins over opening the row.
+    if (open && !(el && open.contains(el))) return ctx.go('plan', 'a:' + open.dataset.planOpen);
     if (!el) return;
     const act = el.dataset.planAction;
     const state = ctx.state();
@@ -873,9 +882,30 @@
       }
       case 'unassign': {
         const a = assignments().find((x) => x.id === el.dataset.id);
-        if (!a || !confirm('Remove this session from the athlete’s plan?')) return;
+        if (!a || !canRemove(a)) return;
+        const coach = ctx.role() === 'coach';
+        if (!confirm(`Remove “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()}) from ${coach ? `${ctx.athleteName(ctx.athleteById(a.athleteId) || {})}’s` : 'your'} plan?`)) return;
         state.assignments = assignments().filter((x) => x.id !== a.id);
+        const wid = a.result && a.result.workoutId;
+        const ath = ctx.athleteById(a.athleteId);
+        if (wid && ath && ath.workouts.some((w) => w.id === wid) && confirm('This session was completed. Also delete the workout it logged from training history? (Cancel keeps it.)')) {
+          C.deleteWorkout(state, a.athleteId, wid);
+        }
         ctx.save();
+        stopRest();
+        ctx.toast('Session removed');
+        return ctx.go('plan');
+      }
+      case 'unassign-program': {
+        const a = assignments().find((x) => x.id === el.dataset.id);
+        if (!a || !canRemove(a)) return;
+        const rest = assignments().filter((x) => x.programId === a.programId && x.athleteId === a.athleteId && x.status === 'assigned' && x.date >= today());
+        if (!confirm(`Remove ${rest.length} upcoming session${rest.length === 1 ? '' : 's'} from this program? Completed sessions are kept.`)) return;
+        const ids = new Set(rest.map((x) => x.id));
+        state.assignments = assignments().filter((x) => !ids.has(x.id));
+        ctx.save();
+        stopRest();
+        ctx.toast(`${rest.length} session${rest.length === 1 ? '' : 's'} removed`);
         return ctx.go('plan');
       }
       case 'form-check':

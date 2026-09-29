@@ -310,7 +310,8 @@
     </section>`;
   }
 
-  function workoutItem(w, { actions = false } = {}) {
+  // actions: edit + delete (athlete's own log); del: delete only (Today list, coach view of an athlete).
+  function workoutItem(w, { actions = false, del = false, athleteId = null } = {}) {
     const info = C.sportInfo(w.sport);
     const vids = state.videos.filter((v) => v.workoutId === w.id);
     return `<li>
@@ -320,7 +321,7 @@
         ${w.notes ? `<div class="meta" style="font-style:italic">${esc(w.notes)}</div>` : ''}
         ${vids.map((v) => `<button class="btn btn-sm video-chip" data-action="play-video" data-id="${v.id}">🎥 ${esc(v.name)}</button>${role() === 'athlete' ? `<button class="btn btn-sm video-chip" data-form-action="analyze-video" data-video-id="${v.id}">📐 Analyze form</button>` : ''}`).join('')}</div>
       <div class="side"><strong>${num(C.sessionLoad(w))}</strong><div class="meta">AU</div></div>
-      ${actions ? `<div class="row" style="flex-wrap:nowrap"><button class="btn btn-sm btn-ghost" data-action="edit-workout" data-id="${w.id}">Edit</button><button class="btn btn-sm btn-ghost btn-danger" data-action="delete-workout" data-id="${w.id}" aria-label="Delete">✕</button></div>` : ''}
+      ${actions || del ? `<div class="row" style="flex-wrap:nowrap">${actions ? `<button class="btn btn-sm btn-ghost" data-action="edit-workout" data-id="${w.id}">Edit</button>` : ''}<button class="btn btn-sm btn-ghost btn-danger" data-action="delete-workout" data-id="${w.id}" ${athleteId ? `data-athlete="${athleteId}"` : ''} aria-label="Delete ${esc(w.title)}" title="Delete">✕</button></div>` : ''}
     </li>`;
   }
 
@@ -434,7 +435,7 @@
           ${Progress.wallCard()}
           <section class="card span-6">
             <div class="card-head"><h3>Recent</h3><button class="btn btn-sm btn-ghost" data-tab-link="history">All</button></div>
-            ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w)).join('')}</ul>` : '<p class="muted">No workouts yet.</p>'}
+            ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w, { actions: true })).join('')}</ul>` : '<p class="muted">No workouts yet.</p>'}
           </section>
         </div>`;
     },
@@ -881,7 +882,8 @@
     const info = C.sportInfo(a.sport);
     const { endHTML, strHTML } = recordsTables(a);
     const vids = videosFor(a);
-    const recent = sortedWorkouts(a).slice(0, 8);
+    const allW = sortedWorkouts(a);
+    const recent = ui.showAllWorkouts === a.id ? allW : allW.slice(0, 8);
     const last7 = a.checkins.filter((c) => C.daysBetween(c.date, t) < 7).sort((x, y) => (x.date < y.date ? 1 : -1));
     return `
       <button class="btn btn-sm btn-ghost" data-tab-link="team" style="margin-bottom:.5rem">‹ Team</button>
@@ -928,8 +930,9 @@
         ${weekStatCards(a)}
         ${trendCard(a, 'span-12')}
         <section class="card span-6">
-          <div class="card-head"><h3>Recent training</h3></div>
-          ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w)).join('')}</ul>` : '<p class="muted">No workouts logged.</p>'}
+          <div class="card-head"><h3>${ui.showAllWorkouts === a.id ? 'All training' : 'Recent training'}</h3><span class="muted small">${allW.length} logged</span></div>
+          ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w, { del: can('plan'), athleteId: a.id })).join('')}</ul>` : '<p class="muted">No workouts logged.</p>'}
+          ${allW.length > 8 ? `<button class="btn btn-sm btn-ghost" data-action="toggle-all-workouts" data-id="${a.id}">${ui.showAllWorkouts === a.id ? 'Show fewer' : `Show all ${allW.length}`}</button>` : ''}
         </section>
         <section class="card span-6">
           <div class="card-head"><h3>Videos</h3><span class="muted small">${vids.length}</span></div>
@@ -1413,6 +1416,7 @@
   const GUARDED = [
     ['plan', '[data-plan-action=assign],[data-plan-action=save-template],[data-plan-action=new-template],[data-plan-action=delete-template],[data-plan-action=edit-template],[data-plan-action=duplicate],[data-plan-action=unassign],[data-plan-action=edit-session],[data-prog-action=assign],[data-prog-action=save],[data-prog-action=delete],[data-prog-action=new],[data-prog-action=to-template]'],
     ['roster', '[data-action=remove-athlete],[data-action=remove-staff]'],
+    ['plan', '[data-action=delete-workout],[data-plan-action=unassign-program]'],
   ];
   document.addEventListener(
     'click',
@@ -1476,14 +1480,18 @@
       case 'edit-workout':
         return openWorkout(a.workouts.find((w) => w.id === id));
       case 'delete-workout': {
-        const w = a.workouts.find((x) => x.id === id);
-        if (!w || !confirm(`Delete "${w.title}" on ${fmtDate(w.date)}?`)) return;
-        a.workouts = a.workouts.filter((x) => x.id !== id);
-        for (const v of state.videos) if (v.workoutId === id) v.workoutId = null; // keep the video in messages
+        const owner = (el.dataset.athlete && athleteById(el.dataset.athlete)) || a;
+        const w = owner.workouts.find((x) => x.id === id);
+        const who = owner === a && role() === 'athlete' ? '' : ` from ${athleteName(owner)}’s training log`;
+        if (!w || !confirm(`Delete “${w.title}” on ${fmtDate(w.date)}${who}? Its training load is removed too.`)) return;
+        const res = C.deleteWorkout(state, owner.id, id);
         save();
-        toast('Workout deleted');
+        toast(res && res.reopened ? `Workout deleted. “${res.reopened.plan.name}” is back on the plan as not done.` : 'Workout deleted');
         return render();
       }
+      case 'toggle-all-workouts':
+        ui.showAllWorkouts = ui.showAllWorkouts === id ? null : id;
+        return render();
       case 'delete-goal':
         a.goals = a.goals.filter((g) => g.id !== id);
         save();

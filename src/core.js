@@ -1049,9 +1049,28 @@
       skipReason: String(input.skipReason || '').trim().slice(0, 300),
       assignedAt: Number(input.assignedAt) || Date.now(),
       programId: input.programId || null,
+      assignedBy: input.assignedBy === 'athlete' ? 'athlete' : 'coach',
       week: input.week ? Math.max(1, Math.round(Number(input.week))) : null,
       adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [] } : null,
     };
+  }
+
+  // Delete a logged workout everywhere it's referenced. A planned session that logged it goes back to "to do".
+  function deleteWorkout(state, athleteId, workoutId) {
+    const a = (state.athletes || []).find((x) => x.id === athleteId);
+    if (!a || !a.workouts.some((w) => w.id === workoutId)) return null;
+    const w = a.workouts.find((x) => x.id === workoutId);
+    a.workouts = a.workouts.filter((x) => x.id !== workoutId);
+    for (const v of state.videos || []) if (v.workoutId === workoutId) v.workoutId = null; // videos stay in messages
+    let reopened = null;
+    for (const as of state.assignments || []) {
+      if (as.athleteId === athleteId && as.result && as.result.workoutId === workoutId) {
+        as.status = 'assigned';
+        as.result = null;
+        reopened = as;
+      }
+    }
+    return { workout: w, reopened };
   }
 
   // assigned + in the past = missed. Used for calendar colours and compliance.
@@ -1602,6 +1621,7 @@
     needsConsent,
     STAFF_ROLES,
     normalizeStaff,
+    deleteWorkout,
     FORM_EXERCISES,
     normalizeAnalysis,
     normalizeFormComment,

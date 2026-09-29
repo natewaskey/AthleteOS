@@ -81,3 +81,23 @@ test('guardian consent is required for minors', () => {
   assert.ok(!C.needsConsent(kid, '2026-09-29'));
   assert.ok(!C.needsConsent(C.normalizeAthlete({ name: 'Adult', birthdate: '2000-01-01' }), '2026-09-29'));
 });
+
+test('deleting a logged workout reopens the planned session that logged it', () => {
+  const s = C.sampleState('2026-09-29');
+  const a = s.athletes[0];
+  const w = C.normalizeWorkout({ sport: 'strength', duration: 50, rpe: 7, date: '2026-09-28' });
+  a.workouts.push(w);
+  const as = C.normalizeAssignment({ athleteId: a.id, date: '2026-09-28', plan: { name: 'Lift' }, status: 'completed', result: { rpe: 7, duration: 50, workoutId: w.id } });
+  s.assignments.push(as);
+  s.videos.push({ id: 'v1', athleteId: a.id, workoutId: w.id });
+  const n = a.workouts.length;
+  const res = C.deleteWorkout(s, a.id, w.id);
+  assert.equal(a.workouts.length, n - 1);
+  assert.equal(res.reopened.id, as.id);
+  assert.equal(as.status, 'assigned');
+  assert.equal(as.result, null);
+  assert.equal(s.videos.find((v) => v.id === 'v1').workoutId, null);
+  assert.equal(C.deleteWorkout(s, a.id, 'nope'), null);
+  assert.equal(C.normalizeAssignment({ assignedBy: 'athlete' }).assignedBy, 'athlete');
+  assert.equal(C.normalizeAssignment({}).assignedBy, 'coach');
+});

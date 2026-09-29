@@ -49,6 +49,12 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **How-to:** ⓘ shows coaching cues, an animated demo and a video search link.
 - **Live workout mode:** full-screen, one exercise at a time with big set buttons, a **plate calculator** (lb or kg plates per side), rest timer and **interval timer** (work/rest/rounds with beeps).
 - **Coaches can edit** any assigned session (date, exercises, note to the athlete), filter the calendar by **group** and assign to groups.
+- **Deleting and removing:**
+  - Athletes can delete any logged workout (Today or History).
+  - Coaches with plan permission can delete workouts from an athlete's page.
+  - Deleting a workout logged from a planned session puts that session back on the plan as not done.
+  - Coaches can remove any assigned session (✕ or Remove), or the rest of a program. Athletes can remove sessions from programs they built themselves; coach-assigned sessions use Skip, so the coach is told.
+  - Deleting a program offers to clear its upcoming sessions too.
 
 ### Progress, testing & team culture
 - **Progress tab:** check-in and training streaks, badges, estimated-1RM chart per lift, test result charts, body weight and readiness trends, records.

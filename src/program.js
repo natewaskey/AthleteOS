@@ -278,7 +278,7 @@
   }
 
   // Assignments for every athlete × week × session, starting the Monday of startISO's week.
-  function expandProgram(program, startISO, athleteIds, { coachNote = '' } = {}) {
+  function expandProgram(program, startISO, athleteIds, { coachNote = '', assignedBy = 'coach' } = {}) {
     const monday = C.startOfWeek(startISO);
     const out = [];
     for (let w = 0; w < program.weeks; w++) {
@@ -287,7 +287,7 @@
         if (date < startISO) continue;
         const plan = progressPlan(s.plan, w, program.progression);
         for (const athleteId of athleteIds) {
-          out.push(C.normalizeAssignment({ athleteId, date, plan: JSON.parse(JSON.stringify(plan)), coachNote, programId: program.id, week: w + 1 }));
+          out.push(C.normalizeAssignment({ athleteId, date, plan: JSON.parse(JSON.stringify(plan)), coachNote, programId: program.id, week: w + 1, assignedBy }));
         }
       }
     }
