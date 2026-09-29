@@ -1327,3 +1327,83 @@ span.set-bubble { cursor: default; }
 .day-pick input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .actual.muted { color: var(--muted); font-weight: 500; }
 .plan-cal tbody th { text-transform: none; letter-spacing: normal; color: var(--text); font-size: 0.88rem; font-weight: 600; }
+
+/* ======================================================================
+   v5: programs, generator, live session tools
+   ====================================================================== */
+
+.title-input { font-size: 1.4rem; font-weight: 700; background: transparent; border: 1px solid transparent; padding: 0.2rem 0.4rem; margin-left: -0.4rem; }
+.title-input:hover, .title-input:focus { border-color: var(--border); background: var(--surface); }
+.week-tabs { display: flex; gap: 0.3rem; overflow-x: auto; margin-bottom: 0.4rem; }
+.week-tabs button { font: inherit; font-weight: 600; font-size: 0.85rem; padding: 0.35rem 0.7rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; }
+.week-tabs button[aria-selected='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.program-week { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.prog-block { margin-top: 0.6rem; }
+.prog-items { list-style: none; margin: 0.2rem 0 0; padding: 0; font-size: 0.85rem; }
+.prog-items li { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.2rem 0; border-top: 1px dashed var(--border); }
+.prog-items li:first-child { border-top: 0; }
+.prog-items li .muted { text-align: right; }
+.progress i.indeterminate { width: 40%; animation: indet 1.2s ease-in-out infinite; }
+@keyframes indet { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .progress i.indeterminate { animation: none; width: 100%; opacity: 0.5; } }
+.groups-in { margin-top: 0.3rem; font-size: 0.8rem; padding: 0.3rem 0.45rem; }
+
+.adjust-card { border-left: 4px solid var(--warn); margin-bottom: 1rem; }
+.adjust-card.recover { border-left-color: var(--bad); }
+.adjust-card ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }
+.info-banner { background: color-mix(in srgb, var(--info) 12%, transparent); border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); }
+.info-banner .btn { margin-left: 0.5rem; }
+.session-item.flag-bad { background: color-mix(in srgb, var(--bad) 6%, transparent); }
+.session-item.flag-warn { background: color-mix(in srgb, var(--warn) 6%, transparent); }
+.flag-note { margin-top: 0.2rem; font-weight: 600; }
+.flag-bad .flag-note { color: var(--bad); }
+.flag-warn .flag-note { color: var(--warn); }
+.item-tools { display: flex; gap: 0.15rem; flex: none; }
+.item-tools .btn { padding: 0.25rem 0.5rem; }
+
+/* plate calculator */
+.plate-calc { margin: 0.5rem 0 0 2.6rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.bar-graphic { display: flex; align-items: center; height: 64px; }
+.bar-graphic .sleeve { width: 44px; height: 10px; background: #9ca3af; border-radius: 3px; }
+.bar-graphic .plate { width: 16px; height: var(--h); background: var(--c); color: #fff; border-radius: 3px; margin-left: 2px; font-size: 0.55rem; font-weight: 700; writing-mode: vertical-rl; display: grid; place-items: center; }
+@media (max-width: 520px) { .plate-calc { margin-left: 0; } }
+
+/* interval timer */
+#interval-timer {
+  position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); z-index: 60;
+  min-width: 220px; padding: 0.8rem 1rem; border-radius: 16px; color: #fff; background: #1f2937;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.3); display: flex; flex-direction: column; gap: 0.3rem;
+}
+#interval-timer strong { font-size: 2rem; font-variant-numeric: tabular-nums; }
+#interval-timer.work { background: var(--accent); }
+#interval-timer.rest { background: var(--info); }
+#interval-timer.done { background: var(--good); }
+#interval-timer .btn { background: rgb(255 255 255 / 0.9); color: #111; border: 0; }
+
+/* how-to & swap sheet */
+#howto { width: min(560px, calc(100vw - 32px)); }
+#howto canvas { width: 100%; height: auto; border-radius: 12px; display: block; margin: 0.5rem 0 0.25rem; }
+.cue-list { margin: 0.25rem 0 1rem; padding-left: 1.3rem; }
+.cue-list li { margin-bottom: 0.3rem; }
+.swap-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.swap-opt { display: flex; flex-direction: column; align-items: flex-start; text-align: left; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 0.55rem 0.7rem; cursor: pointer; }
+.swap-opt:hover { border-color: var(--accent); }
+
+/* focus mode */
+body.focus-open { overflow: hidden; }
+#focus-mode {
+  position: fixed; inset: 0; z-index: 55; background: var(--bg); display: flex; flex-direction: column;
+  padding: calc(0.75rem + env(safe-area-inset-top)) 16px calc(0.75rem + env(safe-area-inset-bottom));
+}
+.focus-top { display: flex; justify-content: space-between; align-items: center; }
+.focus-body { flex: 1; overflow-y: auto; max-width: 640px; width: 100%; margin: 0 auto; text-align: center; padding: 1rem 0; }
+.focus-body h2 { font-size: 1.8rem; margin: 0.5rem 0; }
+.focus-rx { font-size: 1.15rem; font-weight: 600; margin: 0.25rem 0 0.5rem; }
+.focus-cues { list-style: none; padding: 0; margin: 0.75rem 0; color: var(--muted); }
+.focus-cues li::before { content: '• '; color: var(--accent); }
+.focus-body .plate-calc { justify-content: center; margin: 0.5rem 0; }
+.focus-sets { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0 0.5rem; }
+.focus-set { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 1.4rem; font-weight: 800; cursor: pointer; }
+.focus-set[aria-pressed='true'] { background: var(--good); border-color: var(--good); color: #fff; }
+.focus-nav { display: flex; gap: 0.75rem; max-width: 640px; width: 100%; margin: 0 auto; }
+.focus-nav .btn { flex: 1; padding: 0.9rem; font-size: 1.05rem; }

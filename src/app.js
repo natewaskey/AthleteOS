@@ -13,6 +13,8 @@
   const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
   const Form = window.FormUI;
   const Plan = window.PlanUI;
+  const Programs = window.ProgramUI;
+  const Live = window.LiveUI;
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -523,6 +525,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${aiCard()}
           ${dataCard()}
           ${explainerCard()}
         </div>`;
@@ -645,7 +648,8 @@
             <ul class="list">${state.athletes
               .map(
                 (a) => `<li><div class="avatar">${esc(initials(athleteName(a)))}</div>
-                <div class="main"><strong>${esc(athleteName(a))}</strong><div class="muted small">${C.sportInfo(a.sport).icon} ${esc(C.sportInfo(a.sport).label)}${a.position ? ' · ' + esc(a.position) : ''}</div></div>
+                <div class="main"><strong>${esc(athleteName(a))}</strong><div class="muted small">${C.sportInfo(a.sport).icon} ${esc(C.sportInfo(a.sport).label)}${a.position ? ' · ' + esc(a.position) : ''}</div>
+                  <input class="groups-in" data-groups-for="${a.id}" value="${esc(a.groups.join(', '))}" placeholder="Groups, e.g. Varsity, Sprinters" aria-label="Groups for ${esc(athleteName(a))}" /></div>
                 ${state.athletes.length > 1 ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-athlete" data-id="${a.id}">Remove</button>` : ''}</li>`
               )
               .join('')}</ul>
@@ -658,6 +662,7 @@
               <button class="btn" type="submit">+ Add athlete</button>
             </form>
           </section>
+          ${aiCard()}
           ${dataCard()}
         </div>`;
     },
@@ -934,6 +939,19 @@
         <option value="metric" ${units() === 'metric' ? 'selected' : ''}>Metric (km, kg, m)</option></select></label>
       <label>Theme <select name="theme">${['system', 'light', 'dark'].map((x) => `<option value="${x}" ${x === theme ? 'selected' : ''}>${cap(x)}</option>`).join('')}</select></label>
     </div>`;
+  }
+
+  function aiCard() {
+    const has = window.AI && window.AI.hasKey();
+    return `<section class="card span-6"><div class="card-head"><h3>✨ Claude (AI program design)</h3>${has ? '<span class="pill good">Connected</span>' : ''}</div>
+      <p class="muted" style="margin-top:0">Optional. With an Anthropic API key, the program generator can use Claude (${esc(window.AI ? window.AI.MODEL : '')}) to design fully custom programs from anything you write. The built-in generator works without it.</p>
+      <form id="ai-form">
+        <label>Anthropic API key <input type="password" name="key" autocomplete="off" placeholder="${has ? '•••••••• saved on this device' : 'sk-ant-…'}" /></label>
+        <label class="check"><input type="checkbox" name="fallbacks" ${state.ai.fallbacks !== false ? 'checked' : ''}/> Use Anthropic’s automatic fallback model if Claude declines a request</label>
+        <div class="row"><button class="btn btn-primary" type="submit">Save</button>${has ? '<button class="btn btn-ghost btn-danger" type="button" data-action="clear-ai-key">Remove key</button>' : ''}</div>
+      </form>
+      <p class="hint" style="margin-top:.6rem">The key is stored only in this browser and never included in exports. Requests go straight from this device to Anthropic, so only use it on a device you trust. A production version would route requests through a server.</p>
+    </section>`;
   }
 
   function dataCard() {
@@ -1256,6 +1274,10 @@
       }
       case 'export':
         return exportData();
+      case 'clear-ai-key':
+        window.AI.setKey('');
+        toast('API key removed');
+        return render();
       case 'load-sample':
         if (hasData() && !confirm('Replace your current data with the demo team?')) return;
         state = C.sampleState(today());
@@ -1263,6 +1285,7 @@
         Media.clear().catch(() => {});
         Form.clearCaches();
         Plan.reset();
+        Programs.reset();
         toast('Demo team loaded. Try the Coach view too!');
         return go(tabsFor()[0][0]);
       case 'reset':
@@ -1272,6 +1295,7 @@
         Media.clear().catch(() => {});
         Form.clearCaches();
         Plan.reset();
+        Programs.reset();
         toast('All data erased');
         return go(tabsFor()[0][0]);
     }
@@ -1301,6 +1325,15 @@
 
   document.addEventListener('change', (e) => {
     const t = e.target;
+    if (t.dataset && t.dataset.groupsFor) {
+      const a = athleteById(t.dataset.groupsFor);
+      if (a) {
+        a.groups = [...new Set(t.value.split(',').map((g) => g.trim()).filter(Boolean))].slice(0, 10);
+        save();
+        toast('Groups updated');
+      }
+      return;
+    }
     if (t.id === 'history-filter') {
       ui.historyFilter = t.value;
       render();
@@ -1352,6 +1385,14 @@
       const d = data();
       state.coach.name = d.name.trim();
       savePrefs(d);
+    } else if (f.id === 'ai-form') {
+      e.preventDefault();
+      const key = f.key.value.trim();
+      if (key) window.AI.setKey(key);
+      state.ai.fallbacks = f.fallbacks.checked;
+      save();
+      toast(key ? 'API key saved on this device' : 'Saved');
+      render();
     } else if (f.id === 'add-athlete-form') {
       e.preventDefault();
       state.athletes.push(C.normalizeAthlete(data()));
@@ -1403,6 +1444,7 @@
         save();
         Form.clearCaches();
         Plan.reset();
+        Programs.reset();
         toast('Data imported');
         go(tabsFor()[0][0]);
       } catch {
@@ -1454,6 +1496,9 @@
     U,
     storeVideo,
   });
+
+  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, athleteById, athleteName, units, U, sportOptions, fmtDate });
+  Live.init({ C, state: () => state, save, render, esc, units, U });
 
   Plan.init({
     C,

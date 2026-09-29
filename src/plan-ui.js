@@ -11,6 +11,7 @@
   let draft = null; // workout being edited in the builder
   let weekStart = null; // coach calendar week (Monday ISO)
   let coachTab = 'calendar';
+  let groupFilter = '';
   let restTimer = null;
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -51,9 +52,9 @@
     if (i.loadType === 'weight' && i.loadValue != null) return `@ ${roundPlate(i.loadValue)} ${ctx.U().weight}`;
     if (i.loadType === 'pct' && i.loadValue != null) {
       const kg = athlete ? C.resolveLoadKg(i, athlete) : null;
-      return `@ ${i.loadValue}%${kg ? ` (≈ ${roundPlate(kg)} ${ctx.U().weight})` : ''}`;
+      return `@ ${Math.round(i.loadValue)}%${kg ? ` (≈ ${roundPlate(kg)} ${ctx.U().weight})` : ''}`;
     }
-    if (i.loadType === 'rpe' && i.loadValue != null) return `@ RPE ${i.loadValue}`;
+    if (i.loadType === 'rpe' && i.loadValue != null) return `@ RPE ${Math.round(i.loadValue * 2) / 2}`;
     if (i.loadType === 'bw') return 'bodyweight';
     return '';
   }
@@ -157,6 +158,8 @@
   // ---------- views ----------
 
   function view(id) {
+    if (id && (id === 'programs' || id.startsWith('program:'))) return root.ProgramUI.view(id);
+    if (id && id.startsWith('edit:')) return ctx.role() === 'coach' ? builderView(id) : notFound();
     if (id && id.startsWith('build:')) return ctx.role() === 'coach' ? builderView(id.slice(6)) : notFound();
     if (id && id.startsWith('a:')) return assignmentView(id.slice(2));
     return ctx.role() === 'coach' ? coachHome() : athleteHome();
@@ -171,8 +174,10 @@
     const upcoming = list.filter((a) => a.date >= t && a.status === 'assigned');
     const past = list.filter((a) => a.date < t || a.status !== 'assigned').reverse();
     const c = C.compliance(assignments(), me.id, C.startOfWeek(t), C.addDays(C.startOfWeek(t), 6), t);
-    return `<h1 class="page-title">My plan</h1>
-      <p class="muted" style="margin-top:0">Workouts ${esc(ctx.coachName())} has assigned you.${c.due ? ` This week: ${c.done}/${c.due} done.` : ''}</p>
+    return `<div class="row" style="margin-bottom:.25rem"><h1 class="page-title" style="margin:0">My plan</h1><div class="spacer"></div>
+        <button class="btn" data-tab-link-id="programs">My programs</button>
+        <button class="btn btn-primary" data-prog-action="new">✨ Build my program</button></div>
+      <p class="muted" style="margin-top:0">Workouts from ${esc(ctx.coachName())} and programs you’ve built.${c.due ? ` This week: ${c.done}/${c.due} done.` : ''}</p>
       <div class="grid">
         ${todayCard(me) ? todayCard(me) : ''}
         <section class="card span-6"><div class="card-head"><h3>Coming up</h3></div>
@@ -189,15 +194,19 @@
       <div class="segmented" role="tablist" style="margin-bottom:1rem">
         <button data-plan-action="coach-tab" data-tab-id="calendar" aria-pressed="${coachTab === 'calendar'}">Week calendar</button>
         <button data-plan-action="coach-tab" data-tab-id="library" aria-pressed="${coachTab === 'library'}">Workout library (${templates().length})</button>
+        <button data-plan-action="coach-tab" data-tab-id="programs" aria-pressed="${coachTab === 'programs'}">Programs (${ctx.state().programs.length})</button>
       </div>
-      ${coachTab === 'calendar' ? calendarHTML() : libraryHTML()}`;
+      ${coachTab === 'calendar' ? calendarHTML() : coachTab === 'programs' ? root.ProgramUI.listHTML() : libraryHTML()}`;
   }
 
   function calendarHTML() {
     const t = today();
     if (!weekStart) weekStart = C.startOfWeek(t);
     const days = Array.from({ length: 7 }, (_, i) => C.addDays(weekStart, i));
-    const athletes = ctx.state().athletes;
+    const allAthletes = ctx.state().athletes;
+    const groups = [...new Set(allAthletes.flatMap((a) => a.groups))].sort();
+    if (groupFilter && !groups.includes(groupFilter)) groupFilter = '';
+    const athletes = groupFilter ? allAthletes.filter((a) => a.groups.includes(groupFilter)) : allAthletes;
     const end = days[6];
     const label = weekStart === C.startOfWeek(t) ? 'This week' : `${ctx.fmtDate(weekStart, { month: 'short', day: 'numeric' })} – ${ctx.fmtDate(end, { month: 'short', day: 'numeric' })}`;
     const teamC = athletes.reduce((acc, a) => {
@@ -210,6 +219,7 @@
         <strong>${esc(label)}</strong>
         <button class="btn btn-sm" data-plan-action="week" data-delta="7" aria-label="Next week">›</button>
         ${weekStart !== C.startOfWeek(t) ? '<button class="btn btn-sm btn-ghost" data-plan-action="week" data-delta="0">Today</button>' : ''}
+        ${groups.length ? `<select id="cal-group" aria-label="Filter by group" style="width:auto"><option value="">All athletes</option>${groups.map((g) => `<option ${g === groupFilter ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
         <div class="spacer"></div>
         <span class="muted small">${teamC.due ? `Team compliance: ${Math.round((teamC.done / teamC.due) * 100)}% (${teamC.done}/${teamC.due})` : 'No sessions due yet this week'}</span>
       </div>
@@ -269,7 +279,11 @@
   // ---------- builder ----------
 
   function startDraft(id) {
-    if (id === 'new') draft = C.normalizePlan({ name: '', blocks: [{ type: 'warmup', items: [] }, { type: 'strength', items: [] }] });
+    if (id.startsWith('edit:')) {
+      const a = assignments().find((x) => x.id === id.slice(5));
+      draft = a ? JSON.parse(JSON.stringify(a.plan)) : null;
+      if (draft) draft._date = a.date;
+    } else if (id === 'new') draft = C.normalizePlan({ name: '', blocks: [{ type: 'warmup', items: [] }, { type: 'strength', items: [] }] });
     else {
       const t = templates().find((x) => x.id === id);
       draft = t ? JSON.parse(JSON.stringify(t)) : null;
@@ -281,8 +295,11 @@
     if (!draft || draft._editing !== id) startDraft(id);
     if (!draft) return notFound();
     const d = draft;
+    const editing = id.startsWith('edit:');
+    const athlete = editing ? ctx.athleteById((assignments().find((x) => x.id === id.slice(5)) || {}).athleteId) : null;
     return `<button class="btn btn-sm btn-ghost" data-plan-action="cancel-build" style="margin-bottom:.5rem">‹ Training plan</button>
-      <h1 class="page-title">${id === 'new' ? 'New workout' : 'Edit workout'}</h1>
+      <h1 class="page-title">${editing ? `Edit session${athlete ? ' · ' + esc(ctx.athleteName(athlete)) : ''}` : id === 'new' ? 'New workout' : 'Edit workout'}</h1>
+      ${editing ? `<p class="muted" style="margin-top:0">Changes apply to this one session only. Your library workout stays as it is. <label class="inline-select">Date <input type="date" data-f="_date" value="${d._date}"/></label></p>` : ''}
       <form id="plan-builder" autocomplete="off">
         <section class="card" style="margin-bottom:1rem">
           <div class="grid-2">
@@ -411,6 +428,17 @@
   }
 
   function saveDraft() {
+    if (draft._editing && draft._editing.startsWith('edit:')) {
+      const a = assignments().find((x) => x.id === draft._editing.slice(5));
+      if (!a) return null;
+      for (const b of draft.blocks) b.items = b.items.filter((i) => i.name.trim());
+      a.plan = C.normalizePlan({ ...draft, id: a.plan.id });
+      if (/^\d{4}-\d{2}-\d{2}$/.test(draft._date || '')) a.date = draft._date;
+      ctx.state().messages.push(C.normalizeMessage({ athleteId: a.athleteId, from: 'coach', text: `I updated your session “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()}).` }));
+      ctx.save();
+      draft = null;
+      return { assignment: a };
+    }
     const name = (draft.name || '').trim();
     if (!name) {
       ctx.toast('Give the workout a name');
@@ -440,6 +468,31 @@
     const doing = !coach && a.status === 'assigned';
     const s = STATUS[st];
     let n = 0;
+    const Pg = root.Program;
+    const injuries = Pg.activeInjuries(ctx.state(), a.athleteId);
+    const todayCheck = athlete && athlete.checkins.find((c) => c.date === today());
+    const readiness = todayCheck ? C.readiness(todayCheck, athlete.checkins, athlete.workouts, today()) : null;
+    const flagCtx = { painAreas: todayCheck ? C.painAreas(todayCheck) : [], soreAreas: todayCheck ? Object.keys(todayCheck.soreAreas).filter((k) => todayCheck.soreAreas[k] >= 2) : [], injuries };
+    let adjustHTML = '';
+    if (doing && a.date <= today() && !a.adjusted) {
+      if (!todayCheck && a.date === today()) {
+        adjustHTML = `<div class="banner info-banner">💡 Do today’s check-in first and AthleteOS will tailor this session to how you feel. <button class="btn btn-sm" data-action="open-checkin">Check in</button></div>`;
+      } else {
+        const adj = Pg.suggestAdjustment({ plan: a.plan, readiness, checkin: todayCheck, injuries });
+        if (adj.level !== 'none' || adj.flags.length) {
+          adjustHTML = `<section class="card adjust-card ${adj.level}">
+            <div class="row"><strong>${adj.level === 'recover' ? '🛑 Recovery recommended' : adj.level === 'reduce' ? '⚠️ Suggested adjustments for today' : '⚠️ Heads up'}</strong></div>
+            <ul class="small">${adj.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}
+              ${adj.loadScale < 1 ? `<li>Loads ${Math.round((1 - adj.loadScale) * 100)}% lighter${adj.dropSets ? ` and ${adj.dropSets} fewer set${adj.dropSets > 1 ? 's' : ''} on main work` : ''}.</li>` : ''}
+              ${adj.flags.filter((f) => f.level === 'bad').map((f) => `<li><strong>${esc(f.name)}</strong>: ${esc(f.reason)}${f.alternatives[0] ? ` → swap for <strong>${esc(f.alternatives[0])}</strong>` : ''}</li>`).join('')}</ul>
+            <div class="row"><button class="btn btn-primary btn-sm" data-plan-action="apply-adjust" data-id="${a.id}">Apply adjustments</button><button class="btn btn-sm btn-ghost" data-plan-action="keep-plan" data-id="${a.id}">Keep as planned</button></div>
+          </section>`;
+        }
+      }
+    }
+    const adjustedNote = a.adjusted && a.adjusted.level && a.adjusted.level !== 'kept'
+      ? `<div class="banner info-banner">🔧 Auto-adjusted (${a.adjusted.level === 'recover' ? 'recovery' : 'reduced'})${a.adjusted.reasons.length ? `: ${esc(a.adjusted.reasons.join(' '))}` : ''}</div>`
+      : '';
     return `<button class="btn btn-sm btn-ghost" data-tab-link="plan" style="margin-bottom:.5rem">‹ ${coach ? 'Training plan' : 'My plan'}</button>
       <div class="row" style="margin-bottom:.75rem">
         <div class="sport-dot lg" aria-hidden="true">${C.sportInfo(a.plan.logAs).icon}</div>
@@ -447,9 +500,11 @@
           <div class="muted">${coach && athlete ? esc(ctx.athleteName(athlete)) + ' · ' : ''}${esc(ctx.fmtDate(a.date, { weekday: 'long', month: 'short', day: 'numeric' }))} · ≈ ${C.estimateMinutes(a.plan)} min</div></div>
         <span class="pill ${s.cls}">${s.label}</span>
         <div class="spacer"></div>
-        ${doing ? `<span class="muted small" id="session-clock">${a.startedAt ? '' : 'Not started'}</span><button class="btn btn-ghost" data-plan-action="skip" data-id="${a.id}">Skip</button>` : ''}
-        ${coach ? `<button class="btn" data-open-thread="${a.athleteId}">Message</button><button class="btn btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}">Remove</button>` : ''}
+        ${doing ? `<span class="muted small" id="session-clock">${a.startedAt ? '' : 'Not started'}</span><button class="btn btn-primary" data-plan-action="focus" data-id="${a.id}">▶ Focus mode</button><button class="btn btn-ghost" data-plan-action="skip" data-id="${a.id}">Skip</button>` : ''}
+        ${coach ? `${a.status === 'assigned' ? `<button class="btn" data-plan-action="edit-session" data-id="${a.id}">✎ Edit session</button>` : ''}<button class="btn" data-open-thread="${a.athleteId}">Message</button><button class="btn btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}">Remove</button>` : ''}
       </div>
+      ${injuries.length ? `<div class="banner warn">🩹 ${injuries.map((j) => `${esc(j.label)} (${j.status})${j.restrictions.length ? ': ' + j.restrictions.map((r) => Pg.RESTRICTIONS[r].label.toLowerCase()).join(', ') : ''}`).join(' · ')}</div>` : ''}
+      ${adjustHTML}${adjustedNote}
       ${a.plan.description ? `<p class="muted" style="margin-top:0">${esc(a.plan.description)}</p>` : ''}
       ${a.coachNote ? `<div class="cue coach"><div class="small"><strong>${esc(ctx.coachName())}</strong></div>${esc(a.coachNote)}</div>` : ''}
       ${a.status === 'skipped' ? `<div class="banner warn">Skipped${a.skipReason ? `: “${esc(a.skipReason)}”` : ''}</div>` : ''}
@@ -462,7 +517,7 @@
         .map(
           (b) => `<section class="card session-block">
           <h3>${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</h3>
-          ${b.items.map((i) => sessionItem(a, b, i, athlete, doing, ++n)).join('')}
+          ${b.items.map((i) => sessionItem(a, b, i, athlete, doing, ++n, flagCtx)).join('')}
         </section>`
         )
         .join('')}</div>
@@ -481,7 +536,7 @@
       }`;
   }
 
-  function sessionItem(a, b, i, athlete, doing, n) {
+  function sessionItem(a, b, i, athlete, doing, n, flagCtx = {}) {
     const prog = a.progress[i.id] || { sets: [] };
     const lib = C.libraryEntry(i.name);
     const withWeight = i.measure === 'reps' && (['weight', 'pct', 'rpe'].includes(i.loadType) || ['strength', 'power'].includes(b.type)) && i.loadType !== 'bw';
@@ -516,17 +571,32 @@
       : !doing && a.status !== 'assigned'
         ? '<div class="small actual muted">Not logged</div>'
         : '';
-    return `<div class="session-item ${complete ? 'complete' : ''}">
+    const flag = a.status === 'assigned' ? root.Program.conflict(i.name, flagCtx) : null;
+    const barbell = root.Program.meta(i.name).equipment.includes('barbell');
+    const plateW = doing && barbell && withWeight ? (prog.sets.filter((x) => x.weightKg).slice(-1)[0] ? roundPlate(prog.sets.filter((x) => x.weightKg).slice(-1)[0].weightKg) : pre) : null;
+    return `<div class="session-item ${complete ? 'complete' : ''} ${flag ? 'flag-' + flag.level : ''}">
       <div class="row" style="flex-wrap:nowrap;align-items:flex-start">
         <span class="item-num">${i.group ? esc(i.group) : n}</span>
         <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>
           <div class="small">${esc(prescription(i, athlete))}</div>
           ${i.notes ? `<div class="muted small">${esc(i.notes)}</div>` : ''}
+          ${flag ? `<div class="small flag-note">${flag.level === 'bad' ? '⛔' : '⚠️'} ${esc(flag.reason)}</div>` : ''}
           ${actual}</div>
-        ${lib && lib.form && ctx.role() === 'athlete' ? `<button class="btn btn-sm" data-plan-action="form-check" data-exercise="${lib.form}">📐 Check form</button>` : ''}
+        <div class="item-tools">
+          <button class="btn btn-sm btn-ghost" data-plan-action="howto" data-name="${esc(i.name)}" aria-label="How to do ${esc(i.name)}">ⓘ</button>
+          ${doing ? `<button class="btn btn-sm btn-ghost" data-plan-action="swap" data-assign="${a.id}" data-item="${i.id}" aria-label="Swap ${esc(i.name)}">⇄</button>` : ''}
+          ${lib && lib.form && ctx.role() === 'athlete' ? `<button class="btn btn-sm" data-plan-action="form-check" data-exercise="${lib.form}">📐</button>` : ''}
+        </div>
       </div>
       ${setsHTML}
+      ${plateW ? root.LiveUI.plateHTML(plateW) : ''}
     </div>`;
+  }
+
+  function rerenderKeepScroll() {
+    const y = window.scrollY;
+    ctx.render();
+    window.scrollTo(0, y);
   }
 
   function saveSetInputs(a) {
@@ -602,6 +672,7 @@
       <label style="margin-top:1rem">Workout <select name="template" required>${[...templates()].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<option value="${t.id}" ${t.id === templateId ? 'selected' : ''}>${esc(t.name)} · ${C.estimateMinutes(t)} min</option>`).join('')}</select></label>
       <fieldset><legend>Athletes</legend>
         <label class="check"><input type="checkbox" data-all ${athleteId ? '' : 'checked'} /> <strong>Whole team</strong></label>
+        ${[...new Set(athletes.flatMap((a) => a.groups))].sort().map((g) => `<button type="button" class="chip" data-group-pick="${esc(g)}">${esc(g)} only</button>`).join(' ')}
         <div class="athlete-pick">${athletes.map((a) => `<label class="check"><input type="checkbox" name="athlete" value="${a.id}" ${!athleteId || a.id === athleteId ? 'checked' : ''} /> ${esc(ctx.athleteName(a))} <span class="muted small">· ${esc(C.sportInfo(a.sport).label)}</span></label>`).join('')}</div>
       </fieldset>
       <div class="grid-2">
@@ -624,6 +695,12 @@
     };
     form.addEventListener('change', (e) => {
       if (e.target.matches('[data-all]')) $$('input[name=athlete]', form).forEach((c) => (c.checked = e.target.checked));
+      sync();
+    });
+    form.addEventListener('click', (e) => {
+      const g = e.target.closest('[data-group-pick]');
+      if (!g) return;
+      for (const a of athletes) form.querySelector(`input[name=athlete][value="${a.id}"]`).checked = a.groups.includes(g.dataset.groupPick);
       sync();
     });
     sync();
@@ -675,6 +752,8 @@
   // ---------- events ----------
 
   function onClick(e) {
+    const link = e.target.closest('[data-tab-link-id]');
+    if (link) return ctx.go('plan', link.dataset.tabLinkId);
     const open = e.target.closest('[data-plan-open]');
     if (open) return ctx.go('plan', 'a:' + open.dataset.planOpen);
     const el = e.target.closest('[data-plan-action]');
@@ -710,9 +789,11 @@
         ctx.save();
         return ctx.render();
       }
-      case 'cancel-build':
+      case 'cancel-build': {
+        const back = draft && draft._editing && draft._editing.startsWith('edit:') ? 'a:' + draft._editing.slice(5) : null;
         draft = null;
-        return ctx.go('plan');
+        return ctx.go('plan', back);
+      }
       case 'add-block':
         draft.blocks.push(C.normalizePlanBlock({ type: el.dataset.type, items: [] }));
         return rerenderBuilder();
@@ -749,6 +830,10 @@
       case 'save-template': {
         const plan = saveDraft();
         if (!plan) return;
+        if (plan.assignment) {
+          ctx.toast('Session updated');
+          return ctx.go('plan', 'a:' + plan.assignment.id);
+        }
         ctx.toast('Workout saved');
         coachTab = 'library';
         ctx.go('plan');
@@ -795,6 +880,46 @@
       }
       case 'form-check':
         return ctx.openAnalyze({ exercise: el.dataset.exercise });
+      case 'howto':
+        return root.LiveUI.openHowTo(el.dataset.name);
+      case 'swap': {
+        const a = assignments().find((x) => x.id === el.dataset.assign);
+        const item = a && findItem(a, el.dataset.item);
+        if (!item) return;
+        saveSetInputs(a);
+        return root.LiveUI.openSwap({ assignment: a, item, athlete: ctx.me(), onDone: (from, to) => {
+          ctx.save();
+          ctx.toast(`Swapped ${from} → ${to}`);
+          rerenderKeepScroll();
+        } });
+      }
+      case 'focus': {
+        const a = assignments().find((x) => x.id === el.dataset.id);
+        if (!a) return;
+        saveSetInputs(a);
+        return root.LiveUI.openFocus({ assignment: a, athlete: ctx.me(), render: rerenderKeepScroll });
+      }
+      case 'apply-adjust': {
+        const a = assignments().find((x) => x.id === el.dataset.id);
+        const athlete = a && ctx.athleteById(a.athleteId);
+        if (!a) return;
+        const ck = athlete.checkins.find((c) => c.date === today());
+        const adj = root.Program.suggestAdjustment({ plan: a.plan, readiness: ck ? C.readiness(ck, athlete.checkins, athlete.workouts, today()) : null, checkin: ck, injuries: root.Program.activeInjuries(ctx.state(), a.athleteId) });
+        root.Program.applyAdjustment(a, adj);
+        ctx.save();
+        ctx.toast('Session adjusted for today');
+        return rerenderKeepScroll();
+      }
+      case 'keep-plan': {
+        const a = assignments().find((x) => x.id === el.dataset.id);
+        if (!a) return;
+        a.adjusted = { level: 'kept', at: Date.now(), reasons: [] };
+        ctx.save();
+        return rerenderKeepScroll();
+      }
+      case 'edit-session':
+        draft = null;
+        return ctx.go('plan', 'edit:' + el.dataset.id);
     }
   }
 
@@ -820,6 +945,10 @@
   }
 
   function onInput(e) {
+    if (e.target.id === 'cal-group' && e.type === 'change') {
+      groupFilter = e.target.value;
+      return ctx.render();
+    }
     onBuilderInput(e);
     // Keep typed set values without re-rendering.
     const el = e.target;
@@ -864,5 +993,5 @@
     stopRest();
   }
 
-  root.PlanUI = { init, view, todayCard, todayLine, alerts, dueCount, mount, reset, openAssign, prescription };
+  root.PlanUI = { init, view, todayCard, todayLine, alerts, dueCount, mount, reset, openAssign, prescription, startRest };
 })(window);

@@ -691,7 +691,12 @@
       : MAIN;
     const slot = (key, used) => pick(main[key] ? rot(main[key]) : [], used) || pick(FALLBACK[key] || [], used);
     let v = 0;
-    const rot = (list) => (v % 2 ? list : [...list.slice(1), list[0]]);
+    const variation = Math.max(0, Math.round(Number(input.variation) || 0));
+    // Rotate through each list so repeated sessions (and "regenerate") vary the exercise choice.
+    const rot = (list) => {
+      const k = (v - 1 + variation) % list.length;
+      return [...list.slice(k), ...list.slice(0, k)];
+    };
     // Percent-of-max only makes sense for barbell lifts; bodyweight moves stay bodyweight.
     const loadFor = (name, extra) => {
       const lib = C.libraryEntry(name);
@@ -722,7 +727,10 @@
       const blocks = [];
       const add = (type, names, extra = {}) => {
         const items = names.filter(Boolean).map((n) => (used.add(n), C.normalizePlanItem({ name: n, ...extra }, type)));
-        if (items.length) blocks.push({ type, items });
+        if (!items.length) return items;
+        const existing = blocks.find((b) => b.type === type);
+        if (existing) existing.items.push(...items);
+        else blocks.push({ type, items });
         return items;
       };
       add('warmup', fromBlock('warmup', used, 3, (x) => (kind === 'upper' ? !/leg|lunge/i.test(x.name) : true)));
@@ -739,7 +747,7 @@
         add('speed', speed);
       }
       if (wantsPlyo && kind !== 'upper') {
-        const jump = pick(v % 2 ? ['Box jump', 'Broad jump', 'Pogo hops', 'Drop landing (stick it)'] : ['Broad jump', 'Lateral bound (skater)', 'Hurdle hops', 'Pogo hops'], used);
+        const jump = pick(rot(['Box jump', 'Broad jump', 'Lateral bound (skater)', 'Hurdle hops', 'Pogo hops', 'Drop landing (stick it)']), used);
         const plyo = [jump, kind === 'speed' ? pick(['Single-leg hop', 'Lateral bound (skater)', 'Pogo hops'], used) : null].filter(Boolean);
         if (plyo.length) add('plyo', plyo);
         else if (pick(FALLBACK.plyo, used)) add('power', [pick(FALLBACK.plyo, used)]);

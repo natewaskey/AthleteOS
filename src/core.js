@@ -1271,6 +1271,7 @@
 
     const riley = normalizeAthlete({
       id: 'riley',
+      groups: ['Varsity', 'Track'],
       name: 'Riley Parker',
       sport: 'run',
       position: 'Distance',
@@ -1296,6 +1297,7 @@
 
     const jordan = normalizeAthlete({
       id: 'jordan',
+      groups: ['Varsity', 'Basketball'],
       name: 'Jordan Lee',
       sport: 'basketball',
       position: 'Guard',
@@ -1322,6 +1324,7 @@
     const mayaTournament = { sport: 'soccer', title: 'Tournament match', dur: 100, rpe: 9, type: 'Game' };
     const maya = normalizeAthlete({
       id: 'maya',
+      groups: ['JV', 'Soccer'],
       name: 'Maya Chen',
       sport: 'soccer',
       position: 'Midfielder',
@@ -1345,6 +1348,7 @@
 
     const sam = normalizeAthlete({
       id: 'sam',
+      groups: ['Varsity', 'Swim'],
       name: 'Sam Ortiz',
       sport: 'swim',
       position: 'Freestyle / IM',
@@ -1369,6 +1373,7 @@
 
     const taylor = normalizeAthlete({
       id: 'taylor',
+      groups: ['Varsity', 'Football'],
       name: 'Taylor Brooks',
       sport: 'football',
       position: 'Linebacker',
