@@ -506,6 +506,10 @@
       soreAreas,
       soreness: hasMap ? deriveSoreness(soreAreas) : clamp(Math.round(Number(input.soreness) || 3), 1, 5), // 1 = none, 5 = very sore
       note: String(input.note || '').trim().slice(0, 500),
+      hydration: input.hydration == null || input.hydration === '' ? null : clamp(Math.round(Number(input.hydration)), 1, 5), // 1 = dehydrated, 5 = well hydrated
+      fuel: input.fuel == null || input.fuel === '' ? null : clamp(Math.round(Number(input.fuel)), 1, 5), // how well you ate yesterday
+      period: !!input.period, // private cycle tracking
+      symptoms: Array.isArray(input.symptoms) ? input.symptoms.map(String).slice(0, 8) : [],
       stress: clamp(Math.round(Number(input.stress) || 3), 1, 5), // 1 = calm, 5 = very stressed
       mood: clamp(Math.round(Number(input.mood) || 3), 1, 5), // 1 = low, 5 = great
       restingHR: input.restingHR === '' || input.restingHR == null ? null : clamp(Math.round(Number(input.restingHR)), 25, 220),
@@ -598,16 +602,88 @@
 
   // ---------- athletes, coach status ----------
 
+  /*
+   * Performance tests (combine / testing day). Values are stored canonically:
+   * time in seconds, jumps in cm, weights in kg, counts as reps. `lift` links a 1RM test
+   * to the library exercise it sets working weights for.
+   */
+  const TESTS = [
+    { id: 'dash40', name: '40-yard dash', kind: 'speed', unit: 'time', better: 'lower' },
+    { id: 'split10', name: '10-yard split', kind: 'speed', unit: 'time', better: 'lower' },
+    { id: 'proagility', name: 'Pro agility (5-10-5)', kind: 'speed', unit: 'time', better: 'lower' },
+    { id: 'cone3', name: '3-cone drill', kind: 'speed', unit: 'time', better: 'lower' },
+    { id: 'vertical', name: 'Vertical jump', kind: 'power', unit: 'jump', better: 'higher' },
+    { id: 'broad', name: 'Broad jump', kind: 'power', unit: 'jump', better: 'higher' },
+    { id: 'squat1rm', name: 'Back squat 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Back squat' },
+    { id: 'bench1rm', name: 'Bench press 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Bench press' },
+    { id: 'dead1rm', name: 'Deadlift 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Deadlift' },
+    { id: 'clean1rm', name: 'Power clean 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Power clean' },
+    { id: 'ohp1rm', name: 'Overhead press 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Overhead press' },
+    { id: 'pullups', name: 'Max pull-ups', kind: 'endurance', unit: 'reps', better: 'higher' },
+    { id: 'pushups', name: 'Max push-ups (60 s)', kind: 'endurance', unit: 'reps', better: 'higher' },
+    { id: 'mile', name: '1-mile run', kind: 'endurance', unit: 'time', better: 'lower' },
+    { id: 'shuttle300', name: '300-yard shuttle', kind: 'endurance', unit: 'time', better: 'lower' },
+    { id: 'bodyweight', name: 'Body weight', kind: 'body', unit: 'weight', better: 'none' },
+  ];
+  const TEST_INFO = Object.fromEntries(TESTS.map((t) => [t.id, t]));
+
+  function normalizeTestResult(input) {
+    return {
+      id: input.id || uid(),
+      testId: TEST_INFO[input.testId] ? input.testId : 'dash40',
+      date: input.date || toISODate(new Date()),
+      value: Math.max(0, Number(input.value) || 0),
+    };
+  }
+
   function normalizeAthlete(input) {
     return {
       id: input.id || uid(),
       name: String(input.name || '').trim(),
       sport: SPORT_INFO[input.sport] ? input.sport : 'run',
       position: String(input.position || '').trim(),
+      groups: Array.isArray(input.groups) ? [...new Set(input.groups.map((g) => String(g).trim()).filter(Boolean))].slice(0, 10) : [],
+      birthdate: /^\d{4}-\d{2}-\d{2}$/.test(input.birthdate || '') ? input.birthdate : '',
+      guardian: input.guardian && typeof input.guardian === 'object' ? { name: String(input.guardian.name || '').slice(0, 80), email: String(input.guardian.email || '').slice(0, 120), consentAt: Number(input.guardian.consentAt) || null } : { name: '', email: '', consentAt: null },
+      privacy: {
+        shareNotes: input.privacy?.shareNotes !== false,
+        shareCycle: !!input.privacy?.shareCycle,
+        autoShareForm: !!input.privacy?.autoShareForm,
+      },
+      trackCycle: !!input.trackCycle,
+      badgesSeen: Array.isArray(input.badgesSeen) ? input.badgesSeen.map(String) : [],
       workouts: Array.isArray(input.workouts) ? input.workouts.map(normalizeWorkout) : [],
       checkins: Array.isArray(input.checkins) ? input.checkins.map(normalizeCheckin) : [],
       goals: Array.isArray(input.goals) ? input.goals.map(normalizeGoal) : [],
+      tests: Array.isArray(input.tests) ? input.tests.map(normalizeTestResult) : [],
     };
+  }
+
+  function ageOn(athlete, todayISO) {
+    if (!athlete.birthdate) return null;
+    const b = parseISODate(athlete.birthdate), t = parseISODate(todayISO);
+    let age = t.getFullYear() - b.getFullYear();
+    if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+    return age;
+  }
+
+  // Minors need a guardian's consent before coaches see their data.
+  function needsConsent(athlete, todayISO) {
+    const age = ageOn(athlete, todayISO);
+    return age != null && age < 18 && !athlete.guardian.consentAt;
+  }
+
+  // Latest result for a test, and the athlete's best ever.
+  function testHistory(athlete, testId) {
+    return athlete.tests.filter((r) => r.testId === testId).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  }
+
+  function bestTest(athlete, testId) {
+    const t = TEST_INFO[testId];
+    const h = testHistory(athlete, testId);
+    if (!h.length) return null;
+    if (t.better === 'none') return h[h.length - 1];
+    return h.reduce((a, b) => ((t.better === 'lower' ? b.value < a.value : b.value > a.value) ? b : a));
   }
 
   function latestCheckin(athlete) {
@@ -962,6 +1038,9 @@
         : null,
       skipReason: String(input.skipReason || '').trim().slice(0, 300),
       assignedAt: Number(input.assignedAt) || Date.now(),
+      programId: input.programId || null,
+      week: input.week ? Math.max(1, Math.round(Number(input.week))) : null,
+      adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [] } : null,
     };
   }
 
@@ -980,12 +1059,23 @@
   }
 
   // Working weight for a %1RM prescription from the athlete's best estimated 1RM on that lift.
+  // Working weight for a %1RM prescription: a tested 1RM from the last ~4 months wins,
+  // otherwise the best estimated 1RM from logged sets.
+  function oneRepMaxKg(athlete, liftName) {
+    if (!athlete) return null;
+    const key = String(liftName).toLowerCase();
+    const test = TESTS.find((t) => t.lift && t.lift.toLowerCase() === key);
+    const tested = test ? testHistory(athlete, test.id).slice(-1)[0] : null;
+    const fresh = tested && daysBetween(tested.date, toISODate(new Date())) <= 120 ? tested.value : null;
+    const rec = strengthRecords(athlete.workouts).find((r) => r.name.toLowerCase() === key);
+    return fresh || (rec && rec.e1rm) || (tested && tested.value) || null;
+  }
+
   function resolveLoadKg(item, athlete) {
     if (item.loadType === 'weight') return item.loadValue;
     if (item.loadType !== 'pct' || !athlete) return null;
-    const rec = strengthRecords(athlete.workouts).find((r) => r.name.toLowerCase() === item.name.toLowerCase());
-    if (!rec || !rec.e1rm) return null;
-    return (rec.e1rm * item.loadValue) / 100;
+    const max = oneRepMaxKg(athlete, item.name);
+    return max ? (max * item.loadValue) / 100 : null;
   }
 
   // Rough session length in minutes for planning.
@@ -1041,7 +1131,24 @@
       analyses: [],
       templates: [],
       assignments: [],
+      programs: [],
+      injuries: [],
+      shoutouts: [],
+      staff: [{ id: 'coach-1', name: '', role: 'head' }],
+      activeStaffId: 'coach-1',
+      team: { name: '', onboarded: false },
+      ai: { enabled: false, fallbacks: true },
     };
+  }
+
+  const STAFF_ROLES = { head: 'Head coach', assistant: 'Assistant / position coach', strength: 'Strength & conditioning', trainer: 'Athletic trainer' };
+
+  function normalizeStaff(list, coach) {
+    const out = (Array.isArray(list) ? list : [])
+      .filter((x) => x && typeof x === 'object')
+      .map((x) => ({ id: String(x.id || uid()), name: String(x.name || '').trim().slice(0, 60), role: STAFF_ROLES[x.role] ? x.role : 'assistant' }));
+    if (!out.length) out.push({ id: 'coach-1', name: String(coach?.name || ''), role: 'head' });
+    return out;
   }
 
   function migrate(raw) {
@@ -1076,6 +1183,13 @@
       analyses: (Array.isArray(raw.analyses) ? raw.analyses.map(normalizeAnalysis) : []).filter((a) => ids.has(a.athleteId)),
       templates: Array.isArray(raw.templates) ? raw.templates.map(normalizePlan) : [],
       assignments: (Array.isArray(raw.assignments) ? raw.assignments.map(normalizeAssignment) : []).filter((a) => ids.has(a.athleteId)),
+      programs: Array.isArray(raw.programs) ? raw.programs.filter((p) => p && typeof p === 'object') : [],
+      injuries: (Array.isArray(raw.injuries) ? raw.injuries.filter((x) => x && typeof x === 'object') : []).filter((x) => ids.has(x.athleteId)),
+      shoutouts: (Array.isArray(raw.shoutouts) ? raw.shoutouts.filter((x) => x && typeof x === 'object') : []).filter((x) => ids.has(x.athleteId)),
+      staff: normalizeStaff(raw.staff, raw.coach),
+      activeStaffId: String(raw.activeStaffId || 'coach-1'),
+      team: { name: String(raw.team?.name || '').slice(0, 80), onboarded: raw.team?.onboarded !== false },
+      ai: { enabled: !!raw.ai?.enabled, fallbacks: raw.ai?.fallbacks !== false },
     };
   }
 
@@ -1419,6 +1533,15 @@
     resolveLoadKg,
     estimateMinutes,
     workoutFromAssignment,
+    TESTS,
+    TEST_INFO,
+    normalizeTestResult,
+    testHistory,
+    bestTest,
+    oneRepMaxKg,
+    ageOn,
+    needsConsent,
+    STAFF_ROLES,
     FORM_EXERCISES,
     normalizeAnalysis,
     normalizeFormComment,
