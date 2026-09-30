@@ -17,10 +17,10 @@
 
   const STATUS = { out: { label: 'Out', cls: 'bad' }, limited: { label: 'Limited', cls: 'warn' }, cleared: { label: 'Cleared', cls: 'good' } };
 
-  // Coaches need the health permission (role + current certification). People training solo manage their own.
+  // Every coach can edit; people training solo manage their own.
   function canEdit(inj) {
     if (ctx.solo && ctx.solo()) return !inj || inj.athleteId === ctx.me().id;
-    return ctx.role() === 'coach' && ctx.can('health');
+    return ctx.role() === 'coach';
   }
 
   // ---------- solo: your own injuries ----------
@@ -51,7 +51,7 @@
     const cleared = injuries().filter((i) => i.status === 'cleared').sort((a, b) => (b.clearedAt || 0) - (a.clearedAt || 0));
     const edit = canEdit();
     return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Health</h1><div class="spacer"></div>
-        ${edit ? '<button class="btn btn-primary" data-health="toggle-form">+ Log injury / illness</button>' : `<span class="muted small">${esc(ctx.whyNot ? ctx.whyNot('health') : 'You can’t edit injuries.')}</span>`}</div>
+        ${edit ? '<button class="btn btn-primary" data-health="toggle-form">+ Log injury / illness</button>' : ''}</div>
       <div class="grid">
         <section class="card span-4"><h3>Out</h3><div class="stat">${active.filter((i) => i.status === 'out').length}</div><div class="muted">not training</div></section>
         <section class="card span-4"><h3>Limited</h3><div class="stat">${active.filter((i) => i.status === 'limited').length}</div><div class="muted">training with restrictions</div></section>

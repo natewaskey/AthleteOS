@@ -204,8 +204,7 @@
   }
 
   function coachHome() {
-    return `${ctx.can && !ctx.can('plan') ? `<div class="banner warn" role="note">🎓 ${esc(ctx.certNote ? ctx.certNote() : 'You can’t prescribe yet.')} <button class="btn btn-sm" data-tab-link="settings">Add certification</button></div>` : ''}
-      <div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
+    return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
         <button class="btn" data-plan-action="new-template">+ New workout</button>
         <button class="btn btn-primary" data-plan-action="assign">Assign workout</button></div>
       <div class="segmented" role="tablist" style="margin-bottom:1rem">

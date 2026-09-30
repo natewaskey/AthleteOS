@@ -66,7 +66,7 @@
   function introCard(a) {
     return `<section class="card" style="margin-bottom:1rem">
       <p style="margin-top:0">A 10-minute baseline of how ${coach() ? esc(ctx.athleteName(a).split(' ')[0]) + ' moves' : 'you move'}: <strong>mobility</strong>, <strong>balance & control</strong> and <strong>strength</strong>. Each of the 8 tests scores 0–3. You get priorities, drills and an optional warm-up routine built from the results.</p>
-      <p class="muted small" style="margin:0">You’ll need a wall, a tape measure or ruler, a timer, a step or low box, and a stick or towel. Stop any test that hurts: pain scores 0 and is flagged.</p></section>`;
+      <p class="muted small" style="margin:0">You’ll need a wall, a tape measure or ruler, a timer, a step or low box, and a stick or towel. Each test has a demo showing good form and the most common mistake. Stop any test that hurts: pain scores 0 and is flagged.</p></section>`;
   }
 
   function formView(a) {
@@ -100,6 +100,7 @@
         <p class="hint" style="margin:.25rem 0 0">Target: ${item.type === 'measure' ? `${fmt(item, item.thresholds[0])}+` : item.type === 'time' ? `${item.thresholds[0]} s+` : `${item.thresholds[0]}+ reps`} for a 3 · ${item.type === 'measure' ? fmt(item, item.thresholds[1]) : item.thresholds[1] + (item.type === 'time' ? ' s' : ' reps')} for a 2</p>`;
     }
     return `<section class="card screen-item" id="si-${item.id}">
+      ${thumb(item)}
       <div class="row" style="flex-wrap:nowrap"><span class="step-num">${n}</span><div class="main"><h3 style="margin:0">${esc(item.label)}</h3>
         <div class="muted small">${cat.icon} ${esc(cat.label)} · ${esc(item.area)}${lastTxt ? ` · last time: ${esc(lastTxt)}` : ''}</div></div>
         ${item.formExercise && !coach() && ctx.openAnalyze ? `<button type="button" class="btn btn-sm btn-ghost" data-screen-action="film" data-exercise="${item.formExercise}" title="Record and analyse with the camera">📐 Film it</button>` : ''}</div>
@@ -109,13 +110,26 @@
     </section>`;
   }
 
+  // Looping demo animation; tap to open the full player.
+  function thumb(item, variant = 'good') {
+    if (!root.ScreenDemo || !root.ScreenDemo.TESTS[item.id]) return '';
+    return `<button type="button" class="demo-thumb" data-screen-action="demo" data-item="${item.id}" data-variant="${variant}" aria-label="Play the ${esc(item.label)} demo">
+      <canvas data-demo="${item.id}" data-variant="${variant}" data-units="${ctx.units()}" width="176" height="128" aria-hidden="true"></canvas>
+      <span>▶ Watch demo</span></button>`;
+  }
+
+  function openDemo(id, variant) {
+    const item = S.BY_ID[id];
+    if (!item || !root.ScreenDemo || !root.ScreenDemo.open) return;
+    root.ScreenDemo.open(id, { variant: variant || 'good', units: ctx.units(), title: item.label, how: item.how, grades: item.grades || null });
+  }
+
   function resultView(a, scr) {
     const s = S.summarize(scr, { units: ctx.units() });
     const hist = S.chronological(a);
     const idx = hist.findIndex((x) => x.id === scr.id);
     const prev = idx > 0 ? hist[idx - 1] : null;
     const cmp = prev ? S.compare(prev, scr) : null;
-    const canPrescribe = !coach() || ctx.can('plan');
     const first = ctx.athleteName(a).split(' ')[0];
     return `${back(coach() ? a : null)}
       <div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Movement screen${coach() ? ' · ' + esc(ctx.athleteName(a)) : ''}</h1><div class="spacer"></div>
@@ -133,13 +147,12 @@
             <div class="bar"><i class="${c.pct >= 80 ? 'good' : c.pct >= 55 ? 'warn' : 'bad'}" style="width:${c.pct}%"></i></div></div>`).join('')}
         </section>
         <section class="card span-12"><div class="card-head"><h3>What to work on</h3></div>
-          ${s.priorities.length ? `<ol class="priorities">${s.priorities.slice(0, 5).map((p) => `<li><div class="row"><strong>${esc(p.label)}</strong><span class="pill ${LEVEL[p.level][0]}">${LEVEL[p.level][1]}</span></div>
+          ${s.priorities.length ? `<ol class="priorities">${s.priorities.slice(0, 5).map((p) => `<li><div class="row"><strong>${esc(p.label)}</strong><span class="pill ${LEVEL[p.level][0]}">${LEVEL[p.level][1]}</span><button type="button" class="btn btn-sm btn-ghost" data-screen-action="demo" data-item="${p.id}" data-variant="fault">▶ Watch the test</button></div>
             <p class="small" style="margin:.25rem 0">${esc(p.text)}</p>
             ${p.drills.length ? `<div class="chips">${p.drills.map((d) => `<button type="button" class="chip chip-btn" data-plan-action="howto" data-name="${esc(d)}" title="How to">ⓘ ${esc(d)}</button>`).join('')}</div>` : ''}</li>`).join('')}</ol>`
             : `<p>Everything tested scored 3. Keep training, and rescreen in ${RESCREEN_DAYS / 7} weeks or after an injury.</p>`}
           <div class="row" style="margin-top:.75rem">
-            ${canPrescribe ? `<button class="btn btn-primary" data-screen-action="add-prep" data-athlete="${a.id}" data-id="${scr.id}">${coach() ? `Assign movement prep to ${esc(first)}` : 'Add movement prep to my plan'}</button><span class="muted small">About 12 min, 3× a week for 4 weeks, from the drills above.</span>`
-              : `<span class="muted small">${ctx.certNote ? esc(ctx.certNote()) : 'Add a certification in Settings to prescribe.'}</span>`}
+            ${`<button class="btn btn-primary" data-screen-action="add-prep" data-athlete="${a.id}" data-id="${scr.id}">${coach() ? `Assign movement prep to ${esc(first)}` : 'Add movement prep to my plan'}</button><span class="muted small">About 12 min, 3× a week for 4 weeks, from the drills above.</span>`}
           </div>
         </section>
         <section class="card span-12"><div class="card-head"><h3>All tests</h3></div>
@@ -150,7 +163,7 @@
             const r = x.result;
             const raw = item.bilateral ? `L ${fmt(item, r.left)} · R ${fmt(item, r.right)}` : fmt(item, r.value) + (r.knees ? ' (knees)' : '');
             const c = cmp && cmp.items.find((y) => y.id === item.id);
-            return `<tr><td>${esc(item.label)}<div class="muted small">${S.CATEGORIES[item.category].icon} ${esc(S.CATEGORIES[item.category].label)}</div></td>
+            return `<tr><td><button type="button" class="btn-link" data-screen-action="demo" data-item="${item.id}" title="Watch the demo">▶ ${esc(item.label)}</button><div class="muted small">${S.CATEGORIES[item.category].icon} ${esc(S.CATEGORIES[item.category].label)}</div></td>
               <td>${esc(raw)}${x.pain ? ' <span class="pill bad">pain</span>' : ''}${x.gap ? ` <span class="pill warn">${x.weak ? esc(x.weak) + ' weaker' : 'gap'}</span>` : ''}</td>
               <td class="num"><span class="score-dots s${x.score}">${'●'.repeat(x.score)}${'○'.repeat(3 - x.score)}</span></td>
               ${cmp ? `<td class="num">${c ? (c.delta > 0 ? `<span class="good-text">+${c.delta}</span>` : c.delta < 0 ? `<span class="pain-text">${c.delta}</span>` : '=') : ''}</td>` : ''}</tr>`;
@@ -258,6 +271,8 @@
     switch (el.dataset.screenAction) {
       case 'start':
         return ctx.go('screen', `${a.id}:new`);
+      case 'demo':
+        return openDemo(el.dataset.item, el.dataset.variant);
       case 'film':
         return ctx.openAnalyze && ctx.openAnalyze({ exercise: el.dataset.exercise });
       case 'delete': {
@@ -268,7 +283,6 @@
         return ctx.go('screen', coach() ? a.id : null);
       }
       case 'add-prep': {
-        if (coach() && !ctx.can('plan')) return ctx.toast(ctx.certNote ? ctx.certNote() : 'You can’t prescribe yet.');
         const scr = a.screens.find((x) => x.id === el.dataset.id);
         if (!scr) return;
         assignPrep(a, scr);
@@ -300,5 +314,9 @@
     document.addEventListener('submit', onSubmit);
   }
 
-  root.ScreenUI = { init, view, card, teamCard };
+  function mount() {
+    if (root.ScreenDemo && root.ScreenDemo.mount) root.ScreenDemo.mount();
+  }
+
+  root.ScreenUI = { init, view, card, teamCard, mount, openDemo };
 })(window);

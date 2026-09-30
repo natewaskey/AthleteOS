@@ -8,47 +8,16 @@ A private training operating system for athletes. Log workouts, check in each mo
 The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
 - **On my own:** the full athlete experience without any coach or team features. You get check-ins, logging, programs (built-in or AI), your own workout builder and scheduling, form analysis, the movement screen, progress, goals and a Health tab where you log your own injuries. There are no messages, sharing or team wall.
 - **Athlete on a team:** everything above, plus workouts, programs, messages and feedback from your coaching staff.
-- **Certified coach:** enter your certifications, set up the team roster and prescribe. See Coach certifications below.
+- **Coach:** set up the team roster and prescribe. Every coach has full access. You can list certifications (below).
 
 In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
 
 ### Coach certifications
-- **To prescribe you need a current certification on file.** This covers workouts, programs, movement prep, and injury and return-to-play management.
-- **Accepted:** CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS / state coaching licence, sport governing-body licences, or "Other" with a name.
-- **Setup:** the setup wizard asks for one. Add more in **Settings → My certifications**, with a number and expiry date.
-- **Without a current certification** (for example a volunteer, or an expired cert), a staff member can still message athletes and review data. The Plan tab explains why prescribing is locked.
-- **Athletes see their coach's credentials** next to the coach's name.
-- **Certifications are self-reported in this version.** A production version should verify them with the issuing body.
-
-**Athlete**
-- **Daily check-in with a body map.** Tap areas on a front/back body diagram: once for mild, twice for sore, three times for pain. Add sleep, stress, mood, resting HR, body weight and a note for the coach. This produces a readiness score from 0 to 100, and any pain caps it at "Keep it easy".
-- **Workout log** covering 57 activities in 6 groups: endurance (run, trail, track, bike, swim, row…), strength and conditioning (lifting, HIIT, plyos, speed and agility…), team sports (football, basketball, soccer, baseball, volleyball, hockey, lacrosse…), individual sports (tennis, wrestling, boxing, gymnastics, golf…), recovery (yoga, mobility, rehab…) and other. Each activity shows the right fields: distance and pace, elevation, sets × reps × weight, or session type (Practice, Game, Scrimmage, Skills, Film…).
-- **Video upload.** Attach a video to a workout (and optionally send it to the coach), or send one straight from Messages.
-- **Messages** with your coach, text and video.
-- Training load (ACWR), personal records, goals, imperial or metric units.
-
-**Coach**
-- **Team dashboard.** Who has checked in, average team readiness, urgent alerts, and unread messages.
-- **Needs attention** list: reported pain, low readiness, load spikes, soreness that keeps coming back, and missed check-ins.
-- **Roster cards** for each athlete, showing readiness, ACWR, today's sore areas and when they last trained.
-- **Athlete detail.** Today's body map, recurring soreness over the last 7 days, the check-in history table, load trend, recent training, all of the athlete's videos, and their records.
-- **Inbox** with a thread per athlete, video playback, and an announcement that goes to the whole team.
-- Roster management: add and remove athletes.
-
-### Training plans (coach-prescribed workouts)
-- **Workout builder:** build a session from blocks: Warm-up, Mobility, Speed & agility, Plyometrics, Power, Strength, Core, Conditioning and Cool-down.
-  - **Exercise library:** 108 exercises with sensible default prescriptions. Tap to add, or type your own.
-  - **Prescription options:** sets × reps / seconds / distance (yd or m), load as weight, %1RM, RPE or bodyweight, rest, tempo, each side, superset groups (A1/A2), and coaching notes per exercise.
-  - Reorder blocks and exercises, save to a **workout library**, duplicate, and edit.
-- **Assigning:** send a workout to selected athletes or the whole team, on one date or repeating weekdays for up to 8 weeks, with an optional note. Athletes get a message.
-  - Each assignment keeps its own copy, so editing the library later doesn't change past sessions.
-- **Coach week calendar:** athletes × days, with sessions colour-coded as planned, today, done, missed or skipped. It shows compliance per athlete and team-wide, and tapping "+" in any cell assigns a session there.
-  - Missed and skipped sessions appear in the Team "Needs attention" list, and roster cards show today's session status.
-- **Athlete workout screen:** "Today's training" appears at the top of the Today screen.
-  - Each exercise shows its prescription. %1RM loads are turned into a working weight from the athlete's own lifting history and rounded to plates.
-  - Log reps and weight per set (or tick off sets for drills). A **rest timer** starts automatically, and "📐 Check form" jumps to form analysis for that lift.
-  - Finishing records duration, RPE and notes and **logs the workout**, which updates training load and records. Skipping asks for a reason and tells the coach.
-- **Coach review:** prescribed vs. actual for every exercise (e.g. "Did: 5×310, 5×315, 5×310, 5×310 lb"), plus the athlete's RPE, duration and notes.
+- Coaches can list certifications: CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS or state licence, sport governing-body licences, or "Other" with a name. Each can have a number and an expiry date.
+- Add them in the setup wizard (optional) or in **Settings → My certifications**.
+- Athletes see their coach's credentials next to the coach's name.
+- They're optional and don't lock anything: every coach on the staff has full access. Roles (head, assistant, S&C, trainer) are labels.
+- Certifications are self-reported in this version.
 
 ### Movement screen (initial testing)
 A 10-minute baseline of how someone moves, in 8 simple tests scored 0–3 (pain = 0):
@@ -60,6 +29,10 @@ A 10-minute baseline of how someone moves, in 8 simple tests scored 0–3 (pain 
 | Strength & endurance | Push-ups · Plank hold |
 
 - **Instructions and targets:** each test has step-by-step instructions and clear criteria. Where a camera helps, a 📐 **Film it** button opens form analysis.
+- **Demo animations:**
+  - Every test card has a looping demo of an animated figure doing the test, with its props: wall, step, stick and tape.
+  - Tap it for a full player with a **Good form / Common fault** toggle, pause, 0.5× speed, on-screen checks (✓/✗), timers and rep counters.
+  - A link searches for real videos. The results page has ▶ Watch the test next to each priority.
 - **Results:** a total score, a score for each area, flags for left/right gaps and pain, and a ranked "What to work on" list. Each item comes with drills from the exercise library (ⓘ shows how to do them).
 - **Movement prep:** one tap turns the results into a 12-minute routine, scheduled 3× a week for 4 weeks. Coaches can assign it to an athlete.
 - **Rescreens:** each new screen shows the change per test against the last one.
@@ -80,7 +53,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **Coaches can edit** any assigned session (date, exercises, note to the athlete), filter the calendar by **group** and assign to groups.
 - **Deleting and removing:**
   - Athletes can delete any logged workout (Today or History).
-  - Coaches with plan permission can delete workouts from an athlete's page.
+  - Coaches can delete workouts from an athlete's page.
   - Deleting a workout logged from a planned session puts that session back on the plan as not done.
   - Coaches can remove any assigned session (✕ or Remove), or the rest of a program. Athletes can remove sessions from programs they built themselves; coach-assigned sessions use Skip, so the coach is told.
   - Deleting a program offers to clear its upcoming sessions too.
@@ -98,7 +71,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **Cycle tracking** (optional, private by default): phase-aware tips, shared with the coach only if the athlete opts in.
 
 ### Platform
-- **Coaching staff and roles:** head coach, assistant, strength & conditioning, athletic trainer, each with its own permissions (for example, a trainer can log injuries but can't assign programs). Switch staff from the top bar.
+- **Coaching staff:** head coach, assistant, strength & conditioning, athletic trainer. Every coach has full access. Switch staff from the top bar.
 - **Coach setup wizard:** team name, roster (paste names), groups and staff in one screen.
 - **Guardian consent:** athletes under 18 stay hidden from staff until a parent or guardian approves in the athlete's Settings.
 - **Privacy controls:** share check-in notes, auto-share form checks, cycle sharing. **Download my data** / **Delete my data** per athlete.
@@ -175,8 +148,9 @@ src/ai.js             optional Claude integration (Anthropic SDK, structured JSO
 src/live-ui.js        live workout mode, plate calculator, interval timer, how-to demos, swaps
 src/progress-ui.js    progress charts, testing day, leaderboards, team wall, PR celebrations
 src/health-ui.js      injuries, return-to-play, concussion protocol, recovery card, weekly report
-src/platform.js       GPX/TCX import, staff permissions (role + certification), per-athlete export/delete
+src/platform.js       GPX/TCX import, per-athlete export/delete
 src/screen.js         movement screen: tests, scoring, asymmetry, priorities, rescreen compare, movement prep
+src/screen-demo.js    animated demos of each screen test (good form vs common fault), player dialog
 src/screen-ui.js      movement screen form, results, team table, summary cards
 src/app.js            UI controller: athlete + coach views, messaging, dialogs, charts
 vendor/mediapipe/     MediaPipe library, WebAssembly runtime and pose model (Apache-2.0)
@@ -184,7 +158,7 @@ vendor/anthropic/     Anthropic TypeScript SDK browser bundle (MIT), loaded only
 src/styles.css        design tokens, light/dark themes, responsive layout
 sw.js                 offline cache
 manifest.webmanifest  PWA manifest
-test/*.test.js        unit tests: core, movement analysis, programming, platform, movement screen
+test/*.test.js        unit tests: core, movement analysis, programming, platform, movement screen and demos
 ```
 
 ## How the numbers work

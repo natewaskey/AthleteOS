@@ -1,7 +1,6 @@
 /*
  * AthleteOS platform helpers:
  *   - GPX / TCX activity import (pure parser, works in Node for tests)
- *   - coaching staff roles and permissions
  *   - per-athlete data export / deletion
  * UI pieces attach to window.PlatformUI when running in a browser.
  */
@@ -144,34 +143,6 @@
     return 9;
   }
 
-  // ---------- staff & permissions ----------
-
-  const PERMISSIONS = {
-    roster: 'Add / remove athletes & staff',
-    plan: 'Build & assign workouts and programs',
-    health: 'Log injuries & return-to-play',
-    performance: 'Enter test results & shout-outs',
-    messages: 'Message athletes',
-    form: 'Review form checks',
-  };
-  const ROLE_PERMS = {
-    head: ['roster', 'plan', 'health', 'performance', 'messages', 'form'],
-    assistant: ['plan', 'performance', 'messages', 'form'],
-    strength: ['plan', 'health', 'performance', 'messages', 'form'],
-    trainer: ['health', 'messages', 'form'],
-  };
-  // Prescribing (plan) and logging injuries (health) also need a current certification on file.
-  const CERT_PERMS = ['plan', 'health'];
-  const todayISO = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-  const hasCert = (staff, iso = todayISO()) => (staff.certs || []).some((c) => (!c.expires || c.expires >= iso) && (c.type !== 'other' || c.name));
-  const roleAllows = (staff, perm) => !staff || (ROLE_PERMS[staff.role] || []).includes(perm);
-  const can = (staff, perm) => !staff || (roleAllows(staff, perm) && (!CERT_PERMS.includes(perm) || hasCert(staff)));
-  // Why a staff member can't do something: 'role', 'cert' or null.
-  const blockedBy = (staff, perm) => (!staff ? null : !roleAllows(staff, perm) ? 'role' : CERT_PERMS.includes(perm) && !hasCert(staff) ? 'cert' : null);
-
   // ---------- per-athlete data ----------
 
   function athleteExport(state, athleteId) {
@@ -200,7 +171,7 @@
     return { videoIds, poseIds };
   }
 
-  const Platform = { parseActivity, sportFrom, haversineKm, elevationGain, rpeFromHr, PERMISSIONS, ROLE_PERMS, CERT_PERMS, can, roleAllows, blockedBy, hasCert, athleteExport, removeAthlete };
+  const Platform = { parseActivity, sportFrom, haversineKm, elevationGain, rpeFromHr, athleteExport, removeAthlete };
   if (typeof module !== 'undefined' && module.exports) module.exports = Platform;
   else root.Platform = Platform;
 })(typeof window !== 'undefined' ? window : globalThis);
