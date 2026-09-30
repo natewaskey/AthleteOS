@@ -19,6 +19,54 @@ In team mode, the **Athlete / Coach** switch in the top bar shows both sides of 
 - They're optional and don't lock anything: every coach on the staff has full access. Roles (head, assistant, S&C, trainer) are labels.
 - Certifications are self-reported in this version.
 
+### ✨ AI coach chat
+- **For athletes:** ask anything, e.g. "Why is my readiness low?", "What should I eat before my game?", "My knee is sore, what should I do?" It answers from your own check-ins, training load, injuries, movement screen, calendar, food log and goals.
+- **For coaches:** ask about the team, e.g. "Who needs attention today?", "Who missed sessions?" or "Plan a practice before Friday's game."
+- **With a Claude API key** (Settings), replies stream from Claude. **Without one**, a built-in coach answers common questions from the same data.
+- Safety rules are built in: pain, head injuries and anything medical get sent to a professional.
+
+### Team calendar
+- A month grid plus an upcoming list covering games, meets and races, practices, lifts, film sessions and travel.
+- Planned training sessions appear on the calendar too.
+- **Coaches** add team or group events (optionally repeating weekly) and athletes get a message. Coaches take **attendance** (present, late, excused, absent), and athletes see their attendance rate.
+- **Athletes and solo users** add personal events.
+- **Game-day awareness:** a session the day before a competition suggests a taper (fewer sets, same speed), game day is a primer only, and the day after focuses on recovery.
+
+### Recruiting profile
+- A shareable athlete page: class year, height and weight, school, GPA, bio, achievements, film links and highlight videos.
+- **Test results entered by a coach on testing day are marked "Coach-verified."** Athletes' own entries show as self-reported.
+- Also shows estimated maxes and the movement screen score. Each section can be shown or hidden.
+- Share it as a downloaded web page, a copy-paste email version for college coaches, or print / PDF.
+
+### Live camera coaching
+- Set the phone down and move. The app tracks your body on the device, counts reps as they happen, grades each rep with the same rules as video analysis, and speaks a short cue ("Sit deeper") or the rep count.
+- Works for squat, lunge, push-up, deadlift, overhead press and the jump-landing screen.
+- A set summary shows the main thing to fix, and the set can be saved as a form check.
+- No video is recorded. The camera needs the app open in its own tab: embedded previews block camera access.
+
+### Wellness: Fuel, Mind, Health
+- **Fuel:**
+  - A food log with 60+ common athlete foods, custom foods, and a photo estimate with Claude (optional).
+  - Daily calorie, protein and carb targets from body weight and training, plus a water counter.
+  - Pre- and post-workout guidance, and a **sweat-rate test** that tells you how much to drink.
+- **Mind:**
+  - Guided breathing with an animated circle: box breathing, the physiological sigh, 4-7-8, energize and steady.
+  - An editable pre-competition routine checklist and cue words.
+  - Step-by-step visualization scripts.
+  - A journal (daily, before competing, after competing) with confidence, focus and energy ratings, trends and a streak.
+- **Health:** injuries, return-to-play and recovery tips.
+
+### Challenges
+- **Individual challenges** (everyone chases a target, with a leaderboard) or **team goals** (everyone adds up).
+- Counted automatically from workouts, minutes, distance, check-ins or mental-skills sessions, or logged manually (e.g. push-ups).
+- Templates, a pace marker, celebrations and team-wall posts when someone finishes. Athletes can start personal challenges.
+
+### Weekly summary
+- Every athlete gets a weekly recap: sessions, time, load vs the prior week, readiness, sleep, PRs, planned sessions completed, protein, mental-skills work and challenges.
+- Plain-language **wins** and **focus for next week**, including upcoming games.
+- It appears on Today and Progress, with a full recap page and week-by-week history.
+- Coaches see each athlete's recap. With Claude connected, it can write a personal note.
+
 ### Movement screen (initial testing)
 A 10-minute baseline of how someone moves, in 8 simple tests scored 0–3 (pain = 0):
 
@@ -152,13 +200,24 @@ src/platform.js       GPX/TCX import, per-athlete export/delete
 src/screen.js         movement screen: tests, scoring, asymmetry, priorities, rescreen compare, movement prep
 src/screen-demo.js    animated demos of each screen test (good form vs common fault), player dialog
 src/screen-ui.js      movement screen form, results, team table, summary cards
+src/calendar.js       calendar logic: events, who they're for, game-day context, attendance, month grid
+src/nutrition.js      food list, meal totals, targets, water, sweat rate, photo-estimate schema
+src/challenges.js     challenge logic: automatic/manual counting, leaderboards, pace, completions
+src/mind.js           breathing patterns, routine, visualization, journal, streaks and trends
+src/insights.js       weekly summary, AI context snapshots, built-in coach answers
+src/live-coach.js     real-time rep counting and cues (engine + camera screen)
+src/assistant-ui.js   AI coach chat and weekly recap screens
+src/calendar-ui.js    calendar screens, event dialog, attendance
+src/wellness-ui.js    Fuel, Mind and Health screens
+src/challenges-ui.js  challenge screens
+src/profile-ui.js     recruiting profile (edit, preview, export)
 src/app.js            UI controller: athlete + coach views, messaging, dialogs, charts
 vendor/mediapipe/     MediaPipe library, WebAssembly runtime and pose model (Apache-2.0)
 vendor/anthropic/     Anthropic TypeScript SDK browser bundle (MIT), loaded only when Claude is used
 src/styles.css        design tokens, light/dark themes, responsive layout
 sw.js                 offline cache
 manifest.webmanifest  PWA manifest
-test/*.test.js        unit tests: core, movement analysis, programming, platform, movement screen and demos
+test/*.test.js        unit tests: core, movement, programming, platform, screen, demos and the new features
 ```
 
 ## How the numbers work

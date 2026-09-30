@@ -9,12 +9,12 @@
   const MAX_VIDEO_MB = 300;
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
-  const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['wellness', 'Wellness'], ['coachai', '✨ AI Coach'], ['messages', 'Messages'], ['profile', 'Profile'], ['settings', 'Settings']];
   // Training on your own: no coach, messages or team features; you log your own injuries.
-  const SOLO_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['health', 'Health'], ['goals', 'Goals'], ['settings', 'Settings']];
+  const SOLO_TABS = [['today', 'Today'], ['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['wellness', 'Wellness'], ['coachai', '✨ AI Coach'], ['profile', 'Profile'], ['settings', 'Settings']];
   // Routes reachable from buttons but without their own tab.
-  const HIDDEN_ROUTES = ['screen', 'records'];
-  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['performance', 'Performance'], ['health', 'Health'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
+  const HIDDEN_ROUTES = ['screen', 'records', 'goals', 'challenges', 'live', 'summary', 'health', 'profile'];
+  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['calendar', 'Calendar'], ['performance', 'Performance'], ['health', 'Health'], ['form', 'Form'], ['coachai', '✨ AI Coach'], ['messages', 'Messages'], ['settings', 'Settings']];
   const Form = window.FormUI;
   const Plan = window.PlanUI;
   const Programs = window.ProgramUI;
@@ -22,6 +22,12 @@
   const Progress = window.ProgressUI;
   const Health = window.HealthUI;
   const Screens = window.ScreenUI;
+  const Cal = window.CalendarUI;
+  const Well = window.WellnessUI;
+  const Chal = window.ChallengesUI;
+  const Prof = window.ProfileUI;
+  const Assist = window.AssistantUI;
+  const LiveCam = window.LiveCoach;
   const P = window.Platform;
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -446,6 +452,12 @@
             <div class="card-head"><h3>Weekly load · 8 weeks</h3></div>
             ${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}
           </section>
+          ${Cal.card()}
+          ${Well.todayCard()}
+          ${Chal.card({ span: 'span-4' })}
+          ${Assist.summaryCard(a, { span: 'span-8', compact: true })}
+          <section class="card span-4 ai-card"><div class="card-head"><h3>✨ Ask your AI coach</h3></div>
+            <div class="chips">${['Why is my readiness ' + (a.checkins.find((c) => c.date === t) ? 'where it is' : 'low') + '?', 'What should I do today?', 'What should I eat?'].map((q) => `<button class="chip chip-btn" data-ai-go="${esc(q)}">${esc(q)}</button>`).join('')}</div></section>
           ${Health.recoveryCard(a)}
           ${a.screens.length ? '' : Screens.card(a)}
           ${solo() ? '' : Progress.wallCard()}
@@ -492,7 +504,9 @@
     },
 
     progress() {
-      return Progress.athleteView(Screens.card(me(), { span: 'span-12' }));
+      const a = me();
+      return Progress.athleteView(`${Assist.summaryCard(a)}${Screens.card(a, { span: 'span-6' })}${Chal.card({ span: 'span-6' })}
+        <section class="card span-6"><div class="card-head"><h3>🎯 Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>${goalList(a) || '<p class="muted" style="margin:0">No goals yet.</p>'}</section>`);
     },
 
     screen() {
@@ -500,7 +514,35 @@
     },
 
     health() {
-      return Health.selfView();
+      return Well.view('health');
+    },
+
+    calendar() {
+      return Cal.view();
+    },
+
+    wellness() {
+      return Well.view(ui.id);
+    },
+
+    coachai() {
+      return Assist.chatView();
+    },
+
+    challenges() {
+      return Chal.view(ui.id);
+    },
+
+    summary() {
+      return Assist.summaryView(ui.id);
+    },
+
+    profile() {
+      return Prof.view();
+    },
+
+    live() {
+      return LiveCam.view(ui.id);
     },
 
     records() {
@@ -809,6 +851,8 @@
             <div class="muted">${alerts.filter((x) => x.level === 'warn').length} to watch</div></section>
           <section class="card span-3 clickable" data-tab-link="messages"><h3>Messages</h3><div class="stat">${unread}<small>unread</small></div>
             <div class="muted">${unread ? 'Tap to reply' : 'All caught up'}</div></section>
+          ${Cal.card({ span: 'span-6', days: 7 })}
+          ${Chal.card({ span: 'span-6' })}
 
           <section class="card span-12">
             <div class="card-head"><h3>Needs attention</h3></div>
@@ -839,7 +883,27 @@
     },
 
     performance() {
-      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard());
+      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard() + Chal.card());
+    },
+
+    calendar() {
+      return Cal.view();
+    },
+
+    coachai() {
+      return Assist.chatView();
+    },
+
+    challenges() {
+      return Chal.view(ui.id);
+    },
+
+    summary() {
+      return Assist.summaryView(ui.id);
+    },
+
+    profile() {
+      return Prof.view(ui.id);
     },
 
     screen() {
@@ -1042,6 +1106,8 @@
         ${Screens.card(a)}
         ${a.trackCycle && a.privacy.shareCycle && window.Program.cycleInfo(a, t) ? `<section class="card span-6"><div class="card-head"><h3>🌸 Cycle (shared by athlete)</h3></div><p>Day ${window.Program.cycleInfo(a, t).day} · ${esc(window.Program.cycleInfo(a, t).phase)}</p><p class="muted small">${esc(window.Program.cycleInfo(a, t).note)}</p></section>` : ''}
         ${Form.athleteCard(a)}
+        ${Assist.summaryCard(a, { span: 'span-6', compact: true })}
+        <section class="card span-6"><div class="card-head"><h3>🎓 Recruiting profile</h3></div><p class="muted" style="margin-top:0">${a.profile.bio ? esc(a.profile.bio.slice(0, 140)) + (a.profile.bio.length > 140 ? '…' : '') : 'Not filled in yet.'}</p><button class="btn btn-sm" data-profile-go="${a.id}">View profile</button></section>
         <section class="card span-6"><div class="card-head"><h3>Endurance records</h3></div>${endHTML}</section>
         <section class="card span-6"><div class="card-head"><h3>Strength records</h3></div>${strHTML}</section>
       </div>`;
@@ -1210,6 +1276,7 @@
     Form.mount($('#view'));
     Plan.mount();
     Screens.mount();
+    Assist.mount();
     const th = $('#thread');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -1540,6 +1607,13 @@
       return;
     }
 
+    const pg = e.target.closest('[data-profile-go]');
+    if (pg) return go('profile', pg.dataset.profileGo);
+    const aiGo = e.target.closest('[data-ai-go]');
+    if (aiGo) {
+      go('coachai');
+      return Assist.ask(aiGo.dataset.aiGo);
+    }
     const openAth = e.target.closest('[data-open-athlete]');
     if (openAth) return go('team', openAth.dataset.openAthlete);
     const openThread = e.target.closest('[data-open-thread]');
@@ -1960,6 +2034,13 @@
   });
 
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
+  const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, openAnalyze: (o) => Form.openAnalyze(o) };
+  Cal.init(shared);
+  Well.init(shared);
+  Chal.init(shared);
+  Prof.init(shared);
+  Assist.init(shared);
+  LiveCam.init(shared);
   Screens.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, fmtDate, units, openAnalyze: (o) => Form.openAnalyze(o) });
 
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });

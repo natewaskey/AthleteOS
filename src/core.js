@@ -636,6 +636,33 @@
       testId: TEST_INFO[input.testId] ? input.testId : 'dash40',
       date: input.date || toISODate(new Date()),
       value: Math.max(0, Number(input.value) || 0),
+      by: input.by === 'self' ? 'self' : input.by === 'coach' ? 'coach' : null, // coach-entered = verified on a profile
+    };
+  }
+
+  // Keep plain objects only (entries are normalised by the modules that create them).
+  function objList(v, max) {
+    return Array.isArray(v) ? v.filter((x) => x && typeof x === 'object').slice(-max).map((x) => JSON.parse(JSON.stringify(x))) : [];
+  }
+
+  // Recruiting profile.
+  function normalizeProfile(p) {
+    const x = p && typeof p === 'object' ? p : {};
+    const str = (v, n) => String(v || '').trim().slice(0, n);
+    return {
+      gradYear: /^(19|20)\d{2}$/.test(String(x.gradYear || '')) ? Number(x.gradYear) : null,
+      heightCm: Number(x.heightCm) > 0 ? Math.min(250, Math.round(Number(x.heightCm))) : null,
+      school: str(x.school, 80),
+      city: str(x.city, 60),
+      bio: str(x.bio, 600),
+      email: str(x.email, 120),
+      phone: str(x.phone, 30),
+      gpa: str(x.gpa, 8),
+      jersey: str(x.jersey, 4),
+      links: str(x.links, 300),
+      achievements: str(x.achievements, 600),
+      highlights: Array.isArray(x.highlights) ? x.highlights.map(String).slice(0, 6) : [],
+      show: { contact: x.show?.contact !== false, tests: x.show?.tests !== false, screen: x.show?.screen !== false, strength: x.show?.strength !== false },
     };
   }
 
@@ -659,6 +686,16 @@
       checkins: Array.isArray(input.checkins) ? input.checkins.map(normalizeCheckin) : [],
       goals: Array.isArray(input.goals) ? input.goals.map(normalizeGoal) : [],
       tests: Array.isArray(input.tests) ? input.tests.map(normalizeTestResult) : [],
+      // Wellness logs; their own modules (nutrition.js, mind.js) normalise entries as they're created.
+      meals: objList(input.meals, 2000),
+      water: objList(input.water, 400).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date || '')),
+      journal: objList(input.journal, 1000),
+      mindSessions: objList(input.mindSessions, 2000),
+      routine: Array.isArray(input.routine) ? input.routine.map((x) => String(x).slice(0, 120)).filter(Boolean).slice(0, 12) : null,
+      cueWords: String(input.cueWords || '').slice(0, 80),
+      profile: normalizeProfile(input.profile),
+      chat: objList(input.chat, 200).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 8000), ts: Number(m.ts) || 0, source: m.source === 'claude' ? 'claude' : m.source === 'builtin' ? 'builtin' : undefined })),
+      summarySeen: String(input.summarySeen || ''),
       // Movement screens; scoring lives in screen.js, this only keeps the raw answers tidy.
       screens: Array.isArray(input.screens)
         ? input.screens
@@ -1175,6 +1212,9 @@
       team: { name: '', onboarded: false },
       ai: { enabled: false, fallbacks: true },
       mode: null, // null until chosen: 'solo' (training on your own) or 'team'
+      events: [],
+      challenges: [],
+      coachChat: [],
     };
   }
 
@@ -1261,6 +1301,9 @@
       ai: { enabled: !!raw.ai?.enabled, fallbacks: raw.ai?.fallbacks !== false },
       // Data saved before modes existed was team-style; a fresh install stays unchosen.
       mode: raw.mode === 'solo' || raw.mode === 'team' ? raw.mode : raw.mode === null ? null : 'team',
+      events: objList(raw.events, 3000),
+      challenges: objList(raw.challenges, 300),
+      coachChat: objList(raw.coachChat, 200).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 8000), ts: Number(m.ts) || 0, source: m.source })),
     };
   }
 
@@ -1621,6 +1664,67 @@
       { id: 'inj-sam', athleteId: 'sam', type: 'concussion', area: 'head', label: 'Concussion (flip-turn wall contact)', date: addDays(todayISO, -4), status: 'limited', restrictions: ['no-contact', 'no-jumping', 'no-lower-load', 'no-upper-load'], notes: 'Symptom-free since Saturday. Cleared by school nurse for light aerobic work.', stages: [{ doneAt: now2 - 50 * 3600000, by: 'Coach Rivera' }, { doneAt: now2 - 20 * 3600000, by: 'Coach Rivera' }, {}, {}, {}, {}], createdBy: 'Coach Rivera' },
     ];
     for (const a of s.athletes) a.badgesSeen = ['first-workout', 'ten-workouts', 'tester', 'test-pr', 'first-pr', 'streak-7', 'checkin-7', 'perfect-week', 'form-80'];
+
+    // ---------- calendar, wellness, challenges and profiles ----------
+    const D = (n) => addDays(todayISO, n);
+    const dow = (parseISODate(todayISO).getDay() + 6) % 7; // 0 = Monday
+    const nextDay = (target, weeks = 0) => D(((target - dow + 7) % 7 || 7) + weeks * 7);
+    const ev = (x) => ({ id: uid(), athleteIds: [], groups: [], attendance: {}, ...x });
+    s.events = [
+      ev({ type: 'game', title: 'Football vs Central', opponent: 'Central', home: 'home', date: nextDay(4), time: '19:00', location: 'Westview Stadium', groups: ['Football'] }),
+      ev({ type: 'game', title: 'Football @ Lakeside', opponent: 'Lakeside', home: 'away', date: D(-4), time: '19:00', location: 'Lakeside HS', groups: ['Football'], result: 'W 28–21' }),
+      ev({ type: 'travel', title: 'Bus to Lakeside', date: D(-4), time: '16:30', groups: ['Football'] }),
+      ev({ type: 'game', title: 'Basketball scrimmage vs North', opponent: 'North', home: 'home', date: D(1), time: '18:00', location: 'Main gym', groups: ['Basketball'] }),
+      ev({ type: 'meet', title: 'County XC Invitational', date: nextDay(5), time: '09:00', location: 'Riverside Park', groups: ['Track'] }),
+      ev({ type: 'meet', title: 'Dual swim meet vs Eastside', date: nextDay(3, 1), time: '16:00', location: 'Aquatic Center', groups: ['Swim'] }),
+      ev({ type: 'game', title: 'JV Soccer vs Hillcrest', opponent: 'Hillcrest', home: 'away', date: nextDay(2), time: '16:30', groups: ['Soccer'] }),
+      ev({ type: 'film', title: 'Team film session', date: D(2), time: '15:15', location: 'Room 114' }),
+    ];
+    // Team practices Mon–Thu this week and last, with attendance for past ones.
+    for (let w = -1; w <= 1; w++) {
+      for (const d of [0, 1, 2, 3]) {
+        const date = addDays(startOfWeek(todayISO), w * 7 + d);
+        const e = ev({ type: 'practice', title: 'Team practice', date, time: '15:30', endTime: '17:30', location: 'Main field' });
+        if (date < todayISO) {
+          for (const a of s.athletes) e.attendance[a.id] = 'present';
+          if (w === -1 && d === 2) e.attendance.taylor = 'late';
+          if (w === 0 && d === 0) e.attendance.jordan = 'excused';
+          if (w === -1 && d === 3) e.attendance.maya = 'absent';
+        }
+        s.events.push(e);
+      }
+    }
+    // Riley's food, water and mindset logs.
+    const meal = (date, m, items, extra = {}) => ({ id: uid(), date, meal: m, items: items.map(([name, qty = 1]) => ({ name, qty })), note: '', source: 'manual', ts: now, ...extra });
+    riley.meals = [
+      meal(todayISO, 'breakfast', [['Oatmeal'], ['Banana'], ['Greek yogurt']]),
+      meal(todayISO, 'lunch', [['Turkey sandwich'], ['Apple'], ['Chocolate milk']]),
+      meal(D(-1), 'breakfast', [['Eggs'], ['Whole-wheat toast'], ['Orange juice']]),
+      meal(D(-1), 'lunch', [['Burrito bowl']]),
+      meal(D(-1), 'dinner', [['Pasta with meat sauce'], ['Salad with dressing'], ['Milk']]),
+      meal(D(-1), 'post', [['Protein shake'], ['Banana']]),
+    ];
+    // Fill in food values from the built-in list (core can't see nutrition.js, so values are inlined).
+    const F = { Oatmeal: [166, 6, 28, 4], Banana: [105, 1, 27, 0], 'Greek yogurt': [146, 20, 8, 4], 'Turkey sandwich': [360, 26, 40, 10], Apple: [95, 0, 25, 0], 'Chocolate milk': [208, 8, 26, 8], Eggs: [143, 13, 1, 10], 'Whole-wheat toast': [160, 8, 28, 2], 'Orange juice': [112, 2, 26, 0], 'Burrito bowl': [650, 38, 78, 20], 'Pasta with meat sauce': [620, 32, 80, 18], 'Salad with dressing': [180, 3, 12, 14], Milk: [122, 8, 12, 5], 'Protein shake': [120, 24, 3, 1] };
+    for (const m of riley.meals) for (const it of m.items) [it.kcal, it.protein, it.carbs, it.fat] = F[it.name];
+    riley.water = [{ date: todayISO, ml: 1250 }, { date: D(-1), ml: 2750 }];
+    riley.journal = [
+      { id: uid(), date: D(-1), kind: 'daily', confidence: 4, focus: 4, energy: 4, answers: ['Hit all my tempo splits', 'Coach’s feedback on my stride', 'Arm swing'], shared: false, ts: now },
+      { id: uid(), date: D(-3), kind: 'pre', confidence: 3, focus: 4, energy: 3, answers: ['My pacing in the first mile', 'Relaxed and fast', 'Smooth'], shared: false, ts: now },
+      { id: uid(), date: D(-6), kind: 'post', confidence: 3, focus: 3, energy: 3, answers: ['Strong last 800', 'Went out too fast', 'Start controlled, finish hard'], shared: false, ts: now },
+    ];
+    riley.mindSessions = [{ date: todayISO, type: 'box', seconds: 180 }, { date: D(-1), type: 'coherent', seconds: 300 }, { date: D(-2), type: 'box', seconds: 180 }, { date: D(-3), type: 'visualize', seconds: 240 }];
+    riley.cueWords = 'Relaxed and fast';
+    riley.profile = normalizeProfile({ gradYear: Number(todayISO.slice(0, 4)) + 2, heightCm: 175, school: 'Westview High School', city: 'Portland, OR', gpa: '3.8', jersey: '14', email: 'riley.parker@example.com', bio: 'Distance runner focused on the 1600 and 3200. Two-time league finalist, captain of the XC team, and I love hill workouts.', achievements: 'League finalist 3200 m (2x)\nXC team captain\nAcademic all-league', highlights: [] });
+    taylor.profile = normalizeProfile({ gradYear: Number(todayISO.slice(0, 4)) + 1, heightCm: 185, school: 'Westview High School', city: 'Portland, OR', gpa: '3.4', jersey: '44', email: 'taylor.brooks@example.com', bio: 'Downhill linebacker who loves the weight room. Team leader in tackles as a junior.', achievements: 'All-league 2nd team LB\n87 tackles as a junior\n385 lb tested squat' });
+    for (const a of s.athletes) for (const t of a.tests) t.by = 'coach';
+    // Challenges: a team minutes goal and an individual push-up challenge.
+    s.challenges = [
+      { id: uid(), title: 'Team 5,000 training minutes', metric: 'minutes', target: 5000, mode: 'team', start: startOfWeek(D(-7)), end: addDays(startOfWeek(D(-7)), 27), athleteIds: [], groups: [], entries: [], createdBy: 'Coach Rivera', createdAt: now, doneNotified: [] },
+      { id: uid(), title: '1,000 push-ups in October', metric: 'custom', unit: 'push-ups', target: 1000, mode: 'individual', start: D(-10), end: D(19), athleteIds: [], groups: [], createdBy: 'Coach Rivera', createdAt: now, doneNotified: [],
+        entries: [['riley', -9, 60], ['riley', -6, 80], ['riley', -2, 100], ['taylor', -9, 150], ['taylor', -5, 200], ['taylor', -1, 150], ['jordan', -8, 90], ['maya', -7, 50], ['maya', -3, 70], ['sam', -4, 120]].map(([athleteId, d, value]) => ({ id: uid(), athleteId, date: D(d), value })) },
+    ];
+
     return s;
   }
 
@@ -1677,6 +1781,7 @@
     certLabel,
     certCurrent,
     isCertified,
+    normalizeProfile,
     deleteWorkout,
     FORM_EXERCISES,
     normalizeAnalysis,

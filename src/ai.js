@@ -103,5 +103,58 @@
     }
   }
 
-  root.AI = { getKey, setKey, hasKey, generateProgram, MODEL };
+  /*
+   * chat({ system, messages:[{role, text}], onText(delta), signal, fallbacks }) -> full reply text
+   * Streams a conversational reply. Thinking is always on for this model; effort keeps replies quick.
+   */
+  async function chat({ system, messages, onText = () => {}, signal, fallbacks = true }) {
+    const anthropic = await client();
+    const Anthropic = anthropic.constructor;
+    const params = {
+      model: MODEL,
+      max_tokens: 4000,
+      output_config: { effort: 'low' },
+      system,
+      messages: messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.text })),
+    };
+    if (fallbacks) Object.assign(params, { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+    try {
+      const stream = anthropic.beta.messages.stream(params, { signal });
+      stream.on('text', (delta) => onText(delta));
+      const message = await stream.finalMessage();
+      if (message.stop_reason === 'refusal') throw new Error('Claude couldn’t help with that one. Try asking a different way.');
+      return message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      throw new Error(friendlyError(err, Anthropic));
+    }
+  }
+
+  /*
+   * estimateMeal(base64, mediaType) -> { items:[{name, qty, kcal, protein, carbs, fat}], note }
+   * Looks at a meal photo and returns a structured estimate (per item, per serving).
+   */
+  async function estimateMeal(base64, mediaType, { fallbacks = true, signal } = {}) {
+    const anthropic = await client();
+    const Anthropic = anthropic.constructor;
+    const params = {
+      model: MODEL,
+      max_tokens: 4000,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: root.Nutrition.PHOTO_SCHEMA } },
+      system: 'You estimate the nutrition of meals from photos for an athlete’s food log. List each visible food with a realistic portion (qty = number of servings of that item, usually 1) and per-serving kcal, protein, carbs and fat in grams. Be conservative and practical. The note is one short sentence (e.g. how confident you are or what to add for recovery).',
+      messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }, { type: 'text', text: 'Estimate this meal.' }] }],
+    };
+    if (fallbacks) Object.assign(params, { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+    try {
+      const message = await anthropic.beta.messages.stream(params, { signal }).finalMessage();
+      if (message.stop_reason === 'refusal') throw new Error('Claude couldn’t estimate that photo.');
+      const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      return JSON.parse(text);
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw err;
+      throw new Error(err instanceof SyntaxError ? 'Claude returned an unexpected answer. Try again.' : friendlyError(err, Anthropic));
+    }
+  }
+
+  root.AI = { getKey, setKey, hasKey, generateProgram, chat, estimateMeal, MODEL };
 })(window);

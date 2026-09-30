@@ -132,7 +132,7 @@
       : `<p class="muted" style="margin-top:0">Record a set, and AthleteOS tracks 33 body points on your phone to check depth, angles, bar path and tempo, then shows you what good looks like.</p>`;
     return `
       <div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">${coach ? 'Team form checks' : 'Form analysis'}</h1><div class="spacer"></div>
-        ${coach ? '' : '<button class="btn btn-primary" data-form-action="new">📐 Analyze a video</button>'}</div>
+        ${coach ? '' : '<button class="btn" data-tab-link="live">🎥 Live coach</button><button class="btn btn-primary" data-form-action="new">📐 Analyze a video</button>'}</div>
       ${intro}
       ${trendsHTML(list)}
       ${

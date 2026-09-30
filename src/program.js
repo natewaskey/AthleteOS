@@ -300,7 +300,8 @@
    * Suggest today's adjustments from readiness, pain/soreness and injuries.
    * -> { level: 'none'|'reduce'|'recover', loadScale, dropSets, reasons[], flags: [{ itemId, name, level, reason, alternatives }] }
    */
-  function suggestAdjustment({ plan, readiness, checkin, injuries = [], equipment = null }) {
+  // schedule: { today, tomorrow, yesterday } competitions from Calendar.gameContext (optional).
+  function suggestAdjustment({ plan, readiness, checkin, injuries = [], equipment = null, schedule = null }) {
     const painAreas = checkin ? C.painAreas(checkin) : [];
     const soreAreas = checkin ? Object.keys(checkin.soreAreas || {}).filter((a) => checkin.soreAreas[a] >= 2 && !painAreas.includes(a)) : [];
     const reasons = [];
@@ -314,6 +315,15 @@
       reasons.push(`You reported pain in ${painAreas.map((a) => C.BODY_AREA_LABEL[a].toLowerCase()).join(', ')}.`);
     }
     if (injuries.length) reasons.push(`Active: ${injuries.map((i) => i.label).join(', ')}.`);
+    // Game-day awareness: short and sharp the day before, recovery the day after, primer only on game day.
+    if (schedule) {
+      const name = (e) => e.title + (e.opponent && !e.title.includes(e.opponent) ? ` vs ${e.opponent}` : '');
+      if (schedule.today) (level = 'recover'), reasons.push(`Competition today (${name(schedule.today)}): just a short primer, save your legs.`);
+      else if (schedule.tomorrow) {
+        if (level === 'none') level = 'reduce';
+        reasons.push(`Competition tomorrow (${name(schedule.tomorrow)}): taper with fewer sets, keep it fast and crisp.`);
+      } else if (schedule.yesterday) (level = level === 'none' ? 'reduce' : level), reasons.push(`Day after competing (${name(schedule.yesterday)}): recovery focus, lighter loads.`);
+    }
     const flags = [];
     for (const b of plan.blocks) {
       for (const i of b.items) {

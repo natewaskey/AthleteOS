@@ -310,7 +310,7 @@
       const a = ctx.me();
       const v = parseTest(ui.test, f.value.value);
       if (v == null) return ctx.toast('Enter a valid number');
-      const r = C.normalizeTestResult({ testId: ui.test, date: f.date.value || today(), value: v });
+      const r = C.normalizeTestResult({ testId: ui.test, date: f.date.value || today(), value: v, by: 'self' });
       a.tests.push(r);
       const pr = onTestLogged(a, r);
       ctx.save();
@@ -323,7 +323,7 @@
         if (!input || !input.value.trim()) continue;
         const v = parseTest(ui.entryTest, input.value);
         if (v == null) continue;
-        const r = C.normalizeTestResult({ testId: ui.entryTest, date: f.date.value || today(), value: v });
+        const r = C.normalizeTestResult({ testId: ui.entryTest, date: f.date.value || today(), value: v, by: 'coach' });
         a.tests.push(r);
         if (onTestLogged(a, r)) prs.push(ctx.athleteName(a));
         n++;

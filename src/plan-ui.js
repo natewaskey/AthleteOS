@@ -490,11 +490,13 @@
     const readiness = todayCheck ? C.readiness(todayCheck, athlete.checkins, athlete.workouts, today()) : null;
     const flagCtx = { painAreas: todayCheck ? C.painAreas(todayCheck) : [], soreAreas: todayCheck ? Object.keys(todayCheck.soreAreas).filter((k) => todayCheck.soreAreas[k] >= 2) : [], injuries };
     let adjustHTML = '';
+    const schedule = root.Calendar && athlete ? root.Calendar.gameContext(ctx.state(), athlete, a.date) : null;
+    const gameNear = schedule && (schedule.today || schedule.tomorrow || schedule.yesterday);
     if (doing && a.date <= today() && !a.adjusted) {
-      if (!todayCheck && a.date === today()) {
+      if (!todayCheck && a.date === today() && !gameNear) {
         adjustHTML = `<div class="banner info-banner">💡 Do today’s check-in first and AthleteOS will tailor this session to how you feel. <button class="btn btn-sm" data-action="open-checkin">Check in</button></div>`;
       } else {
-        const adj = Pg.suggestAdjustment({ plan: a.plan, readiness, checkin: todayCheck, injuries });
+        const adj = Pg.suggestAdjustment({ plan: a.plan, readiness, checkin: todayCheck, injuries, schedule });
         if (adj.level !== 'none' || adj.flags.length) {
           adjustHTML = `<section class="card adjust-card ${adj.level}">
             <div class="row"><strong>${adj.level === 'recover' ? '🛑 Recovery recommended' : adj.level === 'reduce' ? '⚠️ Suggested adjustments for today' : '⚠️ Heads up'}</strong></div>
@@ -949,7 +951,8 @@
         const athlete = a && ctx.athleteById(a.athleteId);
         if (!a) return;
         const ck = athlete.checkins.find((c) => c.date === today());
-        const adj = root.Program.suggestAdjustment({ plan: a.plan, readiness: ck ? C.readiness(ck, athlete.checkins, athlete.workouts, today()) : null, checkin: ck, injuries: root.Program.activeInjuries(ctx.state(), a.athleteId) });
+        const schedule = root.Calendar ? root.Calendar.gameContext(ctx.state(), athlete, a.date) : null;
+        const adj = root.Program.suggestAdjustment({ plan: a.plan, readiness: ck ? C.readiness(ck, athlete.checkins, athlete.workouts, today()) : null, checkin: ck, injuries: root.Program.activeInjuries(ctx.state(), a.athleteId), schedule });
         root.Program.applyAdjustment(a, adj);
         ctx.save();
         ctx.toast('Session adjusted for today');

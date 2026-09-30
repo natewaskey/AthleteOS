@@ -1,6 +1,6 @@
 // Offline-first cache for the static app shell. Bump CACHE when shipping changes.
-const CACHE = 'athleteos-v13';
-const ASSETS = ['./', './index.html', './src/styles.css', './src/dialogs.js', './src/core.js', './src/program.js', './src/ai.js', './src/program-ui.js', './src/live-ui.js', './src/progress-ui.js', './src/health-ui.js', './src/platform.js', './src/screen.js', './src/screen-demo.js', './src/screen-ui.js', './src/body.js', './src/media.js', './src/movement.js', './src/pose.js', './src/form-ui.js', './src/plan-ui.js', './src/app.js', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'athleteos-v14';
+const ASSETS = ['./', './index.html', './src/styles.css', './src/dialogs.js', './src/core.js', './src/program.js', './src/ai.js', './src/program-ui.js', './src/live-ui.js', './src/progress-ui.js', './src/health-ui.js', './src/platform.js', './src/calendar.js', './src/nutrition.js', './src/challenges.js', './src/mind.js', './src/insights.js', './src/live-coach.js', './src/assistant-ui.js', './src/calendar-ui.js', './src/wellness-ui.js', './src/challenges-ui.js', './src/profile-ui.js', './src/screen.js', './src/screen-demo.js', './src/screen-ui.js', './src/body.js', './src/media.js', './src/movement.js', './src/pose.js', './src/form-ui.js', './src/plan-ui.js', './src/app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

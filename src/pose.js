@@ -112,5 +112,5 @@
     return { frames, width, height, aspect: width / height, duration, fps };
   }
 
-  root.Pose = { detect, preload: () => landmarker().then(() => true), MAX_SECONDS };
+  root.Pose = { detect, landmarker, preload: () => landmarker().then(() => true), MAX_SECONDS };
 })(window);
