@@ -1500,3 +1500,51 @@ body.focus-open { overflow: hidden; }
 .btn-danger-solid { background: var(--pain); border-color: var(--pain); color: #fff; }
 .btn-danger-solid:hover { filter: brightness(1.08); }
 .copy-box { width: 100%; font: 0.8rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+
+/* ---------- welcome / modes ---------- */
+.welcome { max-width: 900px; margin: 1.5rem auto; text-align: center; }
+.welcome .page-title { font-size: 1.9rem; }
+.mode-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin: 1.5rem 0; text-align: left; }
+.mode-card { display: flex; flex-direction: column; gap: 0.4rem; padding: 1.25rem; border-radius: 16px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; transition: transform 0.12s, border-color 0.12s; }
+.mode-card:hover, .mode-card:focus-visible { transform: translateY(-2px); border-color: var(--accent); }
+.mode-card.primary { border: 2px solid var(--accent); }
+.mode-card strong { font-size: 1.1rem; }
+.mode-card span:not(.mode-icon) { color: var(--muted); font-size: 0.92rem; line-height: 1.4; }
+.mode-icon { font-size: 1.8rem; }
+.mode-opt { align-items: flex-start; }
+.btn-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.chip.cert { background: color-mix(in srgb, var(--good) 14%, transparent); border-color: color-mix(in srgb, var(--good) 35%, transparent); }
+.chip.cert.expired { background: color-mix(in srgb, var(--warn) 14%, transparent); text-decoration: line-through; }
+.chip-x { background: none; border: 0; color: inherit; cursor: pointer; padding: 0 0 0 0.25rem; font-size: 0.8rem; }
+
+/* ---------- movement screen ---------- */
+.screen-item .step-num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 700; flex: none; }
+.screen-form .card { margin-bottom: 1rem; }
+.grade-pick { border: 0; padding: 0; margin: 0.4rem 0; }
+.grade-pick legend { font-weight: 600; font-size: 0.85rem; margin-bottom: 0.3rem; }
+.grade-opt { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 10px; margin: 0 0 0.35rem; cursor: pointer; font-weight: 400; }
+.grade-opt:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.grade-opt input { margin-top: 0.2rem; width: auto; }
+.grade-opt strong { display: inline-block; min-width: 1.1rem; }
+.pain-check { margin-top: 0.5rem; }
+.screen-score { display: flex; gap: 1rem; align-items: center; }
+.big-ring { --pct: 0; --ring: var(--muted); width: 104px; height: 104px; flex: none; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ring) calc(var(--pct) * 1%), var(--surface-2) 0); }
+.big-ring span { width: 84px; height: 84px; border-radius: 50%; background: var(--surface); display: flex; align-items: baseline; justify-content: center; padding-top: 26px; box-sizing: border-box; font-size: 1.6rem; font-weight: 800; }
+.big-ring small { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.big-ring.band-great, .big-ring.band-good { --ring: var(--good); }
+.big-ring.band-fair { --ring: var(--warn); }
+.big-ring.band-limited, .big-ring.band-pain { --ring: var(--bad); }
+.cat-bar { margin-bottom: 0.75rem; }
+.cat-bar .bar { height: 10px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin-top: 0.3rem; }
+.cat-bar .bar i { display: block; height: 100%; border-radius: 6px; background: var(--good); }
+.cat-bar .bar i.warn { background: var(--warn); }
+.cat-bar .bar i.bad { background: var(--bad); }
+.priorities { padding-left: 1.2rem; margin: 0; }
+.priorities li { margin-bottom: 0.9rem; }
+.chip-btn { cursor: pointer; font: inherit; font-size: 0.8rem; }
+.score-dots { letter-spacing: 1px; color: var(--muted); }
+.score-dots.s3 { color: var(--good); }
+.score-dots.s2 { color: var(--warn); }
+.score-dots.s1, .score-dots.s0 { color: var(--bad); }
+ul.plain { list-style: none; padding: 0; margin: 0; }
+ul.plain li { margin: 0.2rem 0; }

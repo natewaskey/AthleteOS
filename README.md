@@ -1,11 +1,24 @@
 # AthleteOS
 
-A private training operating system for athletes. Log workouts, check in each morning, and get a readiness score, training-load guidance, personal records and goal tracking. It runs entirely in your browser, with no account, no server and no install. Coaches get a team dashboard, program builder (including an AI generator), testing day, injury management and video form review.
+A private training operating system for athletes. Log workouts, check in each morning, and get a readiness score, training-load guidance, personal records and goal tracking. It runs entirely in your browser, with no account, no server and no install. It works for individuals training on their own, and for teams: certified coaches get a team dashboard, program builder (including an AI generator), testing day, injury management and video form review.
 
 ## Features
 
-### Two perspectives
-Use the **Athlete / Coach** switch in the top bar. Both views read the same data, so you can log as an athlete and immediately see it as the coach.
+### Three ways to use it (no coach needed)
+The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
+- **On my own:** the full athlete experience without any coach or team features. You get check-ins, logging, programs (built-in or AI), your own workout builder and scheduling, form analysis, the movement screen, progress, goals and a Health tab where you log your own injuries. There are no messages, sharing or team wall.
+- **Athlete on a team:** everything above, plus workouts, programs, messages and feedback from your coaching staff.
+- **Certified coach:** enter your certifications, set up the team roster and prescribe. See Coach certifications below.
+
+In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
+
+### Coach certifications
+- **To prescribe you need a current certification on file.** This covers workouts, programs, movement prep, and injury and return-to-play management.
+- **Accepted:** CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS / state coaching licence, sport governing-body licences, or "Other" with a name.
+- **Setup:** the setup wizard asks for one. Add more in **Settings → My certifications**, with a number and expiry date.
+- **Without a current certification** (for example a volunteer, or an expired cert), a staff member can still message athletes and review data. The Plan tab explains why prescribing is locked.
+- **Athletes see their coach's credentials** next to the coach's name.
+- **Certifications are self-reported in this version.** A production version should verify them with the issuing body.
 
 **Athlete**
 - **Daily check-in with a body map.** Tap areas on a front/back body diagram: once for mild, twice for sore, three times for pain. Add sleep, stress, mood, resting HR, body weight and a note for the coach. This produces a readiness score from 0 to 100, and any pain caps it at "Keep it easy".
@@ -36,6 +49,22 @@ Use the **Athlete / Coach** switch in the top bar. Both views read the same data
   - Log reps and weight per set (or tick off sets for drills). A **rest timer** starts automatically, and "📐 Check form" jumps to form analysis for that lift.
   - Finishing records duration, RPE and notes and **logs the workout**, which updates training load and records. Skipping asks for a reason and tells the coach.
 - **Coach review:** prescribed vs. actual for every exercise (e.g. "Did: 5×310, 5×315, 5×310, 5×310 lb"), plus the athlete's RPE, duration and notes.
+
+### Movement screen (initial testing)
+A 10-minute baseline of how someone moves, in 8 simple tests scored 0–3 (pain = 0):
+
+| Area | Tests |
+|---|---|
+| Mobility | Overhead squat · Knee-to-wall ankle test (L/R) · Toe touch · Shoulder reach (L/R) |
+| Balance & control | Single-leg balance, eyes closed (L/R) · Step-down knee control (L/R) |
+| Strength & endurance | Push-ups · Plank hold |
+
+- **Instructions and targets:** each test has step-by-step instructions and clear criteria. Where a camera helps, a 📐 **Film it** button opens form analysis.
+- **Results:** a total score, a score for each area, flags for left/right gaps and pain, and a ranked "What to work on" list. Each item comes with drills from the exercise library (ⓘ shows how to do them).
+- **Movement prep:** one tap turns the results into a 12-minute routine, scheduled 3× a week for 4 weeks. Coaches can assign it to an athlete.
+- **Rescreens:** each new screen shows the change per test against the last one.
+- **Coaches:** a team table (Performance → Movement screens) shows who's screened, scores by area, top priorities and who's due. Coaches can run the screen for any athlete.
+- It's a screening tool, not a diagnosis.
 
 ### AI program builder
 Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks, 3 days a week, 45 min, dumbbells only, get faster for soccer, sore left knee, no jumping"*, then fine-tune goal, level, weeks, days, minutes, equipment, focus areas and areas to avoid.
@@ -146,14 +175,16 @@ src/ai.js             optional Claude integration (Anthropic SDK, structured JSO
 src/live-ui.js        live workout mode, plate calculator, interval timer, how-to demos, swaps
 src/progress-ui.js    progress charts, testing day, leaderboards, team wall, PR celebrations
 src/health-ui.js      injuries, return-to-play, concussion protocol, recovery card, weekly report
-src/platform.js       GPX/TCX import, staff permissions, per-athlete export/delete
+src/platform.js       GPX/TCX import, staff permissions (role + certification), per-athlete export/delete
+src/screen.js         movement screen: tests, scoring, asymmetry, priorities, rescreen compare, movement prep
+src/screen-ui.js      movement screen form, results, team table, summary cards
 src/app.js            UI controller: athlete + coach views, messaging, dialogs, charts
 vendor/mediapipe/     MediaPipe library, WebAssembly runtime and pose model (Apache-2.0)
 vendor/anthropic/     Anthropic TypeScript SDK browser bundle (MIT), loaded only when Claude is used
 src/styles.css        design tokens, light/dark themes, responsive layout
 sw.js                 offline cache
 manifest.webmanifest  PWA manifest
-test/*.test.js        unit tests: core, movement analysis, programming, platform
+test/*.test.js        unit tests: core, movement analysis, programming, platform, movement screen
 ```
 
 ## How the numbers work

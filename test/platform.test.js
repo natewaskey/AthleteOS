@@ -52,12 +52,41 @@ test('bad files give helpful errors; sport words map to catalog ids', () => {
   assert.ok(P.rpeFromHr(185, { age: 17 }) >= 8 && P.rpeFromHr(110, { age: 17 }) <= 3);
 });
 
-test('staff permissions', () => {
-  assert.ok(P.can({ role: 'head' }, 'roster'));
-  assert.ok(!P.can({ role: 'assistant' }, 'roster'));
-  assert.ok(!P.can({ role: 'trainer' }, 'plan'));
-  assert.ok(P.can({ role: 'trainer' }, 'health'));
+test('staff permissions: role plus a current certification to prescribe', () => {
+  const cert = [{ type: 'cscs' }];
+  assert.ok(P.can({ role: 'head', certs: [] }, 'roster'));
+  assert.ok(!P.can({ role: 'assistant', certs: cert }, 'roster'));
+  assert.ok(!P.can({ role: 'trainer', certs: [{ type: 'atc' }] }, 'plan'));
+  assert.ok(P.can({ role: 'trainer', certs: [{ type: 'atc' }] }, 'health'));
+  // No certification: can message and review, but not prescribe or log injuries.
+  const volunteer = { role: 'head', certs: [] };
+  assert.ok(!P.can(volunteer, 'plan'));
+  assert.ok(!P.can(volunteer, 'health'));
+  assert.ok(P.can(volunteer, 'messages'));
+  assert.equal(P.blockedBy(volunteer, 'plan'), 'cert');
+  assert.equal(P.blockedBy({ role: 'trainer', certs: [] }, 'plan'), 'role');
+  // Expired or blank "other" certifications don't count.
+  assert.ok(!P.can({ role: 'head', certs: [{ type: 'cscs', expires: '2020-01-01' }] }, 'plan'));
+  assert.ok(!P.can({ role: 'head', certs: [{ type: 'other', name: '' }] }, 'plan'));
+  assert.ok(P.can({ role: 'head', certs: [{ type: 'other', name: 'UEFA B' }] }, 'plan'));
   assert.ok(P.can(null, 'plan'));
+});
+
+test('staff certifications and app mode survive migration', () => {
+  const s = C.sampleState('2026-09-30');
+  assert.equal(s.mode, 'team');
+  const m = C.migrate(JSON.parse(JSON.stringify(s)));
+  assert.equal(m.staff[0].certs[0].type, 'cscs');
+  assert.ok(C.isCertified(m.staff[0], '2026-09-30'));
+  assert.ok(!C.isCertified(m.staff.find((x) => x.id === 'coach-4'), '2026-09-30'));
+  assert.equal(C.certLabel(m.staff[0].certs[0]), 'CSCS');
+  assert.equal(m.athletes.find((a) => a.id === 'jordan').screens.length, 1);
+  // A fresh install stays unchosen; data saved before modes existed becomes team.
+  assert.equal(C.migrate(JSON.parse(JSON.stringify(C.emptyState()))).mode, null);
+  const old = JSON.parse(JSON.stringify(s));
+  delete old.mode;
+  assert.equal(C.migrate(old).mode, 'team');
+  assert.equal(C.normalizePlan({ name: 'x', ownerId: 'riley' }).ownerId, 'riley');
 });
 
 test('athlete export and delete touch only that athlete', () => {

@@ -102,7 +102,7 @@
       <div class="badge-grid">${list.map((b) => `<div class="badge-item ${b.earned ? 'earned' : ''}" title="${esc(b.desc)}"><span class="badge-icon">${b.icon}</span><strong>${esc(b.name)}</strong><span class="muted small">${esc(b.desc)}</span></div>`).join('')}</div></section>`;
   }
 
-  function athleteView() {
+  function athleteView(lead = '') {
     const a = ctx.me();
     const t = today();
     const lifts = C.strengthRecords(a.workouts).filter((r) => r.weight > 0).map((r) => r.name);
@@ -115,7 +115,7 @@
     const checkStreak = P.checkinStreak(a, t);
     const recs = ctx.recordsTables(a);
     return `<h1 class="page-title">Progress</h1>
-      <div class="grid">
+      <div class="grid">${lead}
         <section class="card span-3"><h3>Training streak</h3><div class="stat">${trainStreak}<small>days</small></div><div class="muted">${trainStreak ? 'Keep it rolling 🔥' : 'Train today to start one'}</div></section>
         <section class="card span-3"><h3>Check-in streak</h3><div class="stat">${checkStreak}<small>days</small></div><div class="muted">${checkStreak >= 7 ? 'Consistency pays 🌅' : 'Check in daily'}</div></section>
         <section class="card span-3"><h3>Workouts logged</h3><div class="stat">${a.workouts.length}</div><div class="muted">all time</div></section>
@@ -141,7 +141,7 @@
 
   // ---------- coach Performance tab ----------
 
-  function coachView() {
+  function coachView(lead = '') {
     const athletes = ctx.state().athletes;
     const groups = [...new Set(athletes.flatMap((a) => a.groups))].sort();
     const shown = ui.group ? athletes.filter((a) => a.groups.includes(ui.group)) : athletes;
@@ -149,7 +149,7 @@
     return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Performance</h1><div class="spacer"></div>
         ${groups.length ? `<select data-prog-ui="group" style="width:auto"><option value="">All athletes</option>${groups.map((g) => `<option ${g === ui.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
         <button class="btn" data-action="weekly-report">📄 Weekly report</button></div>
-      <div class="grid">
+      <div class="grid">${lead}
         <section class="card span-6"><div class="card-head"><h3>Testing day</h3></div>
           <form data-prog-form="test-day">
             <div class="grid-2"><label>Test <select name="test" data-prog-ui="entryTest">${C.TESTS.map((x) => `<option value="${x.id}" ${x.id === ui.entryTest ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>

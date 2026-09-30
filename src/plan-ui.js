@@ -19,6 +19,9 @@
   const esc = (s) => ctx.esc(s);
   const today = () => C.toISODate(new Date());
   const templates = () => ctx.state().templates;
+  const athleteMode = () => ctx.role() !== 'coach';
+  // Coaches see the team library; athletes (and people training solo) see only workouts they built.
+  const myTemplates = () => templates().filter((t) => (athleteMode() ? t.ownerId === ctx.me().id : !t.ownerId));
   const assignments = () => ctx.state().assignments;
 
   // ---------- formatting ----------
@@ -166,7 +169,10 @@
   function view(id) {
     if (id && (id === 'programs' || id.startsWith('program:'))) return root.ProgramUI.view(id);
     if (id && id.startsWith('edit:')) return ctx.role() === 'coach' ? builderView(id) : notFound();
-    if (id && id.startsWith('build:')) return ctx.role() === 'coach' ? builderView(id.slice(6)) : notFound();
+    if (id && id.startsWith('build:')) {
+      const tid = id.slice(6);
+      return !athleteMode() || tid === 'new' || myTemplates().some((t) => t.id === tid) ? builderView(tid) : notFound();
+    }
     if (id && id.startsWith('a:')) return assignmentView(id.slice(2));
     return ctx.role() === 'coach' ? coachHome() : athleteHome();
   }
@@ -180,26 +186,31 @@
     const upcoming = list.filter((a) => a.date >= t && a.status === 'assigned');
     const past = list.filter((a) => a.date < t || a.status !== 'assigned').reverse();
     const c = C.compliance(assignments(), me.id, C.startOfWeek(t), C.addDays(C.startOfWeek(t), 6), t);
+    const solo = ctx.solo && ctx.solo();
     return `<div class="row" style="margin-bottom:.25rem"><h1 class="page-title" style="margin:0">My plan</h1><div class="spacer"></div>
         <button class="btn" data-tab-link-id="programs">My programs</button>
+        <button class="btn" data-plan-action="new-template">+ New workout</button>
         <button class="btn btn-primary" data-prog-action="new">✨ Build my program</button></div>
-      <p class="muted" style="margin-top:0">Workouts from ${esc(ctx.coachName())} and programs you’ve built.${c.due ? ` This week: ${c.done}/${c.due} done.` : ''}</p>
+      <p class="muted" style="margin-top:0">${solo ? 'Workouts and programs you’ve built.' : `Workouts from ${esc(ctx.coachName())} and ones you’ve built.`}${c.due ? ` This week: ${c.done}/${c.due} done.` : ''}</p>
       <div class="grid">
         ${todayCard(me) ? todayCard(me) : ''}
         <section class="card span-6"><div class="card-head"><h3>Coming up</h3></div>
           ${upcoming.length ? `<ul class="list">${upcoming.map((a) => assignmentRow(a)).join('')}</ul>` : '<p class="muted">Nothing scheduled yet.</p>'}</section>
         <section class="card span-6"><div class="card-head"><h3>Recent</h3></div>
           ${past.length ? `<ul class="list">${past.slice(0, 12).map((a) => assignmentRow(a)).join('')}</ul>` : '<p class="muted">No past sessions.</p>'}</section>
+        <section class="card span-12"><div class="card-head"><h3>My workouts</h3><button class="btn btn-sm" data-plan-action="new-template">+ New workout</button></div>
+          ${myTemplates().length ? libraryHTML() : '<p class="muted" style="margin:0">Build a workout from 100+ exercises (lifts, mobility, speed & agility, plyos, conditioning), then schedule it on any days you like.</p>'}</section>
       </div>`;
   }
 
   function coachHome() {
-    return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
+    return `${ctx.can && !ctx.can('plan') ? `<div class="banner warn" role="note">🎓 ${esc(ctx.certNote ? ctx.certNote() : 'You can’t prescribe yet.')} <button class="btn btn-sm" data-tab-link="settings">Add certification</button></div>` : ''}
+      <div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
         <button class="btn" data-plan-action="new-template">+ New workout</button>
         <button class="btn btn-primary" data-plan-action="assign">Assign workout</button></div>
       <div class="segmented" role="tablist" style="margin-bottom:1rem">
         <button data-plan-action="coach-tab" data-tab-id="calendar" aria-pressed="${coachTab === 'calendar'}">Week calendar</button>
-        <button data-plan-action="coach-tab" data-tab-id="library" aria-pressed="${coachTab === 'library'}">Workout library (${templates().length})</button>
+        <button data-plan-action="coach-tab" data-tab-id="library" aria-pressed="${coachTab === 'library'}">Workout library (${myTemplates().length})</button>
         <button data-plan-action="coach-tab" data-tab-id="programs" aria-pressed="${coachTab === 'programs'}">Programs (${ctx.state().programs.length})</button>
       </div>
       ${coachTab === 'calendar' ? calendarHTML() : coachTab === 'programs' ? root.ProgramUI.listHTML() : libraryHTML()}`;
@@ -259,7 +270,7 @@
   }
 
   function libraryHTML() {
-    const list = [...templates()].sort((a, b) => b.createdAt - a.createdAt);
+    const list = [...myTemplates()].sort((a, b) => b.createdAt - a.createdAt);
     if (!list.length) return `<div class="card empty">No workouts yet. <button class="btn btn-primary" data-plan-action="new-template">Build your first workout</button></div>`;
     return `<div class="analysis-grid">${list
       .map((tpl) => {
@@ -271,7 +282,7 @@
           ${tpl.description ? `<p class="small" style="margin:.5rem 0 0">${esc(tpl.description)}</p>` : ''}
           <ol class="block-summary">${tpl.blocks.map((b) => `<li><span>${C.BLOCK_TYPES[b.type].icon}</span><strong>${esc(b.title || C.BLOCK_TYPES[b.type].label)}</strong> <span class="muted">${esc(b.items.map((i) => i.name).join(', '))}</span></li>`).join('')}</ol>
           <div class="row" style="margin-top:auto;padding-top:.6rem">
-            <button class="btn btn-sm btn-primary" data-plan-action="assign" data-template="${tpl.id}">Assign</button>
+            <button class="btn btn-sm btn-primary" data-plan-action="assign" data-template="${tpl.id}">${athleteMode() ? 'Schedule' : 'Assign'}</button>
             <button class="btn btn-sm" data-plan-action="edit-template" data-id="${tpl.id}">Edit</button>
             <button class="btn btn-sm btn-ghost" data-plan-action="duplicate" data-id="${tpl.id}">Duplicate</button>
             <div class="spacer"></div>
@@ -303,7 +314,7 @@
     const d = draft;
     const editing = id.startsWith('edit:');
     const athlete = editing ? ctx.athleteById((assignments().find((x) => x.id === id.slice(5)) || {}).athleteId) : null;
-    return `<button class="btn btn-sm btn-ghost" data-plan-action="cancel-build" style="margin-bottom:.5rem">‹ Training plan</button>
+    return `<button class="btn btn-sm btn-ghost" data-plan-action="cancel-build" style="margin-bottom:.5rem">‹ ${athleteMode() ? 'My plan' : 'Training plan'}</button>
       <h1 class="page-title">${editing ? `Edit session${athlete ? ' · ' + esc(ctx.athleteName(athlete)) : ''}` : id === 'new' ? 'New workout' : 'Edit workout'}</h1>
       ${editing ? `<p class="muted" style="margin-top:0">Changes apply to this one session only. Your library workout stays as it is. <label class="inline-select">Date <input type="date" data-f="_date" value="${d._date}"/></label></p>` : ''}
       <form id="plan-builder" autocomplete="off">
@@ -312,7 +323,7 @@
             <label>Workout name <input data-f="name" value="${esc(d.name === 'Untitled workout' && id === 'new' ? '' : d.name)}" placeholder="e.g. Lower strength + plyos" maxlength="80" required /></label>
             <label>Log as <select data-f="logAs">${ctx.sportOptions(d.logAs)}</select></label>
           </div>
-          <label>Notes for athletes <textarea data-f="description" rows="2" maxlength="500" placeholder="Purpose of the session, intent, anything to watch">${esc(d.description)}</textarea></label>
+          <label>${athleteMode() ? 'Notes' : 'Notes for athletes'} <textarea data-f="description" rows="2" maxlength="500" placeholder="Purpose of the session, intent, anything to watch">${esc(d.description)}</textarea></label>
           <p class="muted small" style="margin:0">≈ ${C.estimateMinutes(C.normalizePlan(d))} min · ${d.blocks.reduce((s, b) => s + b.items.length, 0)} exercises</p>
         </section>
         ${d.blocks.map((b, bi) => blockEditor(b, bi, d.blocks.length)).join('')}
@@ -324,7 +335,7 @@
           <button type="button" class="btn btn-ghost" data-plan-action="cancel-build">Cancel</button>
           <div class="spacer"></div>
           <button type="button" class="btn" data-plan-action="save-template">Save</button>
-          <button type="button" class="btn btn-primary" data-plan-action="save-template" data-then="assign">Save & assign</button>
+          <button type="button" class="btn btn-primary" data-plan-action="save-template" data-then="assign">${athleteMode() ? 'Save & schedule' : 'Save & assign'}</button>
         </div>
       </form>`;
   }
@@ -453,7 +464,7 @@
       return null;
     }
     for (const b of draft.blocks) b.items = b.items.filter((i) => i.name.trim());
-    const plan = C.normalizePlan({ ...draft, id: draft._editing === 'new' ? undefined : draft._editing });
+    const plan = C.normalizePlan({ ...draft, id: draft._editing === 'new' ? undefined : draft._editing, ownerId: athleteMode() ? ctx.me().id : null });
     const list = templates();
     const idx = list.findIndex((t) => t.id === plan.id);
     if (idx >= 0) list[idx] = plan;
@@ -659,10 +670,11 @@
   let dialog = null;
 
   function openAssign({ templateId = null, athleteId = null, date = null } = {}) {
-    if (!templates().length) {
+    if (!myTemplates().length) {
       ctx.toast('Build a workout first');
       return ctx.go('plan', 'build:new');
     }
+    const self = athleteMode();
     if (!dialog) {
       dialog = document.createElement('dialog');
       dialog.id = 'assign-dialog';
@@ -676,12 +688,12 @@
     const d = date || today();
     const dow = (C.parseISODate(d).getDay() + 6) % 7;
     dialog.innerHTML = `<form id="assign-form" method="dialog">
-      <div class="row"><h2 style="margin:0">Assign workout</h2><div class="spacer"></div><button type="button" class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
-      <label style="margin-top:1rem">Workout <select name="template" required>${[...templates()].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<option value="${t.id}" ${t.id === templateId ? 'selected' : ''}>${esc(t.name)} · ${C.estimateMinutes(t)} min</option>`).join('')}</select></label>
-      <fieldset><legend>Athletes</legend>
+      <div class="row"><h2 style="margin:0">${self ? 'Schedule workout' : 'Assign workout'}</h2><div class="spacer"></div><button type="button" class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
+      <label style="margin-top:1rem">Workout <select name="template" required>${[...myTemplates()].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<option value="${t.id}" ${t.id === templateId ? 'selected' : ''}>${esc(t.name)} · ${C.estimateMinutes(t)} min</option>`).join('')}</select></label>
+      <fieldset ${self ? 'hidden' : ''}><legend>Athletes</legend>
         <label class="check"><input type="checkbox" data-all ${athleteId ? '' : 'checked'} /> <strong>Whole team</strong></label>
         ${[...new Set(athletes.flatMap((a) => a.groups))].sort().map((g) => `<button type="button" class="chip" data-group-pick="${esc(g)}">${esc(g)} only</button>`).join(' ')}
-        <div class="athlete-pick">${athletes.map((a) => `<label class="check"><input type="checkbox" name="athlete" value="${a.id}" ${!athleteId || a.id === athleteId ? 'checked' : ''} /> ${esc(ctx.athleteName(a))} <span class="muted small">· ${esc(C.sportInfo(a.sport).label)}</span></label>`).join('')}</div>
+        <div class="athlete-pick">${(self ? [ctx.me()] : athletes).map((a) => `<label class="check"><input type="checkbox" name="athlete" value="${a.id}" ${self || !athleteId || a.id === athleteId ? 'checked' : ''} /> ${esc(ctx.athleteName(a))} <span class="muted small">· ${esc(C.sportInfo(a.sport).label)}</span></label>`).join('')}</div>
       </fieldset>
       <div class="grid-2">
         <label>Starting <input type="date" name="date" value="${d}" required /></label>
@@ -689,17 +701,17 @@
       </div>
       <fieldset><legend>Repeat on</legend><div class="row">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((n, i) => `<label class="day-pick"><input type="checkbox" name="dow" value="${i}" ${i === dow ? 'checked' : ''} /><span>${n}</span></label>`).join('')}</div>
         <p class="hint" style="margin:.4rem 0 0">Leave just the starting day ticked for a one-off session.</p></fieldset>
-      <label>Note to athletes (optional) <input name="note" maxlength="500" placeholder="e.g. Film your last squat set for a form check" /></label>
-      <label class="check"><input type="checkbox" name="notify" checked /> Message athletes about it</label>
+      ${self ? '<input type="hidden" name="note" value=""/><input type="checkbox" name="notify" hidden/>' : `<label>Note to athletes (optional) <input name="note" maxlength="500" placeholder="e.g. Film your last squat set for a form check" /></label>
+      <label class="check"><input type="checkbox" name="notify" checked /> Message athletes about it</label>`}
       <p class="muted small" id="assign-summary"></p>
-      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Assign</button></div>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${self ? 'Schedule' : 'Assign'}</button></div>
     </form>`;
     const form = $('#assign-form', dialog);
     const sync = () => {
       const ids = $$('input[name=athlete]:checked', form).length;
       const dates = assignDates(form).length;
       $('[data-all]', form).checked = ids === athletes.length;
-      $('#assign-summary', form).textContent = `${ids * dates} session${ids * dates === 1 ? '' : 's'} (${ids} athlete${ids === 1 ? '' : 's'} × ${dates} date${dates === 1 ? '' : 's'})`;
+      $('#assign-summary', form).textContent = self ? `${dates} session${dates === 1 ? '' : 's'}` : `${ids * dates} session${ids * dates === 1 ? '' : 's'} (${ids} athlete${ids === 1 ? '' : 's'} × ${dates} date${dates === 1 ? '' : 's'})`;
     };
     form.addEventListener('change', (e) => {
       if (e.target.matches('[data-all]')) $$('input[name=athlete]', form).forEach((c) => (c.checked = e.target.checked));
@@ -735,25 +747,28 @@
     e.preventDefault();
     const form = e.target;
     const tpl = templates().find((t) => t.id === form.template.value);
-    const ids = $$('input[name=athlete]:checked', form).map((c) => c.value);
+    const self = athleteMode();
+    const ids = self ? [ctx.me().id] : $$('input[name=athlete]:checked', form).map((c) => c.value);
     if (!tpl || !ids.length) return ctx.toast('Pick a workout and at least one athlete');
     const dates = assignDates(form);
     const note = form.note.value.trim();
     const state = ctx.state();
     for (const athleteId of ids) {
       for (const date of dates) {
-        state.assignments.push(C.normalizeAssignment({ athleteId, templateId: tpl.id, date, plan: JSON.parse(JSON.stringify(tpl)), coachNote: note }));
+        state.assignments.push(C.normalizeAssignment({ athleteId, templateId: tpl.id, date, plan: JSON.parse(JSON.stringify(tpl)), coachNote: note, assignedBy: self ? 'athlete' : 'coach' }));
       }
-      if (form.notify.checked) {
+      if (!self && form.notify.checked) {
         const when = dates.length === 1 ? ctx.relDate(dates[0]).toLowerCase() : `${dates.length} sessions starting ${ctx.relDate(dates[0]).toLowerCase()}`;
         state.messages.push(C.normalizeMessage({ athleteId, from: 'coach', text: `New workout assigned: ${tpl.name} (${when}).${note ? ' ' + note : ''} Open the Plan tab to start.` }));
       }
     }
     ctx.save();
     dialog.close();
-    ctx.toast(`Assigned ${ids.length * dates.length} session${ids.length * dates.length === 1 ? '' : 's'}`);
-    coachTab = 'calendar';
-    weekStart = C.startOfWeek(dates[0]);
+    ctx.toast(`${self ? 'Scheduled' : 'Assigned'} ${ids.length * dates.length} session${ids.length * dates.length === 1 ? '' : 's'}`);
+    if (!self) {
+      coachTab = 'calendar';
+      weekStart = C.startOfWeek(dates[0]);
+    }
     ctx.go('plan');
   }
 
@@ -844,7 +859,7 @@
           return ctx.go('plan', 'a:' + plan.assignment.id);
         }
         ctx.toast('Workout saved');
-        coachTab = 'library';
+        if (!athleteMode()) coachTab = 'library';
         ctx.go('plan');
         if (el.dataset.then === 'assign') openAssign({ templateId: plan.id });
         return;
@@ -870,14 +885,15 @@
         return stopRest();
       case 'skip': {
         const a = assignments().find((x) => x.id === el.dataset.id);
-        const reason = await Dialogs.prompt('Why are you skipping? Your coach will see this.', { title: `Skip “${a ? a.plan.name : 'session'}”?`, ok: 'Skip session', placeholder: 'e.g. sick, game ran late, sore knee', multiline: true });
+        const solo = ctx.solo && ctx.solo();
+        const reason = await Dialogs.prompt(solo ? 'Reason (optional, for your own records)' : 'Why are you skipping? Your coach will see this.', { title: `Skip “${a ? a.plan.name : 'session'}”?`, ok: 'Skip session', placeholder: 'e.g. sick, game ran late, sore knee', multiline: true });
         if (reason === null || !a) return;
         a.status = 'skipped';
         a.skipReason = reason.trim();
-        state.messages.push(C.normalizeMessage({ athleteId: a.athleteId, from: 'athlete', text: `Skipping “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()})${a.skipReason ? `: ${a.skipReason}` : '.'}` }));
+        if (!solo) state.messages.push(C.normalizeMessage({ athleteId: a.athleteId, from: 'athlete', text: `Skipping “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()})${a.skipReason ? `: ${a.skipReason}` : '.'}` }));
         ctx.save();
         stopRest();
-        ctx.toast('Session skipped. Your coach has been told.');
+        ctx.toast(solo ? 'Session skipped' : 'Session skipped. Your coach has been told.');
         return ctx.go('plan');
       }
       case 'unassign': {

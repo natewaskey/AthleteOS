@@ -17,9 +17,30 @@
 
   const STATUS = { out: { label: 'Out', cls: 'bad' }, limited: { label: 'Limited', cls: 'warn' }, cleared: { label: 'Cleared', cls: 'good' } };
 
-  function canEdit() {
-    const staff = ctx.activeStaff ? ctx.activeStaff() : null;
-    return ctx.role() === 'coach' && (!staff || ['head', 'trainer', 'strength'].includes(staff.role));
+  // Coaches need the health permission (role + current certification). People training solo manage their own.
+  function canEdit(inj) {
+    if (ctx.solo && ctx.solo()) return !inj || inj.athleteId === ctx.me().id;
+    return ctx.role() === 'coach' && ctx.can('health');
+  }
+
+  // ---------- solo: your own injuries ----------
+
+  function selfView() {
+    const me = ctx.me();
+    const mine = injuries().filter((i) => i.athleteId === me.id);
+    const active = mine.filter((i) => i.status !== 'cleared');
+    const cleared = mine.filter((i) => i.status === 'cleared').sort((a, b) => (b.clearedAt || 0) - (a.clearedAt || 0));
+    return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Health</h1><div class="spacer"></div>
+        <button class="btn btn-primary" data-health="toggle-form">+ Log injury / illness</button></div>
+      <p class="muted" style="margin-top:0">Log anything that’s limiting you. Restrictions flag and swap exercises in your sessions and programs automatically.</p>
+      <div class="grid">
+        ${showForm ? injuryForm({ athleteId: me.id }, { self: true }) : ''}
+        <section class="card span-12"><div class="card-head"><h3>Active</h3></div>
+          ${active.length ? `<div class="injury-list">${active.map((i) => injuryCard(i, true)).join('')}</div>` : '<p class="muted">Nothing active. 🎉</p>'}</section>
+        ${recoveryCard(me)}
+        ${cleared.length ? `<section class="card span-12"><div class="card-head"><h3>History</h3></div><ul class="list">${cleared.slice(0, 10).map((i) => `<li><span class="pill good">Cleared</span><div class="main">${esc(i.label)}<div class="muted small">${esc(ctx.fmtDate(i.date))} → ${i.clearedAt ? esc(ctx.relTime(i.clearedAt)) : 'cleared'}</div></div><button class="btn btn-sm btn-ghost btn-danger" data-health="delete" data-id="${i.id}" aria-label="Delete">✕</button></li>`).join('')}</ul></section>` : ''}
+        <section class="card span-12"><p class="muted small" style="margin:0">A training log, not medical advice. For a head injury, follow the return-to-play steps and get cleared by a doctor before full contact.</p></section>
+      </div>`;
   }
 
   // ---------- coach Health tab ----------
@@ -30,7 +51,7 @@
     const cleared = injuries().filter((i) => i.status === 'cleared').sort((a, b) => (b.clearedAt || 0) - (a.clearedAt || 0));
     const edit = canEdit();
     return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Health</h1><div class="spacer"></div>
-        ${edit ? '<button class="btn btn-primary" data-health="toggle-form">+ Log injury / illness</button>' : '<span class="muted small">Only the head coach, S&C coach or athletic trainer can edit injuries.</span>'}</div>
+        ${edit ? '<button class="btn btn-primary" data-health="toggle-form">+ Log injury / illness</button>' : `<span class="muted small">${esc(ctx.whyNot ? ctx.whyNot('health') : 'You can’t edit injuries.')}</span>`}</div>
       <div class="grid">
         <section class="card span-4"><h3>Out</h3><div class="stat">${active.filter((i) => i.status === 'out').length}</div><div class="muted">not training</div></section>
         <section class="card span-4"><h3>Limited</h3><div class="stat">${active.filter((i) => i.status === 'limited').length}</div><div class="muted">training with restrictions</div></section>
@@ -53,12 +74,12 @@
     return a ? ctx.athleteName(a) : 'Athlete';
   };
 
-  function injuryForm(prefill = {}) {
+  function injuryForm(prefill = {}, { self = false } = {}) {
     const athletes = ctx.state().athletes;
     return `<section class="card span-12"><div class="card-head"><h3>Log injury / illness</h3><button class="btn btn-sm btn-ghost" data-health="toggle-form">✕</button></div>
       <form data-health-form="injury">
         <div class="grid-3">
-          <label>Athlete <select name="athleteId">${athletes.map((a) => `<option value="${a.id}" ${a.id === prefill.athleteId ? 'selected' : ''}>${esc(ctx.athleteName(a))}</option>`).join('')}</select></label>
+          ${self ? `<input type="hidden" name="athleteId" value="${esc(prefill.athleteId)}"/>` : `<label>Athlete <select name="athleteId">${athletes.map((a) => `<option value="${a.id}" ${a.id === prefill.athleteId ? 'selected' : ''}>${esc(ctx.athleteName(a))}</option>`).join('')}</select></label>`}
           <label>Type <select name="type"><option value="injury">Injury</option><option value="concussion">Concussion (starts return-to-play protocol)</option><option value="illness">Illness</option></select></label>
           <label>Body area <select name="area"><option value="">—</option>${C.BODY_AREAS.map((b) => `<option value="${b.id}" ${b.id === prefill.area ? 'selected' : ''}>${esc(b.label)}</option>`).join('')}</select></label>
           <label>Description <input name="label" maxlength="80" placeholder="e.g. Left ankle sprain (grade 1)"/></label>
@@ -67,7 +88,7 @@
         </div>
         <fieldset><legend>Restrictions (sessions will flag and swap these)</legend><div class="row">${Object.entries(P.RESTRICTIONS).map(([k, v]) => `<label class="day-pick"><input type="checkbox" name="restrictions" value="${k}"/><span>${esc(v.label)}</span></label>`).join('')}</div></fieldset>
         <label>Notes <textarea name="notes" rows="2" maxlength="1000" placeholder="Mechanism, treatment plan, who to contact…"></textarea></label>
-        <label class="check"><input type="checkbox" name="notify" checked/> Message the athlete</label>
+        ${self ? '' : '<label class="check"><input type="checkbox" name="notify" checked/> Message the athlete</label>'}
         <button class="btn btn-primary" type="submit">Save</button>
       </form></section>`;
   }
@@ -234,11 +255,11 @@
         const box = $(`[data-clearance="${inj.id}"]`);
         if (!box || !box.checked) return ctx.toast('Confirm medical clearance before full-contact practice');
       }
-      inj.stages[prog.next] = { doneAt: Date.now(), by: ctx.coachName() };
+      inj.stages[prog.next] = { doneAt: Date.now(), by: ctx.role() === 'coach' ? ctx.coachName() : ctx.athleteName(ctx.me()) };
       if (prog.next === 5) (inj.status = 'cleared'), (inj.clearedAt = Date.now());
       else if (prog.next >= 3) inj.status = 'limited';
       inj.restrictions = prog.next >= 4 ? [] : prog.next >= 2 ? ['no-contact'] : inj.restrictions;
-      state.messages.push(C.normalizeMessage({ athleteId: inj.athleteId, from: 'coach', text: prog.next === 5 ? 'You’re fully cleared to return to sport. Welcome back! 🎉' : `Return-to-play update: stage ${prog.next + 1} (${P.CONCUSSION_STAGES[prog.next].name}) complete. Next: ${P.CONCUSSION_STAGES[prog.next + 1].name}, no sooner than 24 hours.` }));
+      if (!ctx.solo()) state.messages.push(C.normalizeMessage({ athleteId: inj.athleteId, from: 'coach', text: prog.next === 5 ? 'You’re fully cleared to return to sport. Welcome back! 🎉' : `Return-to-play update: stage ${prog.next + 1} (${P.CONCUSSION_STAGES[prog.next].name}) complete. Next: ${P.CONCUSSION_STAGES[prog.next + 1].name}, no sooner than 24 hours.` }));
     }
     ctx.save();
     ctx.render();
@@ -252,7 +273,7 @@
     inj.status = e.target.value;
     if (inj.status === 'cleared') {
       inj.clearedAt = Date.now();
-      ctx.state().messages.push(C.normalizeMessage({ athleteId: inj.athleteId, from: 'coach', text: `You’re cleared from “${inj.label}”. Ease back in and tell me if anything flares up.` }));
+      if (!ctx.solo()) ctx.state().messages.push(C.normalizeMessage({ athleteId: inj.athleteId, from: 'coach', text: `You’re cleared from “${inj.label}”. Ease back in and tell me if anything flares up.` }));
     }
     ctx.save();
     ctx.render();
@@ -265,7 +286,7 @@
     const fd = new FormData(f);
     const inj = P.normalizeInjury({
       athleteId: fd.get('athleteId'), type: fd.get('type'), area: fd.get('area') || null, label: fd.get('label'), status: fd.get('status'),
-      expectedReturn: fd.get('expectedReturn'), restrictions: fd.getAll('restrictions'), notes: fd.get('notes'), createdBy: ctx.coachName(),
+      expectedReturn: fd.get('expectedReturn'), restrictions: fd.getAll('restrictions'), notes: fd.get('notes'), createdBy: ctx.role() === 'coach' ? ctx.coachName() : ctx.athleteName(ctx.me()),
     });
     ctx.state().injuries.push(inj);
     if (fd.get('notify')) ctx.state().messages.push(C.normalizeMessage({ athleteId: inj.athleteId, from: 'coach', text: `I’ve logged “${inj.label}” (${inj.status}). ${inj.restrictions.length ? `Restrictions: ${inj.restrictions.map((r) => P.RESTRICTIONS[r].label.toLowerCase()).join(', ')}. ` : ''}Your sessions will adjust automatically.` }));
@@ -284,5 +305,5 @@
     document.addEventListener('submit', onSubmit);
   }
 
-  root.HealthUI = { init, coachView, reportView, athleteInjuriesCard, recoveryCard, alerts, statusPill };
+  root.HealthUI = { init, coachView, selfView, reportView, athleteInjuriesCard, recoveryCard, alerts, statusPill };
 })(window);

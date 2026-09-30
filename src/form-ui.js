@@ -31,6 +31,7 @@
   const draw = { active: false, tool: 'line', color: '#facc15', strokes: [], current: null };
   const DRAW_COLORS = ['#facc15', '#ef4444', '#22d3ee', '#ffffff'];
 
+  const solo = () => !!(ctx && ctx.solo && ctx.solo());
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
   const esc = (s) => ctx.esc(s);
@@ -178,7 +179,7 @@
       <div class="small" style="margin-top:.5rem">${esc(topIssue(an))}</div>
       <div class="row" style="margin-top:.5rem;gap:.35rem">
         ${isNew ? `<span class="pill bad">${coach ? 'New' : 'New feedback'}</span>` : ''}
-        ${!coach ? (an.sharedWithCoach ? '<span class="pill info">Shared with coach</span>' : '<span class="pill">Private</span>') : ''}
+        ${!coach && !solo() ? (an.sharedWithCoach ? '<span class="pill info">Shared with coach</span>' : '<span class="pill">Private</span>') : ''}
         ${an.coachCues.length ? `<span class="pill good">${an.coachCues.length} coach cue${an.coachCues.length > 1 ? 's' : ''}</span>` : ''}
         ${an.demo ? '<span class="pill">Demo</span>' : ''}
       </div>
@@ -220,7 +221,7 @@
         <div class="row">
           <label class="inline-select">Exercise <select data-form-field="exercise">${Object.entries(M.EXERCISES).map(([k, x]) => `<option value="${k}" ${k === an.exercise ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>
           <label class="inline-select">Camera <select data-form-field="view">${['auto', 'side', 'front'].map((v) => `<option value="${v}" ${v === an.view ? 'selected' : ''}>${v === 'auto' ? 'Auto-detect' : v === 'side' ? 'Side-on' : 'Front-on'}</option>`).join('')}</select></label>
-          ${!coach && !an.sharedWithCoach ? '<button class="btn btn-primary" data-form-action="share">Send to coach</button>' : ''}
+          ${!coach && !solo() && !an.sharedWithCoach ? '<button class="btn btn-primary" data-form-action="share">Send to coach</button>' : ''}
           ${!coach ? '<button class="btn btn-ghost btn-danger" data-form-action="delete">Delete</button>' : ''}
         </div>
       </div>
@@ -367,7 +368,7 @@
           : '<li class="muted">No comments yet. Pause the video on a moment and comment on it.</li>'
       }</ul>
       <form data-form-submit="comment" class="stack">
-        <textarea name="text" rows="2" maxlength="2000" placeholder="${coach ? 'Comment on a moment for the athlete…' : 'Ask your coach about a moment…'}" required></textarea>
+        <textarea name="text" rows="2" maxlength="2000" placeholder="${coach ? 'Comment on a moment for the athlete…' : solo() ? 'Add a note about a moment…' : 'Ask your coach about a moment…'}" required></textarea>
         <div class="row"><label class="check"><input type="checkbox" name="attime" checked /> Pin to <span data-form-now>0:00</span></label><div class="spacer"></div><button class="btn" type="submit">Post</button></div>
       </form>
     </section>`;

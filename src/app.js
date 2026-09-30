@@ -10,6 +10,10 @@
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
   const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['goals', 'Goals'], ['messages', 'Messages'], ['settings', 'Settings']];
+  // Training on your own: no coach, messages or team features; you log your own injuries.
+  const SOLO_TABS = [['today', 'Today'], ['plan', 'Plan'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['health', 'Health'], ['goals', 'Goals'], ['settings', 'Settings']];
+  // Routes reachable from buttons but without their own tab.
+  const HIDDEN_ROUTES = ['screen', 'records'];
   const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['performance', 'Performance'], ['health', 'Health'], ['form', 'Form'], ['messages', 'Messages'], ['settings', 'Settings']];
   const Form = window.FormUI;
   const Plan = window.PlanUI;
@@ -17,6 +21,7 @@
   const Live = window.LiveUI;
   const Progress = window.ProgressUI;
   const Health = window.HealthUI;
+  const Screens = window.ScreenUI;
   const P = window.Platform;
 
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -46,7 +51,8 @@
     }
   }
 
-  const role = () => state.session.role;
+  const solo = () => state.mode === 'solo';
+  const role = () => (solo() ? 'athlete' : state.session.role);
   const units = () => state.settings.units;
   const U = () => C.unitLabels(units());
   const athleteById = (id) => state.athletes.find((a) => a.id === id) || null;
@@ -55,6 +61,14 @@
   const coachName = () => (role() === 'coach' && activeStaff() && activeStaff().name) || state.coach.name || 'Coach';
   // What the signed-in staff member may do (athlete view: everything for themselves).
   const can = (perm) => role() !== 'coach' || P.can(activeStaff(), perm);
+  const certNote = () => 'Add a current coaching certification in Settings → My certifications to prescribe workouts for your team.';
+  const whyNot = (perm) =>
+    P.blockedBy(activeStaff(), perm) === 'cert' ? certNote() : `${roleLabel(activeStaff())} can’t ${P.PERMISSIONS[perm].toLowerCase()}. Ask the head coach.`;
+  // Credentials athletes see next to their coach (head coach, or the first certified staff member).
+  const coachCreds = () => {
+    const st = state.staff.find((x) => x.role === 'head' && (x.certs || []).length) || state.staff.find((x) => (x.certs || []).length);
+    return st ? st.certs.filter((c) => C.certCurrent(c, today())).map(C.certLabel).join(' · ') : '';
+  };
   const roleLabel = (st) => C.STAFF_ROLES[st.role] || st.role;
   const athleteName = (a) => a.name || 'Athlete';
 
@@ -401,8 +415,8 @@
     today() {
       const a = me();
       const t = today();
-      const consentBanner = C.needsConsent(a, t) ? `<div class="banner warn" role="note">🔒 You’re under 18, so a parent or guardian needs to approve sharing your data with your coaches. <button class="btn btn-sm" data-tab-link="settings">Set up consent</button></div>` : '';
-      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding();
+      const consentBanner = !solo() && C.needsConsent(a, t) ? `<div class="banner warn" role="note">🔒 You’re under 18, so a parent or guardian needs to approve sharing your data with your coaches. <button class="btn btn-sm" data-tab-link="settings">Set up consent</button></div>` : '';
+      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding(a);
       const weeks = C.weeklySummary(a.workouts, t, 8);
       const recent = sortedWorkouts(a).slice(0, 5);
       const th = C.thread(state.messages, a.id);
@@ -420,19 +434,26 @@
           ${loadCard(a)}
           ${weekStatCards(a)}
           ${trendCard(a)}
-          <section class="card span-4">
+          ${
+            solo()
+              ? `<section class="card span-4"><div class="card-head"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>
+            ${goalList(a) || '<p class="muted">No goals yet.</p>'}</section>`
+              : `<section class="card span-4">
             <div class="card-head"><h3>${esc(coachName())}</h3>${unread ? `<span class="pill bad">${unread} new</span>` : ''}</div>
+            ${coachCreds() ? `<div class="muted small" style="margin:-.3rem 0 .4rem">🎓 ${esc(coachCreds())}</div>` : ''}
             ${lastCoach ? `<p style="margin:.2rem 0 .3rem">“${esc(lastCoach.text || 'Sent a video')}”</p><p class="muted small" style="margin:0 0 .75rem">${esc(relTime(lastCoach.ts))}</p>` : '<p class="muted">No messages from your coach yet.</p>'}
             <button class="btn" data-tab-link="messages" style="width:100%">Message coach</button>
             <div class="card-head" style="margin-top:1rem"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>
             ${goalList(a) || '<p class="muted">No goals yet.</p>'}
-          </section>
+          </section>`
+          }
           <section class="card span-6">
             <div class="card-head"><h3>Weekly load · 8 weeks</h3></div>
             ${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}
           </section>
           ${Health.recoveryCard(a)}
-          ${Progress.wallCard()}
+          ${a.screens.length ? '' : Screens.card(a)}
+          ${solo() ? '' : Progress.wallCard()}
           <section class="card span-6">
             <div class="card-head"><h3>Recent</h3><button class="btn btn-sm btn-ghost" data-tab-link="history">All</button></div>
             ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w, { actions: true })).join('')}</ul>` : '<p class="muted">No workouts yet.</p>'}
@@ -476,7 +497,15 @@
     },
 
     progress() {
-      return Progress.athleteView();
+      return Progress.athleteView(Screens.card(me(), { span: 'span-12' }));
+    },
+
+    screen() {
+      return Screens.view(ui.id);
+    },
+
+    health() {
+      return Health.selfView();
     },
 
     records() {
@@ -522,7 +551,7 @@
       return `<h1 class="page-title">Messages</h1>
         <section class="card chat-card">
           <div class="chat-head"><div class="avatar coach">${esc(initials(coachName()))}</div>
-            <div><strong>${esc(coachName())}</strong><div class="muted small">Your coach</div></div></div>
+            <div><strong>${esc(coachName())}</strong><div class="muted small">Your coach${coachCreds() ? ' · 🎓 ' + esc(coachCreds()) : ''}</div></div></div>
           ${threadHTML(a.id)}
           ${composerHTML()}
         </section>`;
@@ -541,16 +570,17 @@
               </div>
               ${prefsFields()}
               <fieldset><legend>Privacy</legend>
-                <label class="check"><input type="checkbox" name="shareNotes" ${a.privacy.shareNotes ? 'checked' : ''}/> Share check-in notes with my coach</label>
-                <label class="check"><input type="checkbox" name="autoShareForm" ${a.privacy.autoShareForm ? 'checked' : ''}/> Automatically share new form checks with my coach</label>
+                ${solo() ? '' : `<label class="check"><input type="checkbox" name="shareNotes" ${a.privacy.shareNotes ? 'checked' : ''}/> Share check-in notes with my coach</label>
+                <label class="check"><input type="checkbox" name="autoShareForm" ${a.privacy.autoShareForm ? 'checked' : ''}/> Automatically share new form checks with my coach</label>`}
                 <label class="check"><input type="checkbox" name="trackCycle" ${a.trackCycle ? 'checked' : ''}/> Track my menstrual cycle (private, optional)</label>
-                <label class="check"><input type="checkbox" name="shareCycle" ${a.privacy.shareCycle ? 'checked' : ''}/> Share cycle phase with my coach</label>
+                ${solo() ? '' : `<label class="check"><input type="checkbox" name="shareCycle" ${a.privacy.shareCycle ? 'checked' : ''}/> Share cycle phase with my coach</label>`}
               </fieldset>
               <label>Date of birth <input type="date" name="birthdate" value="${esc(a.birthdate)}"/></label>
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
-          ${guardianCard(a)}
+          ${modeCard()}
+          ${solo() ? '' : guardianCard(a)}
           ${myDataCard(a)}
           ${aiCard()}
           ${dataCard()}
@@ -628,6 +658,69 @@
     render();
   }
 
+  function welcomeView() {
+    return `<div class="welcome">
+      <h1 class="page-title">Welcome to AthleteOS</h1>
+      <p class="muted">Train smarter on your own, or with your team. No coach needed.</p>
+      <div class="mode-grid">
+        <button class="mode-card primary" data-action="choose-mode" data-mode="solo">
+          <span class="mode-icon">🏃</span><strong>I train on my own</strong>
+          <span>Log workouts, check in daily, build AI programs, analyze your form and track progress. Everything works without a coach.</span></button>
+        <button class="mode-card" data-action="choose-mode" data-mode="athlete">
+          <span class="mode-icon">👥</span><strong>I’m an athlete on a team</strong>
+          <span>Everything above, plus workouts and messages from your coaching staff.</span></button>
+        <button class="mode-card" data-action="choose-mode" data-mode="coach">
+          <span class="mode-icon">📋</span><strong>I’m a certified coach</strong>
+          <span>Add your certifications, set up your team roster and prescribe training, testing and return-to-play.</span></button>
+      </div>
+      <p class="muted small" style="text-align:center">You can switch any time in Settings. Or <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
+    </div>`;
+  }
+
+  function modeCard() {
+    const cur = solo() ? 'solo' : role() === 'coach' ? 'coach' : 'athlete';
+    const opt = (k, label, desc) => `<label class="check mode-opt"><input type="radio" name="mode" value="${k}" ${cur === k ? 'checked' : ''} data-action="choose-mode" data-mode="${k}"/> <span><strong>${label}</strong><span class="muted small"> · ${desc}</span></span></label>`;
+    return `<section class="card span-6"><div class="card-head"><h3>How you use AthleteOS</h3></div>
+      ${opt('solo', 'On my own', 'no coach or team features')}
+      ${opt('athlete', 'Athlete on a team', 'coach workouts and messages')}
+      ${opt('coach', 'Certified coach', 'prescribe for your team')}
+      <p class="hint">Switching keeps all your data.</p></section>`;
+  }
+
+  function certList(st, { editable = false } = {}) {
+    const t = today();
+    return (st.certs || []).length
+      ? `<div class="chips">${st.certs.map((c) => `<span class="chip ${C.certCurrent(c, t) ? 'cert' : 'cert expired'}" title="${esc(c.type === 'other' ? c.name : C.CERTIFICATIONS[c.type])}${c.number ? ' · #' + esc(c.number) : ''}${c.expires ? ' · expires ' + esc(c.expires) : ''}">🎓 ${esc(C.certLabel(c))}${C.certCurrent(c, t) ? '' : ' (expired)'}${editable ? ` <button type="button" class="chip-x" data-action="remove-cert" data-id="${c.id}" aria-label="Remove ${esc(C.certLabel(c))}">✕</button>` : ''}</span>`).join('')}</div>`
+      : '<span class="muted small">No certifications listed</span>';
+  }
+
+  function certFields({ required = false } = {}) {
+    return `<div class="grid-3">
+      <label>Certification <select name="certType" ${required ? 'required' : ''}><option value="">Choose…</option>${Object.entries(C.CERTIFICATIONS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
+      <label>Certificate / licence # <input name="certNumber" maxlength="40" placeholder="optional"/></label>
+      <label>Expires <input type="date" name="certExpires"/></label>
+    </div>
+    <label data-cert-other hidden>Name of certification <input name="certName" maxlength="80" placeholder="e.g. UEFA B Licence"/></label>`;
+  }
+
+  function certsCard() {
+    const st = activeStaff();
+    if (!st) return '';
+    const ok = C.isCertified(st, today());
+    return `<section class="card span-6"><div class="card-head"><h3>🎓 My certifications</h3>${ok ? '<span class="pill good">Can prescribe</span>' : '<span class="pill warn">Can’t prescribe yet</span>'}</div>
+      <p class="muted" style="margin-top:0">${ok ? 'Your athletes see these next to your name.' : 'Coaches need at least one current certification to prescribe workouts, programs, movement prep and return-to-play. You can still message athletes and review their data.'}</p>
+      ${certList(st, { editable: true })}
+      <form id="cert-form" style="margin-top:.75rem">${certFields({ required: true })}<button class="btn" type="submit">+ Add certification</button></form>
+      <p class="hint" style="margin-top:.6rem">Self-reported in this version. A production version would verify each one with the issuing body before unlocking prescribing.</p>
+    </section>`;
+  }
+
+  function readCert(d) {
+    if (!d.certType) return null;
+    const c = C.normalizeCert({ type: d.certType, name: d.certName, number: d.certNumber, expires: d.certExpires });
+    return c.type === 'other' && !c.name ? null : c;
+  }
+
   function coachWizard() {
     const st = activeStaff() || { name: '', role: 'head' };
     return `<div class="card wizard" style="max-width:680px;margin:1rem auto">
@@ -640,6 +733,10 @@
             <label>Your role <select name="role">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === st.role ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
           </div>
           <label>Team name <input name="team" value="${esc(state.team.name)}" maxlength="80" placeholder="e.g. Westview Varsity Soccer" /></label>
+        </fieldset>
+        <fieldset><legend>Your certification</legend>
+          <p class="hint" style="margin-top:0">Required to prescribe for your team. Add more later in Settings.</p>
+          ${certFields({ required: true })}
         </fieldset>
         <fieldset><legend>2 · Athletes</legend>
           <div class="grid-2">
@@ -663,7 +760,8 @@
       <ul class="list">${state.staff
         .map(
           (x) => `<li><div class="avatar coach">${esc(initials(x.name || 'Coach'))}</div>
-          <div class="main"><strong>${esc(x.name || 'Unnamed')}</strong>${x.id === (activeStaff() || {}).id ? ' <span class="pill info">you</span>' : ''}
+          <div class="main"><strong>${esc(x.name || 'Unnamed')}</strong>${x.id === (activeStaff() || {}).id ? ' <span class="pill info">you</span>' : ''}${C.isCertified(x, today()) ? '' : ' <span class="pill warn" title="Can’t prescribe until a certification is added">no cert</span>'}
+            ${certList(x)}
             ${head ? `<select data-staff-role="${x.id}" aria-label="Role for ${esc(x.name)}">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === x.role ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>` : `<div class="muted small">${esc(roleLabel(x))}</div>`}</div>
           ${head && state.staff.length > 1 && x.id !== (activeStaff() || {}).id ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-staff" data-id="${x.id}">Remove</button>` : ''}</li>`
         )
@@ -683,15 +781,17 @@
     </section>`;
   }
 
-  function onboarding() {
-    return `<div class="card empty" style="max-width:600px;margin:2rem auto">
-      <h1 style="font-size:1.6rem;color:var(--text)">Welcome to AthleteOS</h1>
-      <p>Log training, do a quick body-map check-in each day, message your coach and send video. Coaches see the whole team at a glance.</p>
+  function onboarding(a) {
+    return `<div class="card empty" style="max-width:640px;margin:2rem auto">
+      <h1 style="font-size:1.6rem;color:var(--text)">Let’s get started</h1>
+      <p>${solo() ? 'Start with a quick movement screen to see where you are, then build a program or log your training.' : 'Log training, do a quick body-map check-in each day, message your coach and send video.'}</p>
       <div class="row" style="justify-content:center;margin-top:1rem">
-        <button class="btn btn-primary" data-action="open-log">Log a workout</button>
+        ${a && !a.screens.length ? '<button class="btn btn-primary" data-screen-action="start">📋 Movement screen</button>' : ''}
+        <button class="btn ${a && !a.screens.length ? '' : 'btn-primary'}" data-action="open-log">Log a workout</button>
         <button class="btn" data-action="open-checkin">Daily check-in</button>
-        <button class="btn btn-ghost" data-action="load-sample">Explore with a demo team</button>
-      </div></div>`;
+        <button class="btn" data-prog-action="new">✨ Build a program</button>
+      </div>
+      <p class="muted small" style="margin-top:1rem"><button class="btn-link" data-action="load-sample">Explore with a demo team</button></p></div>`;
   }
 
   // ---------- coach views ----------
@@ -753,7 +853,11 @@
     },
 
     performance() {
-      return ui.id === 'report' ? Health.reportView() : Progress.coachView();
+      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard());
+    },
+
+    screen() {
+      return Screens.view(ui.id);
     },
 
     health() {
@@ -825,7 +929,9 @@
               <button class="btn" type="submit">+ Add athlete</button>
             </form>
           </section>
+          ${certsCard()}
           ${staffCard()}
+          ${modeCard()}
           ${aiCard()}
           ${dataCard()}
         </div>`;
@@ -948,6 +1054,7 @@
           }
         </section>
         ${Health.athleteInjuriesCard(a.id, { coach: true })}
+        ${Screens.card(a)}
         ${a.trackCycle && a.privacy.shareCycle && window.Program.cycleInfo(a, t) ? `<section class="card span-6"><div class="card-head"><h3>🌸 Cycle (shared by athlete)</h3></div><p>Day ${window.Program.cycleInfo(a, t).day} · ${esc(window.Program.cycleInfo(a, t).phase)}</p><p class="muted small">${esc(window.Program.cycleInfo(a, t).note)}</p></section>` : ''}
         ${Form.athleteCard(a)}
         <section class="card span-6"><div class="card-head"><h3>Endurance records</h3></div>${endHTML}</section>
@@ -1046,7 +1153,11 @@
 
   // ---------- chrome ----------
 
+  const firstTab = () => (tabsFor()[0] || [''])[0];
+
   function tabsFor() {
+    if (state.mode == null) return [];
+    if (solo()) return SOLO_TABS;
     return role() === 'coach' ? COACH_TABS : ATHLETE_TABS;
   }
 
@@ -1054,6 +1165,21 @@
     const isCoach = role() === 'coach';
     const a = me();
     const unread = isCoach ? C.unreadCount(state.messages, 'coach') : C.unreadCount(state.messages, 'athlete', a.id);
+    if (state.mode == null) {
+      $('#role-bar').innerHTML = '';
+      $('#tabs').innerHTML = '';
+      return;
+    }
+    if (solo()) {
+      $('#role-bar').innerHTML = '<span class="pill info hide-sm">Training on my own</span><button class="btn btn-primary" data-action="open-log">+ Log<span class="hide-sm"> workout</span></button>';
+      $('#tabs').innerHTML = tabsFor()
+        .map(([id, label]) => {
+          const n = id === 'form' ? Form.unseenCount() : id === 'plan' ? Plan.dueCount() : 0;
+          return `<button role="tab" data-tab="${id}" aria-selected="${ui.tab === id}">${label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`;
+        })
+        .join('');
+      return;
+    }
     $('#role-bar').innerHTML = `
       <div class="segmented" role="group" aria-label="Perspective">
         <button data-action="set-role" data-role="athlete" aria-pressed="${!isCoach}">Athlete</button>
@@ -1079,9 +1205,15 @@
   }
 
   function render() {
+    if (state.mode == null) {
+      renderChrome();
+      $('#view').innerHTML = welcomeView();
+      return;
+    }
     const views = role() === 'coach' ? coachViews : athleteViews;
     if (ui.tab === 'records' && role() === 'athlete') ui.tab = 'progress';
-    if (!views[ui.tab]) ui.tab = tabsFor()[0][0];
+    const allowed = tabsFor().some(([id]) => id === ui.tab) || HIDDEN_ROUTES.includes(ui.tab);
+    if (!views[ui.tab] || !allowed) ui.tab = firstTab();
     // Opening a thread marks it read before counts are drawn.
     if (ui.tab === 'messages') {
       if (role() === 'athlete') markThreadRead(me().id);
@@ -1106,9 +1238,10 @@
   }
 
   function setRole(r) {
+    if (solo()) return;
     state.session.role = r === 'coach' ? 'coach' : 'athlete';
     save();
-    go(tabsFor()[0][0]);
+    go(firstTab());
   }
 
   function sportOptions(selected) {
@@ -1426,7 +1559,7 @@
         if (e.target.closest(sel) && !can(perm)) {
           e.preventDefault();
           e.stopImmediatePropagation();
-          toast(`${roleLabel(activeStaff())} can’t ${P.PERMISSIONS[perm].toLowerCase()}. Ask the head coach.`);
+          toast(whyNot(perm));
           return;
         }
       }
@@ -1531,6 +1664,25 @@
         save();
         return render();
       }
+      case 'choose-mode': {
+        const m = el.dataset.mode;
+        const was = state.mode;
+        state.mode = m === 'solo' ? 'solo' : 'team';
+        if (m === 'coach') state.session.role = 'coach';
+        else state.session.role = 'athlete';
+        save();
+        if (was == null) toast(m === 'solo' ? 'All set. Everything works without a coach.' : m === 'coach' ? 'Let’s set up your team' : 'You’re set up as a team athlete');
+        else toast(m === 'solo' ? 'Switched to training on your own' : m === 'coach' ? 'Switched to coach view' : 'Switched to team athlete');
+        return go(firstTab());
+      }
+      case 'remove-cert': {
+        const st = activeStaff();
+        const c = st && st.certs.find((x) => x.id === id);
+        if (!c || !(await Dialogs.confirm(`Remove ${C.certLabel(c)} from your certifications?`, { title: 'Remove certification?', ok: 'Remove', danger: true }))) return;
+        st.certs = st.certs.filter((x) => x.id !== id);
+        save();
+        return render();
+      }
       case 'skip-wizard':
         state.team.onboarded = true;
         save();
@@ -1550,7 +1702,7 @@
         Plan.reset();
         Programs.reset();
         toast('Demo team loaded. Try the Coach view too!');
-        return go(tabsFor()[0][0]);
+        return go(firstTab());
       case 'reset':
         if (!(await Dialogs.confirm('Erase all athletes, workouts, check-ins, messages and videos? This cannot be undone.', { title: 'Erase everything?', ok: 'Erase', danger: true }))) return;
         state = C.emptyState();
@@ -1560,7 +1712,7 @@
         Plan.reset();
         Programs.reset();
         toast('All data erased');
-        return go(tabsFor()[0][0]);
+        return go(firstTab());
     }
   });
 
@@ -1622,6 +1774,9 @@
         toast('Role updated');
         render();
       }
+    } else if (t.name === 'certType') {
+      const other = t.closest('form').querySelector('[data-cert-other]');
+      if (other) other.hidden = t.value !== 'other';
     } else if (t.id === 'activity-import') {
       importActivities([...t.files]);
       t.value = '';
@@ -1662,7 +1817,7 @@
       e.preventDefault();
       const d = data();
       Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '' });
-      me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
+      if (!solo()) me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
     } else if (f.id === 'coach-form') {
       e.preventDefault();
@@ -1681,6 +1836,15 @@
       save();
       toast(!was && d.consent ? 'Consent recorded. Your coaches can now see your data.' : was && !d.consent ? 'Consent withdrawn' : 'Saved');
       render();
+    } else if (f.id === 'cert-form') {
+      e.preventDefault();
+      const c = readCert(data());
+      if (!c) return toast('Pick a certification (and name it if you chose Other)');
+      const st = activeStaff();
+      st.certs = [...(st.certs || []), c];
+      save();
+      toast(`${C.certLabel(c)} added${C.isCertified(st, today()) ? '. You can prescribe for your team.' : ''}`);
+      render();
     } else if (f.id === 'add-staff-form') {
       e.preventDefault();
       const d = data();
@@ -1694,10 +1858,15 @@
       const st = activeStaff();
       st.name = d.coach.trim();
       st.role = C.STAFF_ROLES[d.role] ? d.role : 'head';
+      const cert = readCert(d);
+      if (!cert) return toast('Add your certification (name it if you picked Other)');
+      st.certs = [...(st.certs || []), cert];
       state.coach.name = st.name;
       state.team.name = d.team.trim();
       const names = d.names.split('\n').map((x) => x.trim()).filter(Boolean);
-      const blank = state.athletes.length === 1 && !state.athletes[0].name && !state.athletes[0].workouts.length && !state.athletes[0].checkins.length;
+      // Replace only an untouched placeholder profile; anyone who trained solo keeps their data on the roster.
+      const first = state.athletes[0];
+      const blank = state.athletes.length === 1 && !first.name && !first.workouts.length && !first.checkins.length && !first.screens.length && !state.assignments.some((x) => x.athleteId === first.id) && !state.injuries.some((x) => x.athleteId === first.id);
       if (names.length) {
         const fresh = names.map((name) => C.normalizeAthlete({ name, sport: d.sport, groups: d.group.trim() ? [d.group.trim()] : [] }));
         state.athletes = blank ? fresh : state.athletes.concat(fresh);
@@ -1785,7 +1954,7 @@
         Plan.reset();
         Programs.reset();
         toast('Data imported');
-        go(tabsFor()[0][0]);
+        go(firstTab());
       } catch {
         toast('That file is not valid AthleteOS JSON');
       }
@@ -1834,13 +2003,15 @@
     units,
     U,
     storeVideo,
+    solo,
   });
 
-  Health.init({ C, state: () => state, save, render, toast, esc, role, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff: () => (state.staff || []).find((x) => x.id === state.activeStaffId) });
+  Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, can, whyNot, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
+  Screens.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, can, certNote, athleteById, athleteName, coachName, relDate, fmtDate, units, openAnalyze: (o) => Form.openAnalyze(o) });
 
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
 
-  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, athleteById, athleteName, units, U, sportOptions, fmtDate });
+  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, units, U, sportOptions, fmtDate });
   Live.init({ C, state: () => state, save, render, esc, units, U });
 
   Plan.init({
@@ -1864,6 +2035,9 @@
     sportOptions,
     openAnalyze: (o) => Form.openAnalyze(o),
     onWorkoutLogged: (a, w) => Progress.onWorkoutLogged(a, w),
+    solo,
+    can,
+    certNote,
   });
 
   const [initialTab, initialId] = location.hash.slice(1).split('/');

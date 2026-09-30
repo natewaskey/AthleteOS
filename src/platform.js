@@ -160,7 +160,17 @@
     strength: ['plan', 'health', 'performance', 'messages', 'form'],
     trainer: ['health', 'messages', 'form'],
   };
-  const can = (staff, perm) => !staff || (ROLE_PERMS[staff.role] || []).includes(perm);
+  // Prescribing (plan) and logging injuries (health) also need a current certification on file.
+  const CERT_PERMS = ['plan', 'health'];
+  const todayISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const hasCert = (staff, iso = todayISO()) => (staff.certs || []).some((c) => (!c.expires || c.expires >= iso) && (c.type !== 'other' || c.name));
+  const roleAllows = (staff, perm) => !staff || (ROLE_PERMS[staff.role] || []).includes(perm);
+  const can = (staff, perm) => !staff || (roleAllows(staff, perm) && (!CERT_PERMS.includes(perm) || hasCert(staff)));
+  // Why a staff member can't do something: 'role', 'cert' or null.
+  const blockedBy = (staff, perm) => (!staff ? null : !roleAllows(staff, perm) ? 'role' : CERT_PERMS.includes(perm) && !hasCert(staff) ? 'cert' : null);
 
   // ---------- per-athlete data ----------
 
@@ -190,7 +200,7 @@
     return { videoIds, poseIds };
   }
 
-  const Platform = { parseActivity, sportFrom, haversineKm, elevationGain, rpeFromHr, PERMISSIONS, ROLE_PERMS, can, athleteExport, removeAthlete };
+  const Platform = { parseActivity, sportFrom, haversineKm, elevationGain, rpeFromHr, PERMISSIONS, ROLE_PERMS, CERT_PERMS, can, roleAllows, blockedBy, hasCert, athleteExport, removeAthlete };
   if (typeof module !== 'undefined' && module.exports) module.exports = Platform;
   else root.Platform = Platform;
 })(typeof window !== 'undefined' ? window : globalThis);

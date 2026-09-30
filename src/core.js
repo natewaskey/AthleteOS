@@ -659,6 +659,12 @@
       checkins: Array.isArray(input.checkins) ? input.checkins.map(normalizeCheckin) : [],
       goals: Array.isArray(input.goals) ? input.goals.map(normalizeGoal) : [],
       tests: Array.isArray(input.tests) ? input.tests.map(normalizeTestResult) : [],
+      // Movement screens; scoring lives in screen.js, this only keeps the raw answers tidy.
+      screens: Array.isArray(input.screens)
+        ? input.screens
+            .filter((x) => x && typeof x === 'object' && x.results && typeof x.results === 'object')
+            .map((x) => ({ id: String(x.id || uid()), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : toISODate(new Date()), by: String(x.by || '').slice(0, 60), notes: String(x.notes || '').slice(0, 500), results: JSON.parse(JSON.stringify(x.results)) }))
+        : [],
     };
   }
 
@@ -1007,6 +1013,7 @@
       logAs: SPORT_INFO[input.logAs] ? input.logAs : dominantSport(blocks),
       blocks,
       createdAt: Number(input.createdAt) || Date.now(),
+      ownerId: input.ownerId ? String(input.ownerId) : null, // set = an athlete's own workout, not the coach library
     };
   }
 
@@ -1167,16 +1174,49 @@
       activeStaffId: 'coach-1',
       team: { name: '', onboarded: false },
       ai: { enabled: false, fallbacks: true },
+      mode: null, // null until chosen: 'solo' (training on your own) or 'team'
     };
   }
 
   const STAFF_ROLES = { head: 'Head coach', assistant: 'Assistant / position coach', strength: 'Strength & conditioning', trainer: 'Athletic trainer' };
 
+  // Coaching and sports-medicine credentials a staff member can list. Prescribing needs at least one current one.
+  const CERTIFICATIONS = {
+    cscs: 'CSCS · NSCA Certified Strength & Conditioning Specialist',
+    'nsca-cpt': 'NSCA-CPT · Certified Personal Trainer',
+    scccoach: 'SCCC · CSCCa Strength & Conditioning Coach Certified',
+    'nasm-cpt': 'NASM-CPT · Certified Personal Trainer',
+    'ace-cpt': 'ACE-CPT · Certified Personal Trainer',
+    'acsm-ep': 'ACSM-EP / ACSM-CPT · Exercise Physiologist / Personal Trainer',
+    usaw: 'USAW · USA Weightlifting coach (L1/L2)',
+    usatf: 'USATF · USA Track & Field coach (L1/L2)',
+    atc: 'ATC · BOC Certified Athletic Trainer',
+    pt: 'PT / DPT · Licensed Physical Therapist',
+    nfhs: 'NFHS · Fundamentals of Coaching / state coaching licence',
+    governing: 'Sport licence · governing-body coaching licence (e.g. US Soccer, USA Swimming)',
+    other: 'Other',
+  };
+
+  function normalizeCert(x) {
+    const type = CERTIFICATIONS[x.type] ? x.type : 'other';
+    return {
+      id: String(x.id || uid()),
+      type,
+      name: type === 'other' ? String(x.name || '').trim().slice(0, 80) : '',
+      number: String(x.number || '').trim().slice(0, 40),
+      expires: /^\d{4}-\d{2}-\d{2}$/.test(x.expires || '') ? x.expires : '',
+    };
+  }
+
+  const certLabel = (c) => (c.type === 'other' ? c.name || 'Other certification' : CERTIFICATIONS[c.type].split(' · ')[0]);
+  const certCurrent = (c, todayISO) => !c.expires || c.expires >= todayISO;
+  const isCertified = (staff, todayISO) => !!staff && (staff.certs || []).some((c) => certCurrent(c, todayISO) && (c.type !== 'other' || c.name));
+
   function normalizeStaff(list, coach) {
     const out = (Array.isArray(list) ? list : [])
       .filter((x) => x && typeof x === 'object')
-      .map((x) => ({ id: String(x.id || uid()), name: String(x.name || '').trim().slice(0, 60), role: STAFF_ROLES[x.role] ? x.role : 'assistant' }));
-    if (!out.length) out.push({ id: 'coach-1', name: String(coach?.name || ''), role: 'head' });
+      .map((x) => ({ id: String(x.id || uid()), name: String(x.name || '').trim().slice(0, 60), role: STAFF_ROLES[x.role] ? x.role : 'assistant', certs: Array.isArray(x.certs) ? x.certs.filter((c) => c && typeof c === 'object').map(normalizeCert).slice(0, 12) : [] }));
+    if (!out.length) out.push({ id: 'coach-1', name: String(coach?.name || ''), role: 'head', certs: [] });
     return out;
   }
 
@@ -1219,6 +1259,8 @@
       activeStaffId: String(raw.activeStaffId || 'coach-1'),
       team: { name: String(raw.team?.name || '').slice(0, 80), onboarded: raw.team?.onboarded !== false },
       ai: { enabled: !!raw.ai?.enabled, fallbacks: raw.ai?.fallbacks !== false },
+      // Data saved before modes existed was team-style; a fresh install stays unchosen.
+      mode: raw.mode === 'solo' || raw.mode === 'team' ? raw.mode : raw.mode === null ? null : 'team',
     };
   }
 
@@ -1425,15 +1467,24 @@
 
     const s = emptyState();
     s.coach = { name: 'Coach Rivera' };
-    s.staff = [
-      { id: 'coach-1', name: 'Coach Rivera', role: 'head' },
-      { id: 'coach-2', name: 'Dana Kim, ATC', role: 'trainer' },
-      { id: 'coach-3', name: 'Marcus Lee', role: 'strength' },
-    ];
+    s.mode = 'team';
+    s.staff = normalizeStaff([
+      { id: 'coach-1', name: 'Coach Rivera', role: 'head', certs: [{ type: 'cscs', number: '2019-44817', expires: addDays(todayISO, 400) }, { type: 'nfhs' }] },
+      { id: 'coach-2', name: 'Dana Kim, ATC', role: 'trainer', certs: [{ type: 'atc', number: 'BOC 2000123', expires: addDays(todayISO, 250) }] },
+      { id: 'coach-3', name: 'Marcus Lee', role: 'strength', certs: [{ type: 'usaw', number: 'USAW-L1-88231' }] },
+      { id: 'coach-4', name: 'Sam Ortiz (volunteer)', role: 'assistant', certs: [] },
+    ]);
     s.activeStaffId = 'coach-1';
     s.team = { name: 'Westview Wolves', onboarded: true };
     riley.birthdate = addDays(todayISO, -Math.round(16.4 * 365.25));
     riley.guardian = { name: 'Pat Chen', email: 'pat.chen@example.com', consentAt: hoursAgo(24 * 60) };
+    // Baseline movement screens: Jordan's left knee caves on the step-down, Taylor has stiff ankles, Riley rescreened.
+    jordan.screens = [{ id: 'scr-jordan', date: addDays(todayISO, -21), by: 'Dana Kim, ATC', results: { 'overhead-squat': { value: 2 }, ankle: { left: 9, right: 11 }, 'toe-touch': { value: 2 }, shoulder: { left: 3, right: 3 }, balance: { left: 9, right: 22 }, 'step-down': { left: 1, right: 3 }, pushups: { value: 28 }, plank: { value: 70 } } }];
+    taylor.screens = [{ id: 'scr-taylor', date: addDays(todayISO, -30), by: 'Marcus Lee', results: { 'overhead-squat': { value: 1 }, ankle: { left: 5, right: 6 }, 'toe-touch': { value: 1 }, shoulder: { left: 2, right: 2 }, balance: { left: 14, right: 16 }, 'step-down': { left: 2, right: 2 }, pushups: { value: 35 }, plank: { value: 45 } } }];
+    riley.screens = [
+      { id: 'scr-riley-1', date: addDays(todayISO, -56), by: 'Riley Parker', results: { 'overhead-squat': { value: 2 }, ankle: { left: 8, right: 9 }, 'toe-touch': { value: 2 }, shoulder: { left: 3, right: 2 }, balance: { left: 12, right: 15 }, 'step-down': { left: 2, right: 2 }, pushups: { value: 14 }, plank: { value: 40 } } },
+      { id: 'scr-riley-2', date: addDays(todayISO, -3), by: 'Riley Parker', results: { 'overhead-squat': { value: 3 }, ankle: { left: 11, right: 11 }, 'toe-touch': { value: 2 }, shoulder: { left: 3, right: 3 }, balance: { left: 21, right: 23 }, 'step-down': { left: 3, right: 2 }, pushups: { value: 19 }, plank: { value: 65 } } },
+    ];
     s.athletes = [riley, jordan, maya, sam, taylor];
     s.session = { role: 'athlete', athleteId: 'riley' };
     s.messages = [
@@ -1621,6 +1672,11 @@
     needsConsent,
     STAFF_ROLES,
     normalizeStaff,
+    CERTIFICATIONS,
+    normalizeCert,
+    certLabel,
+    certCurrent,
+    isCertified,
     deleteWorkout,
     FORM_EXERCISES,
     normalizeAnalysis,
