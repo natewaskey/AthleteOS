@@ -200,3 +200,22 @@ test('AI program schema is strict and responses are normalised', () => {
   assert.equal(items[1].loadValue, null);
   assert.throws(() => P.programFromAI({}), /did not contain a program/);
 });
+
+test('typed requests set length, days per week and goal', () => {
+  const r = P.parseRequest('6 weeks, 3 days a week, 45 min. Faster 40 and higher vertical. Dumbbells at home. Left knee gets sore.');
+  assert.equal(r.weeks, 6);
+  assert.equal(r.daysPerWeek, 3);
+  assert.equal(r.minutes, 45);
+  assert.equal(r.goal, 'speed');
+  assert.equal(P.parseRequest('4x/week for 8 wks, I want to get stronger').daysPerWeek, 4);
+  assert.equal(P.parseRequest('4x/week for 8 wks, I want to get stronger').weeks, 8);
+  assert.equal(P.parseRequest('4x/week for 8 wks, I want to get stronger').goal, 'strength');
+  assert.equal(P.parseRequest('twice a week, coming back from an ankle sprain').daysPerWeek, 2);
+  assert.equal(P.parseRequest('twice a week, coming back from an ankle sprain').goal, 'return');
+  assert.equal(P.parseRequest('just general fitness').goal, undefined);
+  // The typed request wins over form defaults
+  const prog = P.generateProgram({ goal: 'general', weeks: 4, daysPerWeek: 5, request: '6 weeks, 3 days a week, faster 40' });
+  assert.equal(prog.weeks, 6);
+  assert.equal(prog.sessions.length, 3);
+  assert.match(prog.name, /Speed/);
+});

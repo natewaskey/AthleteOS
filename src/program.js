@@ -610,6 +610,20 @@
     if (/legs|lower body|squat/.test(t)) out.focus.push('lower');
     const mins = t.match(/(\d{2,3})\s*(min|minute)/);
     if (mins) out.minutes = Number(mins[1]);
+    // Length and frequency, e.g. "6 weeks", "3 days a week", "4x/week", "twice a week".
+    const wk = t.match(/(\d{1,2})\s*(?:-|\s)?(?:weeks?|wks?)\b/);
+    if (wk) out.weeks = Number(wk[1]);
+    const dpw = t.match(/(\d)\s*(?:days?|x|times|sessions?)\s*(?:\/|a|per|each)?\s*(?:week|wk)\b/) || t.match(/(\d)\s*x\s*\/?\s*(?:week|wk)/);
+    if (dpw) out.daysPerWeek = Number(dpw[1]);
+    else if (/\btwice a week\b/.test(t)) out.daysPerWeek = 2;
+    // Main goal when the words make it clear.
+    if (/\b(rehab|coming back from|return(ing)? from|post[- ]?(op|surgery))\b/.test(t)) out.goal = 'return';
+    else if (/\bin[- ]season\b/.test(t)) out.goal = 'in-season';
+    else if (/\b(faster|speed|sprint\w*|acceleration|40)\b/.test(t)) out.goal = 'speed';
+    else if (/\b(vertical|explosive|jump higher|dunk|power)\b/.test(t)) out.goal = 'power';
+    else if (/\b(stronger|strength|max(es)?|1rm)\b/.test(t)) out.goal = 'strength';
+    else if (/\b(muscle|bulk|size|hypertrophy|mass)\b/.test(t)) out.goal = 'hypertrophy';
+    else if (/\b(endurance|stamina|conditioning|5k|10k|marathon)\b/.test(t)) out.goal = 'endurance';
     if (/no (jump|jumping|plyo)/.test(t)) out.restrictions.push('no-jumping');
     if (/no (running|sprint)/.test(t)) out.restrictions.push('no-running');
     if (/no overhead/.test(t)) out.restrictions.push('no-overhead');
@@ -644,11 +658,11 @@
    */
   function generateProgram(input = {}) {
     const req = parseRequest(input.request);
-    const goal = GOALS[input.goal] ? input.goal : 'general';
+    const goal = GOALS[req.goal] ? req.goal : GOALS[input.goal] ? input.goal : 'general';
     const exp = ['beginner', 'intermediate', 'advanced'].includes(input.experience) ? input.experience : 'intermediate';
-    const days = Math.max(1, Math.min(6, Math.round(Number(input.daysPerWeek) || 3)));
+    const days = Math.max(1, Math.min(6, Math.round(Number(req.daysPerWeek || input.daysPerWeek) || 3)));
     const minutes = Math.max(20, Math.min(150, Number(req.minutes || input.minutes) || 60));
-    const weeks = Math.max(1, Math.min(12, Math.round(Number(input.weeks) || 4)));
+    const weeks = Math.max(1, Math.min(12, Math.round(Number(req.weeks || input.weeks) || 4)));
     let equipment = Array.isArray(input.equipment) && input.equipment.length ? [...input.equipment] : Object.keys(EQUIPMENT);
     if (req.equipment) equipment = req.equipment;
     if (req.noBarbell) equipment = equipment.filter((e) => e !== 'barbell');
