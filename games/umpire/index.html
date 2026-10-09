@@ -1,0 +1,1706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hey Blue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Graduate&family=Barlow+Condensed:wght@400;500;600;700&family=VT323&display=swap">
+<style>
+/* Layout: a night-game ballpark console. LED scoreboard across the top, the umpire's view in the middle,
+   the call buttons directly under it, and the crew card (accuracy, crowd, dugouts, challenges, play-by-play) on the side. */
+:root{
+  --night:#0a1020;
+  --panel:#111a2d;
+  --panel-2:#17223a;
+  --rule:#26334f;
+  --chalk:#eef1f6;
+  --dim:#8e9bb6;
+  --led:#ffb547;
+  --led-dim:#5a4320;
+  --strike:#e5483c;
+  --ball:#45a8ff;
+  --safe:#33c27a;
+  --warn:#f2c14e;
+  --display:'Graduate','Rockwell','Georgia',serif;
+  --ui:'Barlow Condensed','Arial Narrow','Helvetica Neue',system-ui,sans-serif;
+  --led-font:'VT323','Courier New',ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--night);color:var(--chalk);font-family:var(--ui);font-size:16px;line-height:1.35;padding-inline:16px;padding-block:12px 24px}
+button{font:inherit;color:inherit}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--led);outline-offset:2px}
+.app{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+
+/* scoreboard */
+.board{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;background:#05080f;border:1px solid var(--rule);border-radius:10px;padding:10px 14px}
+.brand{font-family:var(--display);font-size:26px;letter-spacing:.04em;color:var(--led);line-height:1;white-space:nowrap}
+.brand small{display:block;font-family:var(--ui);font-size:12px;letter-spacing:.18em;color:var(--dim);margin-top:4px;text-transform:uppercase}
+.ls-wrap{overflow-x:auto;min-width:0}
+table.ls{border-collapse:collapse;font-family:var(--led-font);font-size:22px;color:var(--led);font-variant-numeric:tabular-nums;margin-inline:auto}
+table.ls th,table.ls td{padding:0 7px;text-align:center;min-width:26px}
+table.ls th{color:var(--dim);font-weight:400;font-size:17px}
+table.ls td.tm{text-align:left;color:var(--chalk);font-family:var(--ui);font-weight:700;font-size:16px;letter-spacing:.06em;padding-right:12px}
+table.ls td.now{background:var(--led-dim);border-radius:3px}
+table.ls td.rhe{color:var(--chalk);border-left:1px solid var(--rule)}
+table.ls tr.batting td.tm::before{content:"▸ ";color:var(--led)}
+.sit{display:flex;gap:14px;align-items:center}
+.count{display:grid;grid-template-columns:auto auto;gap:2px 8px;font-family:var(--led-font);font-size:20px;color:var(--dim);align-items:center}
+.dots{display:flex;gap:5px}
+.dot{width:12px;height:12px;border-radius:50%;background:#1d2538;border:1px solid #2b3550}
+.dot.b{background:var(--ball);border-color:var(--ball);box-shadow:0 0 8px var(--ball)}
+.dot.s{background:var(--strike);border-color:var(--strike);box-shadow:0 0 8px var(--strike)}
+.dot.o{background:var(--led);border-color:var(--led);box-shadow:0 0 8px var(--led)}
+#diamond{width:54px;height:54px}
+
+.matchup{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:15px;color:var(--dim);padding-inline:4px}
+.matchup b{color:var(--chalk);font-weight:600}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;align-items:start}
+.stage{display:flex;flex-direction:column;gap:10px;min-width:0}
+.screen{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--rule);background:#000}
+canvas#cv{display:block;width:100%;height:auto;aspect-ratio:16/10;max-width:100%}
+
+/* call bar */
+.controls{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:12px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;min-height:76px}
+.prompt{flex:1 1 220px;min-width:0;font-size:18px;font-weight:600;letter-spacing:.02em}
+.prompt small{display:block;font-weight:400;font-size:14px;color:var(--dim);letter-spacing:0}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.call{appearance:none;border:2px solid var(--rule);background:var(--panel-2);border-radius:8px;padding:10px 18px;min-width:132px;font-size:20px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:10px;justify-content:center;transition:transform .06s ease,background .12s}
+.call:hover{background:#1e2b48}
+.call:active{transform:translateY(1px)}
+.call kbd{font-family:var(--led-font);font-size:18px;background:#0a0f1c;border:1px solid var(--rule);border-radius:4px;padding:0 6px;color:var(--dim)}
+.call.red{border-color:var(--strike)}
+.call.red:hover{background:rgba(229,72,60,.18)}
+.call.blue{border-color:var(--ball)}
+.call.blue:hover{background:rgba(69,168,255,.16)}
+.call.green{border-color:var(--safe)}
+.call.green:hover{background:rgba(51,194,122,.16)}
+.call.amber{border-color:var(--warn)}
+.call.amber:hover{background:rgba(242,193,78,.14)}
+.call.plain{font-size:16px;min-width:0;text-transform:none;letter-spacing:.02em;font-weight:600}
+.waiting{color:var(--dim);font-size:15px}
+
+/* side card */
+.crew{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.acc{display:flex;align-items:baseline;gap:10px}
+.acc .big{font-family:var(--led-font);font-size:54px;line-height:.8;color:var(--led);font-variant-numeric:tabular-nums}
+.acc .lbl{color:var(--dim);font-size:14px;line-height:1.2}
+.kv{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:15px;font-variant-numeric:tabular-nums}
+.kv span:nth-child(odd){color:var(--dim)}
+.meter{height:8px;background:#0a0f1c;border-radius:4px;overflow:hidden;border:1px solid var(--rule)}
+.meter i{display:block;height:100%;border-radius:4px;transition:width .4s ease,background .4s}
+.mrow{display:grid;grid-template-columns:72px 1fr 42px;gap:8px;align-items:center;font-size:14px}
+.mrow em{font-style:normal;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
+.chal{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;font-size:14px;align-items:center}
+.chal .h{color:var(--dim);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.pips{display:flex;gap:4px}
+.pip{width:10px;height:10px;border-radius:2px;background:var(--led)}
+.pip.used{background:#1d2538;border:1px solid #2b3550}
+.logcard{max-height:360px}
+ol.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:290px;font-size:14px;color:#c6cfe0}
+ol.log li{border-left:3px solid var(--rule);padding-left:8px}
+ol.log li .inn{color:var(--dim);font-family:var(--led-font);font-size:15px;margin-right:6px}
+ol.log li.miss{border-color:var(--strike)}
+ol.log li.good{border-color:var(--safe)}
+ol.log li.rev{border-color:var(--warn)}
+ol.log li.big{border-color:var(--led);color:var(--chalk)}
+
+/* title + scorecard panels */
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:18px}
+.panel h1{font-family:var(--display);font-weight:400;font-size:clamp(30px,5vw,46px);line-height:1;margin:0;color:var(--led);text-wrap:balance}
+.panel h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0;text-wrap:balance}
+.panel p{margin:0;max-width:66ch;color:#c6cfe0}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.group{display:flex;flex-direction:column;gap:8px;min-width:0}
+.group legend,.group .gl{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);padding:0}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+.choice{display:flex;gap:10px;align-items:flex-start;background:var(--panel-2);border:2px solid var(--rule);border-radius:8px;padding:10px 12px;cursor:pointer}
+.choice input{margin-top:4px;accent-color:var(--led)}
+.choice b{display:block;font-size:17px}
+.choice span{font-size:14px;color:var(--dim)}
+.choice:has(input:checked){border-color:var(--led)}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg label{background:var(--panel-2);border:2px solid var(--rule);border-radius:8px;padding:6px 14px;cursor:pointer;font-weight:600}
+.seg label:has(input:checked){border-color:var(--led);color:var(--led)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.toggles{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:15px}
+.toggles label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.toggles input{accent-color:var(--led)}
+.go{appearance:none;background:var(--led);color:#1a1205;border:0;border-radius:8px;padding:12px 26px;font-family:var(--display);font-size:20px;cursor:pointer;align-self:flex-start}
+.go:hover{filter:brightness(1.08)}
+.keys{font-size:14px;color:var(--dim)}
+.keys kbd{font-family:var(--led-font);font-size:16px;background:#0a0f1c;border:1px solid var(--rule);border-radius:4px;padding:0 5px;color:var(--chalk)}
+.grade{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.grade .letter{font-family:var(--display);font-size:84px;line-height:.9;color:var(--led)}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.sc-grid div{background:var(--panel-2);border-radius:8px;padding:10px 12px}
+.sc-grid b{display:block;font-family:var(--led-font);font-size:32px;color:var(--chalk);font-weight:400;line-height:1;font-variant-numeric:tabular-nums}
+.sc-grid span{font-size:13px;color:var(--dim);letter-spacing:.06em;text-transform:uppercase}
+.misses{margin:0;padding-left:18px;color:#c6cfe0;font-size:15px;display:flex;flex-direction:column;gap:4px}
+
+@media (max-width:980px){
+  .main{grid-template-columns:minmax(0,1fr)}
+  .logcard{max-height:none}
+}
+@media (max-width:640px){
+  body{padding-inline:10px}
+  .board{grid-template-columns:minmax(0,1fr) auto;gap:10px}
+  .brand{grid-column:1/-1;font-size:20px}
+  .brand small{display:inline;margin-left:8px}
+  table.ls{font-size:18px}
+  table.ls th,table.ls td{padding:0 4px;min-width:18px}
+  .call{min-width:0;flex:1 1 130px;font-size:18px;padding:10px 12px}
+  .btns{width:100%}
+}
+@media (prefers-reduced-motion:reduce){ .call{transition:none} .meter i{transition:none} }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="board">
+    <div class="brand">HEY BLUE<small>Umpire simulator</small></div>
+    <div class="ls-wrap"><table class="ls" id="ls" aria-label="Line score"></table></div>
+    <div class="sit">
+      <div class="count" aria-label="Count and outs">
+        <span>B</span><div class="dots" id="cb"></div>
+        <span>S</span><div class="dots" id="cs"></div>
+        <span>O</span><div class="dots" id="co"></div>
+      </div>
+      <svg id="diamond" viewBox="0 0 60 60" aria-label="Runners on base">
+        <rect id="b2" x="23" y="5" width="14" height="14" transform="rotate(45 30 12)" />
+        <rect id="b3" x="6" y="22" width="14" height="14" transform="rotate(45 13 29)" />
+        <rect id="b1" x="40" y="22" width="14" height="14" transform="rotate(45 47 29)" />
+        <rect x="25" y="41" width="10" height="10" transform="rotate(45 30 46)" fill="#3a4560" />
+      </svg>
+    </div>
+  </header>
+  <div class="matchup" id="matchup"></div>
+
+  <main class="main">
+    <section class="stage">
+      <div class="panel" id="title">
+        <h1>Hey Blue</h1>
+        <p>You're the umpire. Call every pitch from behind the plate, or work the bases on bang-bang plays at first, steals of second, diving catches and balls down the line. Teams can challenge you. ABS reviews balls and strikes, and replay reviews plays on the bases. The home crowd will let you know when you miss one.</p>
+        <div class="opts">
+          <fieldset class="group">
+            <legend>Your position</legend>
+            <label class="choice"><input type="radio" name="role" value="plate" id="r-plate"><div><b>Home plate</b><span>Balls, strikes, check swings and plays at the plate.</span></div></label>
+            <label class="choice"><input type="radio" name="role" value="base" id="r-base"><div><b>Base umpire</b><span>Force plays, tag plays, catch or trap, fair or foul down the line.</span></div></label>
+            <label class="choice"><input type="radio" name="role" value="crew" id="r-crew"><div><b>Whole crew</b><span>Every call on the field is yours.</span></div></label>
+          </fieldset>
+          <div class="group">
+            <fieldset class="group">
+              <legend>Game length</legend>
+              <div class="seg">
+                <label><input type="radio" name="inn" value="3" id="i3">3 innings</label>
+                <label><input type="radio" name="inn" value="6" id="i6">6 innings</label>
+                <label><input type="radio" name="inn" value="9" id="i9">9 innings</label>
+              </div>
+            </fieldset>
+            <fieldset class="group">
+              <legend>Level</legend>
+              <div class="seg">
+                <label><input type="radio" name="diff" value="rookie" id="d-rookie">Rookie</label>
+                <label><input type="radio" name="diff" value="pro" id="d-pro">Pro</label>
+                <label><input type="radio" name="diff" value="mlb" id="d-mlb">Big League</label>
+              </div>
+              <span class="keys" id="diff-note"></span>
+            </fieldset>
+            <div class="group">
+              <span class="gl">Options</span>
+              <div class="toggles">
+                <label><input type="checkbox" id="o-sound"> Sound</label>
+                <label><input type="checkbox" id="o-voice"> Umpire voice</label>
+                <label><input type="checkbox" id="o-tracker"> Pitch tracker after each call</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="keys">Keys: <kbd>S</kbd> strike or safe, <kbd>B</kbd> ball, <kbd>O</kbd> out, <kbd>F</kbd> fair, <kbd>X</kbd> foul, <kbd>C</kbd> catch, <kbd>N</kbd> no catch. Buttons work too.</p>
+        <p class="keys" id="career"></p>
+        <button class="go" id="start">Play ball</button>
+      </div>
+      <div class="panel" id="scorecard" hidden></div>
+      <div class="screen" id="screen"><canvas id="cv" width="960" height="600" aria-label="Umpire's view of the field"></canvas></div>
+      <div class="controls" id="controls">
+        <div class="prompt" id="prompt">Choose your position and press Play ball.<small>The Port Calder Gulls visit the Ridgeline Foxes tonight.</small></div>
+        <div class="btns" id="btns"></div>
+      </div>
+    </section>
+
+    <aside class="crew">
+      <div class="card">
+        <div class="eyebrow" id="where">Umpire</div>
+        <div class="acc"><div class="big" id="acc">--</div><div class="lbl">call accuracy<br><span id="acc-sub">no calls yet</span></div></div>
+        <div class="kv">
+          <span>Pitches called right</span><span id="k-pitch">0 / 0</span>
+          <span>Base calls right</span><span id="k-base">0 / 0</span>
+          <span>Calls overturned</span><span id="k-over">0</span>
+          <span>Ejections</span><span id="k-ej">0</span>
+        </div>
+        <div class="mrow"><span>Crowd</span><div class="meter"><i id="m-crowd"></i></div><em id="m-crowd-t"></em></div>
+        <div class="mrow"><span id="m-away-l">Away dugout</span><div class="meter"><i id="m-away"></i></div><em id="m-away-t"></em></div>
+        <div class="mrow"><span id="m-home-l">Home dugout</span><div class="meter"><i id="m-home"></i></div><em id="m-home-t"></em></div>
+        <div class="chal">
+          <span class="h">Challenges left</span><span class="h">ABS</span><span class="h">Replay</span>
+          <span id="c-away-n">Away</span><div class="pips" id="c-away-abs"></div><div class="pips" id="c-away-rep"></div>
+          <span id="c-home-n">Home</span><div class="pips" id="c-home-abs"></div><div class="pips" id="c-home-rep"></div>
+        </div>
+      </div>
+      <div class="card logcard">
+        <div class="eyebrow">Play-by-play</div>
+        <ol class="log" id="log"></ol>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const TEST = !!window.HEYBLUE_TEST;
+
+/* ================= helpers ================= */
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOut = t => 1 - (1 - t) * (1 - t);
+const easeIn = t => t * t;
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const lp = (A, B, t) => [lerp(A[0], B[0], t), lerp(A[1], B[1], t)];
+const ord = n => n + (['th','st','nd','rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)] || 'th');
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = clamp(Math.round(((n >> 16) & 255) * f), 0, 255), g = clamp(Math.round(((n >> 8) & 255) * f), 0, 255), b = clamp(Math.round((n & 255) * f), 0, 255);
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } }
+
+/* ================= settings ================= */
+const DIFF = {
+  rookie: { label: 'Rookie', slow: 2.2, play: 0.5, hint: true, framing: 0, edge: 0.32, spread: 1.7, partner: 0.03, note: 'Slower pitches, a faint strike zone, wide margins on the bases.' },
+  pro:    { label: 'Pro', slow: 1.5, play: 0.72, hint: false, framing: 0.6, edge: 0.45, spread: 1.15, partner: 0.05, note: 'No zone overlay. Catchers frame borderline pitches.' },
+  mlb:    { label: 'Big League', slow: 1.0, play: 1.0, hint: false, framing: 1, edge: 0.58, spread: 0.85, partner: 0.06, note: 'Full-speed pitches and plays decided by hundredths of a second.' }
+};
+const opts = Object.assign({ role: 'plate', innings: 9, diff: 'pro', sound: true, voice: true, tracker: true }, store('heyblue.opts') || {});
+const DF = () => DIFF[opts.diff];
+
+/* ================= teams ================= */
+const TEAMS = [
+  { name: 'Port Calder Gulls', nick: 'Gulls', abbr: 'PCG', color: '#3f7fd6', jersey: '#8f99a6', pants: '#8f99a6', trim: '#3f7fd6', mgr: 'Harlan' },
+  { name: 'Ridgeline Foxes', nick: 'Foxes', abbr: 'RDG', color: '#e0673f', jersey: '#eeeeea', pants: '#e4e3dc', trim: '#e0673f', mgr: 'Vance' }
+];
+const FIRST = 'Mateo Jalen Ryo Darius Cole Eli Tomas Andre Kenji Luis Brady Omar Theo Nico Shane Ivan Wes Marco Jace Hector Dante Felix Gabe Rafael Isaac Kai Miles Owen Sam Yuto'.split(' ');
+const LAST = 'Ortega Whitfield Nakamura Bell Okafor Lindqvist Reyes Castellano Pruitt Moreau Haddad Quinlan Tanaka Ferreira Abernathy Kowalski Delacroix Ibarra Sato Holloway Mendez Vargas Brennan Oyelaran Sutter Park Dumas Galvan Fontaine Yates Corbin Esposito Navarro Ruiz Thibault Carver Wexler Acosta'.split(' ');
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function makeRosters() {
+  const last = shuffle(LAST);
+  let k = 0;
+  return [0, 1].map(() => {
+    const bats = [];
+    for (let i = 0; i < 9; i++) bats.push({ name: pick(FIRST)[0] + '. ' + last[k++], hand: Math.random() < 0.6 ? 'R' : 'L', ht: randi(68, 78) / 12, contact: rand(0.82, 1.08), power: rand(0.6, 1.45), eye: rand(0.85, 1.15) });
+    const mk = role => ({ name: pick(FIRST)[0] + '. ' + last[k++], hand: Math.random() < 0.7 ? 'R' : 'L', velo: rand(91, 98.5), ctrl: rand(3.0, 4.4), role });
+    return { bats, sp: mk('SP'), pen: [mk('RP'), mk('RP'), mk('CL')] };
+  });
+}
+const PT = {
+  FF: { n: '4-seam fastball', dv: 0, hb: -0.55, vb: -1.25 },
+  SI: { n: 'Sinker', dv: -1.5, hb: -1.15, vb: -2.0 },
+  SL: { n: 'Slider', dv: -8, hb: 0.8, vb: -2.4 },
+  CU: { n: 'Curveball', dv: -15, hb: 0.55, vb: -4.0 },
+  CH: { n: 'Changeup', dv: -8.5, hb: -0.8, vb: -2.9 }
+};
+
+/* ================= canvas + clock ================= */
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const W = 960, H = 600;
+function fitCanvas() { const dpr = Math.min(2, window.devicePixelRatio || 1); if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; } ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+fitCanvas(); addEventListener('resize', fitCanvas);
+
+let TS = TEST ? 30 : 1;
+const timers = [];
+function wait(ms) { return new Promise(r => timers.push({ t: ms / 1000, r })); }
+const stage = { clip: null, overlays: [], time: 0, excite: 0.15, mood: 'calm', moodT: 0, board: null, idle: null };
+function playClip(draw, o = {}) {
+  return new Promise(res => {
+    stage.clip = { draw, t: o.from || 0, to: o.to, speed: o.speed || 1, events: (o.events || []).map(e => ({ ...e, done: false })), pauses: (o.pauses || []).map(p => ({ ...p, done: false })), pause: 0, res };
+  });
+}
+function overlay(draw, life) { stage.overlays.push({ draw, age: 0, life }); }
+
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000) * TS; lastT = now;
+  stage.time += dt;
+  for (let i = timers.length - 1; i >= 0; i--) { timers[i].t -= dt; if (timers[i].t <= 0) { const r = timers[i].r; timers.splice(i, 1); r(); } }
+  const c = stage.clip;
+  if (c) {
+    if (c.pause > 0) c.pause -= dt;
+    else if (c.t < c.to) {
+      let nt = Math.min(c.to, c.t + dt * c.speed);
+      for (const p of c.pauses) if (!p.done && p.t > c.t && p.t <= nt) { p.done = true; nt = p.t; c.pause = p.dur; break; }
+      for (const e of c.events) if (!e.done && e.t > c.t - 1e-9 && e.t <= nt) { e.done = true; try { e.fn(); } catch (err) {} }
+      c.t = nt;
+    }
+    if (c.t >= c.to && c.res && c.pause <= 0) { const r = c.res; c.res = null; r(); }
+  }
+  stage.excite = lerp(stage.excite, 0.15, Math.min(1, dt * 0.5));
+  if (stage.moodT > 0) { stage.moodT -= dt; if (stage.moodT <= 0) stage.mood = 'calm'; }
+  if (pending && !pending.nagged && (stage.time - pending.at) > 4.5 && pending.nag) { pending.nagged = true; heckle(pick(['MAKE A CALL, BLUE!', 'ANY DAY NOW, UMP!', 'WAKE UP, BLUE!'])); }
+  draw(dt);
+  requestAnimationFrame(frame);
+}
+function draw(dt) {
+  ctx.save();
+  ctx.clearRect(0, 0, W, H);
+  if (stage.clip) stage.clip.draw(ctx, stage.clip.t); else drawPitchView(ctx, 0, idlePitch());
+  for (const o of stage.overlays) o.age += dt;
+  stage.overlays = stage.overlays.filter(o => o.age < o.life);
+  for (const o of stage.overlays) { ctx.save(); o.draw(ctx, o.age, o.life); ctx.restore(); }
+  ctx.restore();
+}
+
+/* ================= audio ================= */
+const AU = { c: null, m: null, noise: null, bed: null };
+function audioInit() {
+  if (AU.c) { if (AU.c.state === 'suspended') AU.c.resume(); return; }
+  try {
+    const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+    AU.c = new C(); AU.m = AU.c.createGain(); AU.m.gain.value = opts.sound ? 0.75 : 0; AU.m.connect(AU.c.destination);
+    const len = AU.c.sampleRate * 2, buf = AU.c.createBuffer(1, len, AU.c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    AU.noise = buf;
+    const src = noise(), bp = AU.c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 650; bp.Q.value = 0.6;
+    const g = AU.c.createGain(); g.gain.value = 0.03; src.connect(bp).connect(g).connect(AU.m); src.start(); AU.bed = g;
+  } catch (e) { AU.c = null; }
+}
+function noise() { const s = AU.c.createBufferSource(); s.buffer = AU.noise; s.loop = true; return s; }
+function env(g, t, a, peak, hold, rel) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + a); g.gain.setValueAtTime(peak, t + a + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + a + hold + rel); }
+function ok() { return AU.c && opts.sound && TS === 1; }
+function burst(type, freq, q, a, peak, hold, rel) {
+  const c = AU.c, t = c.currentTime, n = noise(), f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = c.createGain(); env(g, t, a, peak, hold, rel); n.connect(f).connect(g).connect(AU.m); n.start(t, Math.random()); n.stop(t + a + hold + rel + 0.05);
+}
+function tone(type, f0, f1, a, peak, hold, rel, delay = 0) {
+  const c = AU.c, t = c.currentTime + delay, o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + a + hold + rel);
+  const g = c.createGain(); env(g, t, a, peak, hold, rel); o.connect(g).connect(AU.m); o.start(t); o.stop(t + a + hold + rel + 0.05);
+}
+const sfx = {
+  pop() { if (!ok()) return; burst('bandpass', 1500, 1.3, 0.002, 0.9, 0.008, 0.07); tone('sine', 230, 80, 0.002, 0.55, 0.004, 0.08); },
+  crack() { if (!ok()) return; burst('highpass', 2200, 0.7, 0.001, 0.9, 0.006, 0.08); tone('triangle', 1300, 500, 0.001, 0.4, 0.004, 0.09); },
+  thud() { if (!ok()) return; tone('sine', 120, 45, 0.004, 0.75, 0.02, 0.12); burst('lowpass', 400, 0.8, 0.003, 0.5, 0.02, 0.1); },
+  slide() { if (!ok()) return; burst('lowpass', 1100, 0.6, 0.02, 0.35, 0.12, 0.3); },
+  slap() { if (!ok()) return; burst('bandpass', 900, 1, 0.002, 0.5, 0.01, 0.06); },
+  foul() { if (!ok()) return; burst('highpass', 1800, 0.6, 0.001, 0.6, 0.004, 0.05); },
+  boo(amt = 1, dur = 2.4) {
+    if (!ok()) return; const c = AU.c, t = c.currentTime;
+    const out = c.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(0.16 * amt, t + 0.4); out.gain.setValueAtTime(0.16 * amt, t + dur * 0.55); out.gain.linearRampToValueAtTime(0.0001, t + dur);
+    const f1 = c.createBiquadFilter(); f1.type = 'lowpass'; f1.frequency.value = 480; f1.Q.value = 3; f1.connect(out); out.connect(AU.m);
+    const n = Math.round(10 + amt * 12);
+    for (let i = 0; i < n; i++) {
+      const o = c.createOscillator(); o.type = 'sawtooth'; const f = rand(90, 230), st = t + rand(0, 0.35);
+      o.frequency.setValueAtTime(f * 1.06, st); o.frequency.linearRampToValueAtTime(f * 0.9, t + dur);
+      const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = rand(3.5, 6.5); lg.gain.value = f * 0.025; lfo.connect(lg).connect(o.frequency);
+      const g = c.createGain(); g.gain.value = rand(0.4, 1) / n * 2; o.connect(g).connect(f1);
+      o.start(st); lfo.start(st); o.stop(t + dur + 0.1); lfo.stop(t + dur + 0.1);
+    }
+    const nz = noise(), bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 380; bp.Q.value = 1.2; const ng = c.createGain(); ng.gain.value = 0.5 * amt; nz.connect(bp).connect(ng).connect(out); nz.start(t); nz.stop(t + dur + 0.1);
+  },
+  cheer(amt = 1, dur = 2) {
+    if (!ok()) return; const c = AU.c, t = c.currentTime;
+    const out = c.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(0.22 * amt, t + 0.15); out.gain.setValueAtTime(0.22 * amt, t + dur * 0.4); out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    out.connect(AU.m);
+    const nz = noise(), bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.5; nz.connect(bp).connect(out); nz.start(t); nz.stop(t + dur + 0.1);
+    for (let i = 0; i < 3 + amt * 5; i++) { const d = rand(0, dur * 0.5); tone('sine', rand(700, 1100), rand(1300, 2000), 0.05, 0.03 * amt, 0.15, 0.2, d); }
+  },
+  organ(notes, beat = 0.28) {
+    if (!ok()) return; let t0 = 0;
+    for (const [m, len] of notes) { if (m) { const f = 440 * Math.pow(2, (m - 69) / 12); tone('square', f, f * 0.999, 0.01, 0.05, beat * len * 0.75, 0.08, t0); tone('sine', f * 2, f * 2, 0.01, 0.04, beat * len * 0.75, 0.08, t0); } t0 += beat * len; }
+  }
+};
+const CHARGE = [[67, 1], [72, 1], [76, 1], [79, 1.6], [0, .4], [76, 1], [79, 3]];
+const STRETCH = [[60, 2], [72, 1], [69, 1], [67, 1], [64, 1], [67, 3], [62, 3], [60, 2], [72, 1], [69, 1], [67, 1], [64, 1], [67, 5]];
+function say(text, pitch = 0.7, rate = 1.05) {
+  if (!opts.voice || !opts.sound || TS !== 1) return;
+  try { const u = new SpeechSynthesisUtterance(text); u.pitch = pitch; u.rate = rate; u.volume = 0.9; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch (e) {}
+}
+
+/* ================= crowd (shared dots) ================= */
+const crowdDots = [];
+(function () {
+  for (let i = 0; i < 1900; i++) {
+    const x = Math.random() * W, top = 104 - 16 * (1 - Math.pow((x - 480) / 480, 2));
+    const y = rand(top + 4, 210);
+    if (y > 146 && y < 160) continue;           // upper-deck facade
+    if (Math.abs(x - 480) < 58 && y > 160) continue; // batter's eye
+    const r = Math.random();
+    const col = r < 0.5 ? TEAMS[1].color : r < 0.62 ? TEAMS[0].color : pick(['#d8dce4', '#b6bdca', '#e9d9b8', '#9aa4b8', '#f0f0f0']);
+    crowdDots.push({ x, y, col, ph: Math.random() * 6.28, sz: y > 160 ? 2.6 : 2 });
+  }
+})();
+const sideDots = [];
+for (let i = 0; i < 1500; i++) {
+  const y = rand(48, 200), x = Math.random() * W;
+  if (y > 118 && y < 128) continue;
+  const r = Math.random();
+  sideDots.push({ x, y, col: r < 0.5 ? TEAMS[1].color : r < 0.62 ? TEAMS[0].color : pick(['#d8dce4', '#b6bdca', '#e9d9b8', '#9aa4b8']), ph: Math.random() * 6.28, sz: y > 128 ? 3 : 2.2 });
+}
+function drawDots(c, dots) {
+  const ex = stage.excite, t = stage.time, boo = stage.mood === 'boo', cheer = stage.mood === 'cheer';
+  for (const d of dots) {
+    const off = Math.sin(t * (boo ? 7 : 10) + d.ph) * ex * 3;
+    c.fillStyle = d.col;
+    c.fillRect(d.x, d.y - Math.max(0, off) - (cheer ? ex * 2 : 0), d.sz, d.sz * (cheer ? 1.4 : 1));
+  }
+  if (boo && stage.moodT > 0) { c.fillStyle = `rgba(229,72,60,${0.06 + 0.05 * Math.sin(t * 12)})`; c.fillRect(0, 40, W, 175); }
+}
+
+/* ================= pitch view (behind the plate) ================= */
+const PLATE_Y = 0.354, HALF = 17 / 24, BR = 1.45 / 12;
+const cam = { x: 0, y: -8, z: 4.6, f: 620, cx: 480, cy: 226 };
+function setCam(side) { cam.x = side * 0.95; }
+function P(x, y, z) { const d = Math.max(0.4, y - cam.y), s = cam.f / d; return [cam.cx + (x - cam.x) * s, cam.cy - (z - cam.z) * s, s]; }
+function poly(c, pts, fill, stroke, lw) { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw || 1; c.stroke(); } }
+function ground(cx, cy, r, n = 36, minY = -7.2) { const pts = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; pts.push(P(cx + Math.cos(a) * r, Math.max(minY, cy + Math.sin(a) * r), 0)); } return pts; }
+const bgCache = {};
+function fieldBG(side) {
+  if (bgCache[side]) return bgCache[side];
+  const oc = document.createElement('canvas'); oc.width = W * 2; oc.height = H * 2; const c = oc.getContext('2d'); c.scale(2, 2);
+  setCam(side);
+  let g = c.createLinearGradient(0, 0, 0, cam.cy); g.addColorStop(0, '#03060d'); g.addColorStop(1, '#14223f'); c.fillStyle = g; c.fillRect(0, 0, W, cam.cy + 10);
+  for (const lx of [80, 290, 670, 880]) {
+    const rg = c.createRadialGradient(lx, 34, 2, lx, 34, 90); rg.addColorStop(0, 'rgba(255,247,222,.85)'); rg.addColorStop(.18, 'rgba(255,240,205,.25)'); rg.addColorStop(1, 'rgba(255,240,205,0)');
+    c.fillStyle = rg; c.fillRect(lx - 90, 0, 180, 130);
+    c.fillStyle = '#fffbe9'; c.fillRect(lx - 18, 26, 36, 12); c.fillStyle = '#3a4258'; c.fillRect(lx - 1, 38, 2, 60);
+  }
+  c.fillStyle = '#151d30'; c.beginPath(); c.moveTo(0, 104); c.quadraticCurveTo(480, 72, W, 104); c.lineTo(W, cam.cy); c.lineTo(0, cam.cy); c.fill();
+  c.fillStyle = '#0d1424'; c.beginPath(); c.moveTo(0, 147); c.quadraticCurveTo(480, 140, W, 147); c.lineTo(W, 160); c.quadraticCurveTo(480, 153, 0, 160); c.fill();
+  c.fillStyle = '#07090f'; c.fillRect(422, 158, 116, 60);
+  // outfield wall
+  const wall = [], top = [];
+  for (let a = -46; a <= 46; a += 2) { const r = a === 0 ? 404 : lerp(404, 330, Math.pow(Math.abs(a) / 46, 1.3)); const rad = a * Math.PI / 180; wall.push(P(Math.sin(rad) * r, Math.cos(rad) * r, 0)); top.push(P(Math.sin(rad) * r, Math.cos(rad) * r, 10)); }
+  poly(c, top.concat(wall.slice().reverse()), '#123a2a');
+  c.strokeStyle = '#e9c46a'; c.lineWidth = 1.5; c.beginPath(); top.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.stroke();
+  // grass with mowing stripes
+  const yd = d => cam.cy + cam.z * cam.f / d;
+  c.fillStyle = '#1f5a30'; c.fillRect(0, yd(420), W, H);
+  for (let d = 400, k = 0; d > 4; d -= (d > 60 ? 18 : 6), k++) { const y0 = yd(d), y1 = yd(Math.max(1, d - (d > 60 ? 18 : 6))); c.fillStyle = k % 2 ? '#266a38' : '#21602f'; c.fillRect(0, y0, W, y1 - y0 + 1); }
+  // infield skin
+  const arc = []; for (let a = 46; a >= -46; a -= 4) { const rad = a * Math.PI / 180; arc.push(P(Math.sin(rad) * 95, 60.5 + Math.cos(rad) * 95, 0)); }
+  poly(c, [P(0, -2, 0), P(66, 66, 0)].concat(arc).concat([P(-66, 66, 0)]), '#a26c46');
+  poly(c, [P(0, 9, 0), P(57, 64, 0), P(0, 120, 0), P(-57, 64, 0)], '#2a6e3a');
+  poly(c, ground(0, 60.5, 9), '#a8714a');
+  poly(c, ground(0, 0, 13), '#a26c46');
+  c.fillStyle = '#f2f2ee'; poly(c, [P(-1, 60.6, 0.84), P(1, 60.6, 0.84), P(1, 61.1, 0.84), P(-1, 61.1, 0.84)], '#f4f4f0');
+  // foul lines
+  c.strokeStyle = 'rgba(245,245,240,.9)'; c.lineWidth = 2;
+  for (const s of [-1, 1]) { const a = P(s * 0.7, 0.7, 0), b = P(s * 233, 233, 0); c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); }
+  // batter's boxes
+  c.lineWidth = 2.2;
+  for (const s of [-1, 1]) poly(c, [P(s * 1.2, -3, 0), P(s * 5.2, -3, 0), P(s * 5.2, 3, 0), P(s * 1.2, 3, 0)], null, 'rgba(245,245,240,.75)', 2.2);
+  // bases
+  for (const [bx, by] of [[63.6, 63.6], [0, 127.3], [-63.6, 63.6]]) poly(c, [P(bx - .75, by - .75, .2), P(bx + .75, by - .75, .2), P(bx + .75, by + .75, .2), P(bx - .75, by + .75, .2)], '#f6f6f2');
+  // plate
+  poly(c, [P(-HALF, HALF * 2, 0), P(HALF, HALF * 2, 0), P(HALF, HALF, 0), P(0, 0, 0), P(-HALF, HALF, 0)], '#f7f7f3', '#9a8f80', 1);
+  bgCache[side] = oc; return oc;
+}
+function drawBoard(c) {
+  c.fillStyle = '#0a0d15'; c.fillRect(392, 34, 176, 74); c.strokeStyle = '#2a3249'; c.lineWidth = 2; c.strokeRect(392, 34, 176, 74);
+  const b = stage.board && stage.board.until > stage.time ? stage.board : null;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (b) {
+    c.fillStyle = b.col || '#ffb547'; c.font = `${b.size || 26}px ${'VT323'}, monospace`;
+    const flick = b.flash ? (Math.sin(stage.time * 14) > 0 ? 1 : .55) : 1; c.globalAlpha = flick;
+    c.fillText(b.text, 480, 64); if (b.sub) { c.font = '17px VT323, monospace'; c.fillStyle = '#c9d1e2'; c.fillText(b.sub, 480, 90); }
+    c.globalAlpha = 1;
+  } else if (G) {
+    c.font = '22px VT323, monospace'; c.fillStyle = '#ffb547';
+    c.fillText(`${TEAMS[0].abbr} ${G.score[0]}   ${TEAMS[1].abbr} ${G.score[1]}`, 480, 60);
+    c.font = '16px VT323, monospace'; c.fillStyle = '#9aa6bf'; c.fillText(`${G.half ? 'BOT' : 'TOP'} ${G.inning}  ·  ${G.outs} OUT`, 480, 86);
+  } else { c.font = '26px Graduate, serif'; c.fillStyle = '#ffb547'; c.fillText('HEY BLUE', 480, 70); }
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+}
+function setBoard(text, sub, dur = 3, col, flash) { stage.board = { text, sub, until: stage.time + dur, col, flash }; }
+
+function figSmall(c, x, y, z, ht, jersey, pants, cap) {
+  const [sx, sy, s] = P(x, y, z); const h = ht * s, w = h * 0.26;
+  c.fillStyle = pants; c.fillRect(sx - w * 0.45, sy - h * 0.46, w * 0.9, h * 0.46);
+  c.fillStyle = jersey; c.fillRect(sx - w / 2, sy - h * 0.82, w, h * 0.4);
+  c.fillStyle = '#c99a78'; c.beginPath(); c.arc(sx, sy - h * 0.9, h * 0.09, 0, 7); c.fill();
+  c.fillStyle = cap; c.fillRect(sx - h * 0.1, sy - h * 0.99, h * 0.2, h * 0.06);
+}
+function drawPitcher(c, t, p) {
+  const T = TEAMS[p.ft]; const [fx, fy, s] = P(0, 60.3, 0.84); const h = 6.2 * s, u = h / 6.2;
+  const arm = p.ph === 'L' ? 1 : -1; // throwing arm side on screen
+  const tr = p.tr;
+  let lift = 0, armA = 0.3, lean = 0;
+  if (t > 0.5 && t < tr) { const k = (t - 0.5) / (tr - 0.5); lift = Math.sin(Math.min(1, k * 1.35) * Math.PI) * (k < .74 ? 1 : 0.4); armA = lerp(0.3, -2.6, ease(clamp((k - 0.45) / 0.55, 0, 1))); }
+  else if (t >= tr) { const k = clamp((t - tr) / 0.35, 0, 1); armA = lerp(-2.6, -5.2, easeOut(k)); lean = k * 0.6; }
+  const hip = [fx, fy - 3.2 * u], neck = [fx, fy - 5.2 * u + lean * 0.8 * u];
+  c.lineCap = 'round';
+  c.strokeStyle = T.pants; c.lineWidth = 0.55 * u;
+  c.beginPath(); c.moveTo(hip[0], hip[1]); c.lineTo(fx + arm * 0.5 * u, fy); c.stroke();
+  c.beginPath(); c.moveTo(hip[0], hip[1]); c.lineTo(fx - arm * (0.5 + lift * 0.3) * u, fy - lift * 2.2 * u); c.stroke();
+  c.strokeStyle = T.jersey; c.lineWidth = 1.1 * u; c.beginPath(); c.moveTo(hip[0], hip[1]); c.lineTo(neck[0], neck[1]); c.stroke();
+  c.strokeStyle = T.jersey; c.lineWidth = 0.4 * u;
+  const sh = [neck[0] + arm * 0.45 * u, neck[1] + 0.2 * u];
+  const hand = [sh[0] + arm * Math.cos(armA) * 1.9 * u * 0.6, sh[1] + Math.sin(armA) * 1.9 * u * 0.7 + 0.6 * u];
+  c.beginPath(); c.moveTo(sh[0], sh[1]); c.lineTo(hand[0], hand[1]); c.stroke();
+  const gl = [neck[0] - arm * 0.6 * u, neck[1] + 0.9 * u - lift * 0.6 * u];
+  c.beginPath(); c.moveTo(neck[0] - arm * 0.45 * u, neck[1] + 0.2 * u); c.lineTo(gl[0], gl[1]); c.stroke();
+  c.fillStyle = '#5a3b22'; c.beginPath(); c.arc(gl[0], gl[1], 0.32 * u, 0, 7); c.fill();
+  c.fillStyle = '#c99a78'; c.beginPath(); c.arc(neck[0], neck[1] - 0.45 * u, 0.42 * u, 0, 7); c.fill();
+  c.fillStyle = T.color; c.fillRect(neck[0] - 0.45 * u, neck[1] - 0.95 * u, 0.9 * u, 0.32 * u);
+}
+function idlePitch() {
+  if (!stage.idle) stage.idle = { side: -1, ft: 1, bt: 0, ph: 'R', tr: 99, T: 1, hand: 'R', ht: 6.1, px: 0, pz: 2.5, rel: { x: -1.6, y: 54.5, z: 5.9 }, brk: { x: 0, z: 0 }, act: { type: 'take' }, target: { x: 0.2, z: 2.3 }, zone: { b: 1.65, t: 3.27 }, idle: true };
+  return stage.idle;
+}
+function ballAt(p, s) {
+  const R = p.rel, B = p.brk;
+  return [R.x + (p.px - B.x - R.x) * s + B.x * s * s, R.y + (PLATE_Y - R.y) * s, R.z + (p.pz - B.z - R.z) * s + B.z * s * s];
+}
+const BAT_KEYS = [[0, [-0.45, -0.25, 0.86]], [0.3, [0.3, -0.35, 0.25]], [0.5, [1, 0.05, -0.05]], [0.75, [0.25, 1, 0.1]], [1, [-0.8, 0.45, 0.4]]];
+function batDir(th, dir) {
+  let i = 0; while (i < BAT_KEYS.length - 2 && th > BAT_KEYS[i + 1][0]) i++;
+  const [t0, a] = BAT_KEYS[i], [t1, b] = BAT_KEYS[i + 1], k = clamp((th - t0) / (t1 - t0), 0, 1);
+  const v = [lerp(a[0], b[0], k) * dir, lerp(a[1], b[1], k), lerp(a[2], b[2], k)], m = Math.hypot(...v) || 1;
+  return [v[0] / m, v[1] / m, v[2] / m];
+}
+function swingTheta(t, p) {
+  const a = p.act; if (!a || a.type === 'take') return 0;
+  const tp = p.tr + p.T, dur = 0.32 * Math.sqrt(p.slow);
+  const ts = tp - dur * 0.5;
+  if (t < ts) return 0;
+  if (a.type === 'check') { const k = clamp((t - ts) / (dur * 0.5), 0, 1); const th = a.depth * easeOut(k); if (t > ts + dur * 0.9) return lerp(a.depth, 0.15, clamp((t - ts - dur * 0.9) / 0.5, 0, 1)); return th; }
+  return clamp((t - ts) / dur, 0, 1);
+}
+function drawBatter(c, t, p) {
+  const T = TEAMS[p.bt], side = p.side, dir = -side, h = p.ht;
+  const bx = side * 2.6, by = 0.3;
+  const W3 = (u, v) => P(bx + u * dir, by, v);
+  const th = swingTheta(t, p);
+  const s = P(bx, by, 0)[2];
+  const hip = W3(-0.05 + th * 0.12, 0.47 * h), neck = W3(0.2 + th * 0.1, 0.71 * h), head = W3(0.3 + th * 0.08, 0.8 * h);
+  const fF = W3(0.6, 0), fB = W3(-0.55, 0), kF = W3(0.62, 0.27 * h), kB = W3(-0.3 + th * 0.2, 0.27 * h);
+  const handU = th < 0.5 ? lerp(-0.2, 0.55, ease(th / 0.5)) : lerp(0.55, 0.1, ease((th - 0.5) / 0.5));
+  const handV = th < 0.5 ? lerp(0.74, 0.55, ease(th / 0.5)) : lerp(0.55, 0.76, ease((th - 0.5) / 0.5));
+  const handW = [bx + handU * dir, by, handV * h], hand = P(...handW);
+  const bd = batDir(th, dir); const tipW = [handW[0] + bd[0] * 2.8, handW[1] + bd[1] * 2.8, handW[2] + bd[2] * 2.8]; const tip = P(...tipW);
+  const elbow = W3(lerp(-0.5, 0.25, th), 0.6 * h);
+  const L = (a, b, w, col) => { c.strokeStyle = col; c.lineWidth = w * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); };
+  const batBehind = bd[1] > 0.3;
+  const drawBat = () => { const g = c.createLinearGradient(hand[0], hand[1], tip[0], tip[1]); g.addColorStop(0, '#3a2414'); g.addColorStop(1, '#c08a52'); c.strokeStyle = g; c.lineCap = 'round'; c.lineWidth = 0.12 * s; c.beginPath(); c.moveTo(hand[0], hand[1]); c.lineTo(lerp(hand[0], tip[0], .45), lerp(hand[1], tip[1], .45)); c.stroke(); c.lineWidth = 0.22 * s; c.beginPath(); c.moveTo(lerp(hand[0], tip[0], .45), lerp(hand[1], tip[1], .45)); c.lineTo(tip[0], tip[1]); c.stroke(); };
+  if (batBehind) drawBat();
+  L(hip, kB, 0.5, shade(T.pants, 0.8)); L(kB, fB, 0.4, shade(T.pants, 0.75)); L(fB, [fB[0] - 0.3 * s * dir, fB[1]], 0.25, '#111');
+  L(hip, kF, 0.52, T.pants); L(kF, fF, 0.42, T.pants); L(fF, [fF[0] + 0.32 * s * dir, fF[1]], 0.25, '#111');
+  c.fillStyle = shade(T.pants, 0.9); c.fillRect(Math.min(kF[0], kB[0]), kF[1] - 0.06 * s, Math.abs(kF[0] - kB[0]), 0.04 * s);
+  L(hip, neck, 1.05, T.jersey);
+  c.fillStyle = T.trim; const belt = W3(-0.05, 0.5 * h); c.fillRect(belt[0] - 0.5 * s, belt[1] - 0.05 * s, 1.0 * s, 0.1 * s);
+  L(neck, elbow, 0.34, T.jersey); L(elbow, hand, 0.28, '#b98a68');
+  L(W3(0.25, 0.68 * h), hand, 0.3, shade(T.jersey, 0.85));
+  c.fillStyle = '#b98a68'; c.beginPath(); c.arc(head[0], head[1], 0.36 * s, 0, 7); c.fill();
+  c.fillStyle = T.color; c.beginPath(); c.arc(head[0] - 0.05 * s * dir, head[1] - 0.06 * s, 0.42 * s, Math.PI, 0); c.fill();
+  c.fillRect(head[0] - 0.42 * s, head[1] - 0.08 * s, 0.84 * s, 0.1 * s);
+  c.beginPath(); c.arc(head[0] - 0.12 * s * dir, head[1] + 0.05 * s, 0.22 * s, 0, 7); c.fill();
+  c.fillStyle = shade(T.color, 0.7); c.fillRect(head[0] + (dir > 0 ? 0.2 : -0.62) * s, head[1] - 0.07 * s, 0.42 * s, 0.07 * s);
+  if (!batBehind) drawBat();
+}
+function drawCatcher(c, t, p, glove) {
+  const F = TEAMS[p.ft];
+  const head = P(0, -2.7, 2.25), s = head[2];
+  const gear = '#1c2333';
+  c.fillStyle = gear; const sh = P(0, -2.9, 1.85);
+  c.beginPath(); c.ellipse(sh[0], sh[1] + 0.55 * s, 0.85 * s, 0.75 * s, 0, 0, 7); c.fill();
+  c.fillStyle = F.jersey; c.beginPath(); c.ellipse(sh[0], sh[1] + 0.9 * s, 0.82 * s, 0.6 * s, 0, 0, Math.PI); c.fill();
+  c.strokeStyle = '#30394f'; c.lineWidth = 0.08 * s; c.beginPath(); c.moveTo(sh[0] - 0.6 * s, sh[1] + 0.1 * s); c.lineTo(sh[0] + 0.6 * s, sh[1] + 0.9 * s); c.moveTo(sh[0] + 0.6 * s, sh[1] + 0.1 * s); c.lineTo(sh[0] - 0.6 * s, sh[1] + 0.9 * s); c.stroke();
+  // glove arm (catcher's left hand is the screen-left side when seen from behind)
+  const shoulder = [sh[0] - 0.55 * s, sh[1] + 0.05 * s];
+  const g = P(glove[0], glove[1], glove[2]);
+  const elbow = [lerp(shoulder[0], g[0], 0.5) - 0.25 * s, lerp(shoulder[1], g[1], 0.5) + 0.2 * s];
+  c.strokeStyle = '#2a3247'; c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = 0.2 * s; c.beginPath(); c.moveTo(shoulder[0], shoulder[1]); c.lineTo(elbow[0], elbow[1]); c.lineTo(g[0], g[1] + 0.2 * g[2]); c.stroke();
+  c.fillStyle = gear; c.beginPath(); c.arc(head[0], head[1], 0.44 * s, 0, 7); c.fill();
+  c.strokeStyle = F.color; c.lineWidth = 0.09 * s; c.beginPath(); c.arc(head[0], head[1], 0.36 * s, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+  c.fillStyle = '#0e131f'; c.fillRect(head[0] - 0.3 * s, head[1] + 0.18 * s, 0.6 * s, 0.14 * s);
+  c.fillStyle = '#6b4424'; c.beginPath(); c.ellipse(g[0], g[1], 0.38 * g[2], 0.42 * g[2], 0, 0, 7); c.fill();
+  c.fillStyle = '#4b2e17'; c.beginPath(); c.ellipse(g[0], g[1], 0.2 * g[2], 0.24 * g[2], 0, 0, 7); c.fill();
+}
+function gloveAt(t, p) {
+  const tgt = [p.target.x, -1.6, p.target.z];
+  if (p.idle) return tgt;
+  const tc = p.tr + p.T * 1.036;
+  const fin = ballAt(p, 1.036);
+  if (t < p.tr + p.T * 0.55) return tgt;
+  if (t < tc) { const k = ease((t - (p.tr + p.T * 0.55)) / (tc - (p.tr + p.T * 0.55))); return [lerp(tgt[0], fin[0], k), -1.6, lerp(tgt[2], fin[2], k)]; }
+  const f = p.frame || { x: 0, z: 0 }, k = easeOut(clamp((t - tc) / 0.28, 0, 1));
+  return [fin[0] + f.x * k, -1.6, fin[2] + f.z * k];
+}
+function drawBall(c, x, y, z, alpha = 1) { const [sx, sy, s] = P(x, y, z); const r = Math.max(1.2, BR * s); c.globalAlpha = alpha; c.fillStyle = '#fbfbf6'; c.beginPath(); c.arc(sx, sy, r, 0, 7); c.fill(); if (r > 4) { c.strokeStyle = 'rgba(200,40,40,.7)'; c.lineWidth = Math.max(0.6, r * 0.12); c.beginPath(); c.arc(sx - r * 0.6, sy, r * 0.7, -0.9, 0.9); c.stroke(); c.beginPath(); c.arc(sx + r * 0.6, sy, r * 0.7, Math.PI - 0.9, Math.PI + 0.9); c.stroke(); } c.globalAlpha = 1; }
+function zoneRect(p) { const a = P(-HALF, PLATE_Y, p.zone.t), b = P(HALF, PLATE_Y, p.zone.b); return [a[0], a[1], b[0] - a[0], b[1] - a[1]]; }
+function drawPitchView(c, t, p) {
+  setCam(p.side);
+  c.drawImage(fieldBG(p.side), 0, 0, W, H);
+  drawDots(c, crowdDots);
+  drawBoard(c);
+  const F = TEAMS[p.ft];
+  for (const [x, y] of [[-150, 265], [0, 318], [150, 265], [-62, 84], [-28, 132], [28, 132], [62, 84]]) figSmall(c, x, y, 0, 6, F.jersey, F.pants, F.color);
+  if (G) { // runners on base
+    const B = TEAMS[p.bt];
+    [[60, 61], [2, 125], [-60, 61]].forEach(([x, y], i) => { if (G.bases[i]) figSmall(c, x, y, 0, 6, B.jersey, B.pants, B.color); });
+  }
+  drawPitcher(c, t, p);
+  if (DF().hint && !p.idle) { const [x, y, w, h] = zoneRect(p); c.strokeStyle = 'rgba(255,255,255,.22)'; c.setLineDash([5, 5]); c.lineWidth = 1.5; c.strokeRect(x, y, w, h); c.setLineDash([]); }
+  // ball
+  const tp = p.tr + p.T, tc = p.tr + p.T * 1.036;
+  const bip = p.act && p.act.type === 'swing' && p.act.result !== 'miss';
+  let ballPt = null, inGlove = false, ballFront = false, trail = [];
+  if (!p.idle && t >= p.tr) {
+    if (bip && t > tp) {
+      const k = (t - tp) / (p.act.result === 'foul' ? 0.45 : 1.0);
+      const C = ballAt(p, 1), L = p.land;
+      if (k < 1) { ballPt = [lerp(C[0], L[0], k), lerp(C[1], L[1], k), lerp(C[2], L[2], k) + Math.sin(Math.PI * k) * L[3]]; ballFront = ballPt[1] < 0.3; }
+    } else if (t < tc) {
+      const sN = (t - p.tr) / p.T; ballPt = ballAt(p, sN); ballFront = ballPt[1] < 0.3;
+      for (let i = 1; i <= 4; i++) { const s2 = sN - i * 0.025; if (s2 > 0) trail.push(ballAt(p, s2)); }
+    } else { inGlove = true; }
+  }
+  if (ballPt && !ballFront) { trail.forEach((b, i) => drawBall(c, b[0], b[1], b[2], 0.25 - i * 0.05)); drawBall(c, ...ballPt); }
+  drawBatter(c, t, p);
+  const gl = gloveAt(t, p);
+  drawCatcher(c, t, p, gl);
+  if (ballPt && ballFront) { trail.forEach((b, i) => drawBall(c, b[0], b[1], b[2], 0.25 - i * 0.05)); drawBall(c, ...ballPt); }
+  if (inGlove && !(p.act && p.act.type === 'swing' && p.act.result !== 'miss')) { const g = P(gl[0], gl[1] + 0.1, gl[2]); c.fillStyle = '#fbfbf6'; c.beginPath(); c.arc(g[0], g[1], BR * g[2] * 0.9, 0, 7); c.fill(); }
+  if (!p.idle) {
+    c.font = '15px VT323, monospace'; c.fillStyle = 'rgba(255,255,255,.75)';
+    c.fillText(`${p.mph.toFixed(0)} MPH  ${p.type.n.toUpperCase()}`, 14, H - 14);
+    if (p.act.type === 'check' && t > tp) { c.font = '22px Graduate, serif'; c.fillStyle = '#ffb547'; c.textAlign = 'center'; c.fillText('CHECK SWING?', 480, H - 22); c.textAlign = 'left'; }
+  }
+}
+
+/* ================= side-view scenes ================= */
+const GY = 470, FT = 34;
+const sideBG = {};
+function sideBackground(kind) {
+  if (sideBG[kind]) return sideBG[kind];
+  const oc = document.createElement('canvas'); oc.width = W * 2; oc.height = H * 2; const c = oc.getContext('2d'); c.scale(2, 2);
+  const g = c.createLinearGradient(0, 0, 0, 220); g.addColorStop(0, '#04070e'); g.addColorStop(1, '#16223b'); c.fillStyle = g; c.fillRect(0, 0, W, 220);
+  c.fillStyle = '#171f33'; c.fillRect(0, 42, W, 170);
+  c.fillStyle = '#0e1524'; c.fillRect(0, 118, W, 10);
+  c.fillStyle = '#143d2b'; c.fillRect(0, 206, W, 48); c.fillStyle = '#e9c46a'; c.fillRect(0, 206, W, 3);
+  c.fillStyle = 'rgba(255,255,255,.07)'; for (let x = 20; x < W; x += 120) c.fillRect(x, 220, 70, 22);
+  if (kind === 'grass') {
+    c.fillStyle = '#7d5a3c'; c.fillRect(0, 254, W, 26);
+    const gg = c.createLinearGradient(0, 280, 0, H); gg.addColorStop(0, '#1f5a30'); gg.addColorStop(1, '#2f8243'); c.fillStyle = gg; c.fillRect(0, 280, W, H - 280);
+    for (let i = 0; i < 9; i++) { c.fillStyle = i % 2 ? 'rgba(255,255,255,.035)' : 'rgba(0,0,0,.04)'; c.beginPath(); c.moveTo(i * 130 - 200, H); c.lineTo(i * 130 + 60, 280); c.lineTo(i * 130 + 190, 280); c.lineTo(i * 130 - 70, H); c.fill(); }
+  } else {
+    const gg = c.createLinearGradient(0, 254, 0, 400); gg.addColorStop(0, '#1f5a30'); gg.addColorStop(1, '#2b7a3e'); c.fillStyle = gg; c.fillRect(0, 254, W, H - 254);
+    c.fillStyle = '#a8714a'; c.beginPath(); c.moveTo(0, 392); c.bezierCurveTo(300, 380, 660, 380, W, 392); c.lineTo(W, H); c.lineTo(0, H); c.fill();
+    for (let i = 0; i < 900; i++) { c.fillStyle = Math.random() < .5 ? 'rgba(80,45,20,.25)' : 'rgba(230,190,140,.18)'; c.fillRect(Math.random() * W, rand(392, H), 2, 2); }
+    if (kind === 'home') { c.strokeStyle = 'rgba(245,245,240,.6)'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 520); c.lineTo(W, 505); c.stroke(); }
+    else { c.strokeStyle = 'rgba(245,245,240,.55)'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, GY - 6); c.lineTo(W, GY - 6); c.stroke(); }
+  }
+  sideBG[kind] = oc; return oc;
+}
+function sceneBG(c, kind) { c.drawImage(sideBackground(kind), 0, 0, W, H); drawDots(c, sideDots); }
+function ik(h, f, l1, l2, bend) {
+  const dx = f[0] - h[0], dy = f[1] - h[1]; let d = Math.hypot(dx, dy); d = clamp(d, 1, l1 + l2 - 0.5);
+  const a = Math.atan2(dy, dx), A = Math.acos(clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1)), ang = a - bend * A;
+  return [h[0] + Math.cos(ang) * l1, h[1] + Math.sin(ang) * l1];
+}
+function reach(h, f, len) { const dx = f[0] - h[0], dy = f[1] - h[1], d = Math.hypot(dx, dy); if (d <= len) return f; return [h[0] + dx / d * len, h[1] + dy / d * len]; }
+function fig(c, J, L) {
+  const k = L.k || 1;
+  const limb = (a, b, w, col) => { c.strokeStyle = col; c.lineWidth = w * k; c.lineCap = 'round'; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); };
+  const far = 0.72;
+  const shoe = (f, col) => { c.fillStyle = col; c.beginPath(); c.ellipse(f[0] + 5 * k * (L.face || 1), f[1] - 3 * k, 10 * k, 5 * k, 0, 0, 7); c.fill(); };
+  limb(J.hip, J.kB, 16, shade(L.pants, far)); limb(J.kB, J.fB, 13, shade(L.sock || L.pants, far)); shoe(J.fB, '#0b0b0b');
+  limb(J.neck, J.eB, 11, shade(L.jersey, far)); limb(J.eB, J.hB, 9, shade('#b98a68', far));
+  if (L.gloveB) { c.fillStyle = '#6b4424'; c.beginPath(); c.arc(J.hB[0], J.hB[1], 11 * k, 0, 7); c.fill(); }
+  limb(J.hip, J.neck, 30, L.jersey);
+  if (L.gear) { limb(lp(J.hip, J.neck, .3), lp(J.hip, J.neck, .95), 24, L.gear); }
+  if (L.trim) { c.fillStyle = L.trim; const b = lp(J.hip, J.neck, 0.08); c.beginPath(); c.arc(b[0], b[1], 8 * k, 0, 7); c.fill(); }
+  const hd = J.head;
+  c.fillStyle = '#b98a68'; c.beginPath(); c.arc(hd[0], hd[1], 15 * k, 0, 7); c.fill();
+  c.fillStyle = L.helmet; c.beginPath(); c.arc(hd[0] - 1 * k * (L.face || 1), hd[1] - 2 * k, 16 * k, Math.PI * 1.0, Math.PI * 2.0); c.fill();
+  c.fillRect(hd[0] + (L.face || 1) * 2 * k - (L.face < 0 ? 16 : 0) * k, hd[1] - 4 * k, 16 * k, 4 * k);
+  if (L.mask) { c.strokeStyle = '#222'; c.lineWidth = 2.5 * k; c.beginPath(); c.arc(hd[0] + 6 * k * (L.face || 1), hd[1] + 2 * k, 12 * k, -1.2, 1.2); c.stroke(); }
+  limb(J.hip, J.kA, 17, L.pants); limb(J.kA, J.fA, 14, L.sock || L.pants); shoe(J.fA, '#111');
+  if (L.shin) { limb(lp(J.kA, J.fA, .05), lp(J.kA, J.fA, .9), 15, L.shin); }
+  limb(J.neck, J.eA, 12, L.jersey); limb(J.eA, J.hA, 10, '#b98a68');
+  if (L.gloveA) { c.fillStyle = '#6b4424'; c.beginPath(); c.ellipse(J.hA[0], J.hA[1], 13 * k, 15 * k, 0, 0, 7); c.fill(); c.fillStyle = '#4a2c15'; c.beginPath(); c.arc(J.hA[0], J.hA[1], 7 * k, 0, 7); c.fill(); }
+}
+function look(team, extra) { const T = TEAMS[team]; return Object.assign({ jersey: T.jersey, pants: T.pants, helmet: T.color, trim: T.trim, sock: shade(T.color, 0.6) }, extra || {}); }
+function mirrorJ(J, mx) { const o = {}; for (const k in J) o[k] = [2 * mx - J[k][0], J[k][1]]; return o; }
+/* running stride: lead foot lands at xRef at tRef, a new plant every stepT. Runs toward +x. */
+function runPose(t, tRef, xRef, v, stepT, gy, k = 1) {
+  const L = v * stepT, n = Math.floor((t - tRef) / stepT), p = (t - tRef) / stepT - n;
+  const hipX = xRef + v * (t - tRef) - 0.2 * L;
+  const hipY = gy - (96 - 5 * Math.sin(Math.PI * p)) * k;
+  const footFor = parity => {
+    let j = n; if (((j % 2) + 2) % 2 !== parity) j -= 1;
+    const q = (t - (tRef + j * stepT)) / stepT, X = xRef + j * L;
+    if (q < 0.4) return [X, gy];
+    const r = (q - 0.4) / 1.6;
+    return [lerp(X, X + 2 * L, ease(r)), gy - Math.sin(Math.PI * r) * 46 * k - (r < 0.45 ? Math.sin(r / 0.45 * Math.PI) * 30 * k : 0)];
+  };
+  const fA = footFor(0), fB = footFor(1);
+  const hip = [hipX, hipY], neck = [hipX + 22 * k, hipY - 64 * k], head = [hipX + 30 * k, hipY - 86 * k];
+  const sw = Math.sin((t - tRef) / stepT * Math.PI);
+  const handA = [neck[0] + 30 * sw * k, neck[1] + 46 * k - Math.abs(sw) * 10 * k], handB = [neck[0] - 30 * sw * k, neck[1] + 46 * k - Math.abs(sw) * 10 * k];
+  const fa = reach(hip, fA, 106 * k), fb = reach(hip, fB, 106 * k);
+  return { hip, neck, head, fA: fa, fB: fb, kA: ik(hip, fa, 52 * k, 56 * k, 1), kB: ik(hip, fb, 52 * k, 56 * k, 1), hA: handA, hB: handB, eA: ik(neck, handA, 30 * k, 30 * k, -1), eB: ik(neck, handB, 30 * k, 30 * k, -1) };
+}
+function poseLerp(A, B, t) { const o = {}; for (const k in A) o[k] = lp(A[k], B[k], t); return o; }
+function dust(c, x, y, age, big = 1) {
+  if (age < 0 || age > 0.7) return;
+  const a = 1 - age / 0.7;
+  for (let i = 0; i < 9; i++) { const ang = Math.PI + i / 8 * Math.PI, r = (8 + age * 90) * big; c.fillStyle = `rgba(196,150,110,${0.45 * a})`; c.beginPath(); c.arc(x + Math.cos(ang) * r, y + Math.sin(ang) * r * 0.5, (6 + age * 20) * big, 0, 7); c.fill(); }
+}
+function bag(c, x, y, plate) {
+  if (plate) { c.fillStyle = '#d9d6cf'; c.fillRect(x - 30, y - 2, 60, 4); c.fillStyle = '#fbfbf7'; c.beginPath(); c.moveTo(x - 30, y - 2); c.lineTo(x + 30, y - 2); c.lineTo(x + 22, y - 9); c.lineTo(x - 22, y - 9); c.fill(); return; }
+  c.fillStyle = '#cfcac0'; c.fillRect(x - 24, y - 6, 48, 7);
+  c.fillStyle = '#fbfbf7'; c.beginPath(); c.moveTo(x - 24, y - 6); c.lineTo(x + 24, y - 6); c.lineTo(x + 18, y - 16); c.lineTo(x - 18, y - 16); c.fill();
+}
+function sceneBall(c, x, y, r = 6) { c.fillStyle = '#fbfbf6'; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.strokeStyle = 'rgba(200,40,40,.6)'; c.lineWidth = 1; c.beginPath(); c.arc(x - r * .5, y, r * .7, -1, 1); c.stroke(); }
+function hudTag(c, text, sub) {
+  c.fillStyle = 'rgba(5,8,15,.72)'; c.fillRect(14, 14, Math.max(c.measureText(text).width, 200) + 40, sub ? 52 : 34);
+  c.font = '20px Graduate, serif'; c.fillStyle = '#ffb547'; c.fillText(text, 26, 38);
+  if (sub) { c.font = '16px "Barlow Condensed", sans-serif'; c.fillStyle = '#c6cfe0'; c.fillText(sub, 26, 58); }
+}
+function replayHud(c, t, sc) {
+  c.fillStyle = 'rgba(0,0,0,.16)'; c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(5,8,15,.8)'; c.fillRect(W - 250, 14, 236, 60);
+  c.fillStyle = '#e5483c'; c.beginPath(); c.arc(W - 232, 34, 6, 0, 7); c.fill();
+  c.font = '20px Graduate, serif'; c.fillStyle = '#fff'; c.fillText('REPLAY', W - 220, 41);
+  c.font = '18px VT323, monospace'; c.fillStyle = '#ffb547'; c.fillText(`${((t - sc.events[0].t) * 1000).toFixed(0).padStart(5, ' ')} ms   1/6 speed`, W - 232, 64);
+  let y = H - 24 - (sc.events.length - 1) * 26;
+  c.fillStyle = 'rgba(5,8,15,.78)'; c.fillRect(14, y - 22, 470, sc.events.length * 26 + 12);
+  for (const e of sc.events) {
+    const shown = t >= e.t - 1e-6;
+    c.font = '18px VT323, monospace'; c.fillStyle = shown ? '#ffb547' : '#4a5470';
+    c.fillText(shown ? `${(e.t - sc.events[0].t >= 0 ? '+' : '')}${((e.t - sc.events[0].t)).toFixed(3)}s` : '  ---  ', 24, y);
+    c.font = '17px "Barlow Condensed", sans-serif'; c.fillStyle = shown ? '#eef1f6' : '#4a5470'; c.fillText(e.label, 110, y);
+    y += 26;
+  }
+}
+function marginText(sc) { const ms = Math.round(Math.abs(sc.margin) * 1000); return ms + ' ms'; }
+
+/* --- force play at first --- */
+function sceneForce() {
+  const d = DF();
+  const mag = clamp(Math.abs(gauss()) * 0.055 * d.spread + 0.008, 0.006, 0.3);
+  const outFirst = Math.random() < 0.52;
+  const tCatch = 1.3, tFoot = tCatch + (outFirst ? mag : -mag);
+  const pulled = Math.random() < 0.08, bobble = !pulled && Math.random() < 0.05;
+  const tPull = tCatch - rand(0.03, 0.12);
+  const bagX = 520, v = rand(26, 29) * FT, stepT = 0.24;
+  const truth = (tCatch < tFoot && !pulled && !bobble) ? 'out' : 'safe';
+  const end = Math.max(tCatch, tFoot) + 0.6;
+  const runner = look(G.half), field = look(1 - G.half, { gloveA: true, face: -1, helmet: TEAMS[1 - G.half].color, k: 0.86 });
+  const back = J => { const o = {}; for (const k in J) o[k] = [bagX + (J[k][0] - bagX) * 0.86, GY - 13 + (J[k][1] - GY) * 0.86]; return o; };
+  const fReady = { hip: [bagX + 50, GY - 100], neck: [bagX + 44, GY - 168], head: [bagX + 36, GY - 192], fA: [bagX + 70, GY], fB: [bagX + 18, GY - 4], hA: [bagX + 10, GY - 138], hB: [bagX + 70, GY - 120] };
+  const fStretch = { hip: [bagX + 18, GY - 64], neck: [bagX - 34, GY - 118], head: [bagX - 50, GY - 136], fA: [bagX - 58, GY], fB: [bagX + 18, GY - 4], hA: [bagX - 92, GY - 120], hB: [bagX - 10, GY - 84] };
+  const ballFrom = [-60, 230], glovePt = () => fStretch.hA;
+  const sc = {
+    kind: 'force', title: 'Bang-bang at first', where: 'First base', truth, margin: tFoot - tCatch,
+    prompt: 'Out or safe at first?', note: 'Listen for the pop of the glove and watch the bag.',
+    options: [{ label: 'Out', key: 'o', val: 'out', cls: 'red' }, { label: 'Safe', key: 's', val: 'safe', cls: 'green' }],
+    end, start: 0.55,
+    events: [{ t: Math.min(tCatch, tFoot), label: tCatch < tFoot ? 'Ball arrives in the glove' : 'Runner\'s foot hits the bag' }, { t: Math.max(tCatch, tFoot), label: tCatch < tFoot ? 'Runner\'s foot hits the bag' : 'Ball arrives in the glove' }],
+    sounds: [{ t: tCatch, fn: sfx.pop }, { t: tFoot, fn: sfx.thud }],
+    draw(c, t, o = {}) {
+      sceneBG(c, 'dirt');
+      bag(c, bagX, GY);
+      // fielder (far side of the bag)
+      const s = clamp((t - (tCatch - 0.5)) / 0.4, 0, 1);
+      const J = poseLerp(fReady, fStretch, ease(s));
+      if (pulled && t > tPull) { const k = clamp((t - tPull) / 0.08, 0, 1); J.fB = [bagX + 18 + 24 * k, GY - 4 - 16 * k]; }
+      J.kA = ik(J.hip, J.fA, 52, 56, -1); J.kB = ik(J.hip, J.fB, 52, 56, -1); J.eA = ik(J.neck, J.hA, 32, 32, 1); J.eB = ik(J.neck, J.hB, 30, 30, 1);
+      const FJ = back(J);
+      fig(c, FJ, field);
+      // runner (near side), lead foot lands on the front of the bag
+      fig(c, runPose(t, tFoot, bagX - 6, v, stepT, GY - 3, 1), runner);
+      dust(c, bagX - 6, GY - 6, t - tFoot, 0.6);
+      // ball
+      const gp = FJ.hA;
+      if (t < tCatch && t > tCatch - 0.42) { const k = (t - (tCatch - 0.42)) / 0.42; sceneBall(c, lerp(ballFrom[0], gp[0], k), lerp(ballFrom[1], gp[1], k) - Math.sin(Math.PI * k) * 40, lerp(5, 6.5, k)); }
+      else if (t >= tCatch) {
+        if (bobble && t > tCatch + 0.05) { const k = t - tCatch - 0.05; sceneBall(c, gp[0] - 60 * k, Math.min(GY - 6, gp[1] - 120 * k + 600 * k * k), 6.5); }
+        else sceneBall(c, gp[0] - 2, gp[1], 5.5);
+      }
+      if (o.replay) replayHud(c, t, sc); else hudTag(c, 'PLAY AT FIRST', 'You: first base umpire');
+    }
+  };
+  sc.detail = pulled ? 'the first baseman pulled a foot off the bag' : bobble ? 'the ball came out of the glove' : '';
+  return sc;
+}
+/* --- tag play (steal of second or play at the plate) --- */
+function sceneTag(where) {
+  const d = DF(), home = where === 'home';
+  const mag = clamp(Math.abs(gauss()) * 0.05 * d.spread + 0.008, 0.006, 0.28);
+  const outFirst = Math.random() < 0.5;
+  const tTouch = 1.45, tTag = tTouch + (outFirst ? -mag : mag);
+  const whiff = Math.random() < 0.07;
+  const sweep = 0.11, tCatch = tTag - sweep;
+  const bagX = 560, v0 = 900, a = 900, slideT = 0.52;
+  const ts = tTouch - slideT;
+  const touchX = bagX - (home ? 30 : 22);
+  const slideX = tau => v0 * tau - 0.5 * a * tau * tau;
+  const dSlide = slideX(slideT);
+  const footX = t => { if (t >= tTouch) return touchX + Math.min(12, (t - tTouch) * 120); if (t >= ts) return touchX - (dSlide - slideX(t - ts)); return touchX - dSlide - (ts - t) * v0; };
+  const truth = (tTag < tTouch && !whiff) ? 'out' : 'safe';
+  const end = Math.max(tTouch, tTag) + 0.65;
+  const runner = look(G.half), field = look(1 - G.half, home ? { gloveB: false, gloveA: true, face: -1, gear: '#1c2333', shin: '#1c2333', mask: true, helmet: '#1c2333' } : { gloveA: true, face: -1 });
+  const sc = {
+    kind: home ? 'tagHome' : 'steal', title: home ? 'Play at the plate' : 'Steal of second', where: home ? 'Home plate' : 'Second base', truth, margin: tTouch - tTag,
+    prompt: home ? 'Out or safe at the plate?' : 'Out or safe at second?', note: 'Did the tag beat the foot to the bag?',
+    options: [{ label: 'Out', key: 'o', val: 'out', cls: 'red' }, { label: 'Safe', key: 's', val: 'safe', cls: 'green' }],
+    end, start: 0.55,
+    events: [{ t: Math.min(tTouch, tTag), label: tTag < tTouch ? (whiff ? 'Tag swipes past the leg' : 'Tag lands on the runner') : (home ? 'Foot touches the plate' : 'Foot touches the bag') }, { t: Math.max(tTouch, tTag), label: tTag < tTouch ? (home ? 'Foot touches the plate' : 'Foot touches the bag') : (whiff ? 'Tag swipes past the leg' : 'Tag lands on the runner') }],
+    sounds: [{ t: tCatch, fn: sfx.pop }, { t: ts + 0.05, fn: sfx.slide }, { t: tTouch, fn: sfx.thud }, { t: tTag, fn: sfx.slap }],
+    draw(c, t, o = {}) {
+      sceneBG(c, home ? 'home' : 'dirt');
+      // fielder body (behind runner)
+      const fx = bagX + 70;
+      const base = { hip: [fx, GY - 90], neck: [fx - 18, GY - 152], head: [fx - 30, GY - 172], fA: [fx - 40, GY], fB: [fx + 34, GY] };
+      const J = Object.assign({}, base);
+      const catchPt = [bagX + 10, GY - 135];
+      // runner
+      const fX = footX(t);
+      const run = tt => runPose(tt, ts - 0.12, touchX - dSlide - 0.12 * v0, v0, 0.24, GY, 1);
+      const S = { fA: [fX, GY - 6], kA: [fX - 55, GY - 24], hip: [fX - 108, GY - 30], fB: [fX - 70, GY - 6], kB: [fX - 92, GY - 40], neck: [fX - 160, GY - 70], head: [fX - 176, GY - 90], hA: [fX - 128, GY - 108], eA: [fX - 150, GY - 92], hB: [fX - 196, GY - 16], eB: [fX - 182, GY - 40] };
+      let RJ;
+      if (t < ts) RJ = run(t); else if (t < ts + 0.14) RJ = poseLerp(run(ts), S, ease((t - ts) / 0.14)); else RJ = S;
+      // tag glove path
+      let gp;
+      const legPt = [footX(tTag) - 40, GY - 22 + (whiff ? -30 : 0)];
+      if (t < tCatch) gp = lp([bagX + 40, GY - 120], catchPt, ease(clamp((t - (tCatch - 0.4)) / 0.4, 0, 1)));
+      else if (t < tTag) gp = lp(catchPt, legPt, easeIn((t - tCatch) / sweep));
+      else gp = lp(legPt, [legPt[0] + 30, legPt[1] - 50], easeOut(clamp((t - tTag - 0.08) / 0.3, 0, 1)));
+      J.hA = gp; J.hB = [gp[0] + 14, gp[1] - 6];
+      const crouch = clamp((t - tCatch + 0.1) / 0.2, 0, 1);
+      J.hip = [fx - 6 * crouch, GY - 90 + 26 * crouch]; J.neck = [fx - 30 * crouch - 18, GY - 152 + 52 * crouch]; J.head = [J.neck[0] - 14, J.neck[1] - 20];
+      J.kA = ik(J.hip, J.fA, 52, 56, -1); J.kB = ik(J.hip, J.fB, 52, 56, -1); J.eA = ik(J.neck, J.hA, 34, 34, 1); J.eB = ik(J.neck, J.hB, 32, 32, 1);
+      bag(c, bagX, GY, home);
+      fig(c, J, Object.assign({}, field, { gloveA: false }));
+      fig(c, RJ, runner);
+      dust(c, fX - 60, GY - 10, t - ts - 0.05, 1.1);
+      dust(c, bagX - 10, GY - 10, t - tTouch, 0.8);
+      // glove on top
+      c.fillStyle = '#6b4424'; c.beginPath(); c.ellipse(gp[0], gp[1], 14, 16, 0, 0, 7); c.fill(); c.fillStyle = '#4a2c15'; c.beginPath(); c.arc(gp[0], gp[1], 7, 0, 7); c.fill();
+      if (t < tCatch && t > tCatch - 0.4) { const k = (t - (tCatch - 0.4)) / 0.4; sceneBall(c, lerp(-40, catchPt[0], k), lerp(260, catchPt[1], k) - Math.sin(Math.PI * k) * 50, 6); }
+      else if (t >= tCatch) sceneBall(c, gp[0] - 3, gp[1] - 2, 5.5);
+      if (o.replay) replayHud(c, t, sc); else hudTag(c, home ? 'PLAY AT THE PLATE' : 'RUNNER GOING!', home ? 'You: home plate umpire' : 'You: second base umpire');
+    }
+  };
+  sc.detail = whiff ? 'the tag never touched the runner' : '';
+  return sc;
+}
+/* --- catch or trap --- */
+function sceneCatch() {
+  const d = DF();
+  const mag = clamp(Math.abs(gauss()) * 0.05 * d.spread + 0.012, 0.01, 0.25);
+  const caught = Math.random() < 0.5;
+  const tLand = 1.4, tGlove = tLand + (caught ? -mag : mag);
+  const Lx = 470, gy = 480;
+  const truth = caught ? 'catch' : 'nocatch';
+  const end = Math.max(tLand, tGlove) + 1.1;
+  const ft = 1 - G.half, field = look(ft, { gloveA: true, face: -1, helmet: TEAMS[ft].color });
+  const ballPos = t => { const k = (t - (tLand - 0.75)) / 0.75; return [lerp(40, Lx, k), lerp(120, gy - 7, k) - Math.sin(Math.PI * k) * 60 * (1 - k)]; };
+  const td = tGlove - 0.42;
+  const gloveP = (t, raise) => {
+    if (t < td) return null;
+    if (t < tGlove) { const k = easeOut((t - td) / (tGlove - td)); return [lerp(Lx + 190, Lx + 6, k), lerp(gy - 118, gy - 9, k)]; }
+    const k = clamp((t - tGlove) / 0.25, 0, 1), g = [Lx + 6 - 26 * easeOut(k), gy - 9];
+    if (raise && t > tGlove + 0.6) { const u = easeOut(clamp((t - tGlove - 0.6) / 0.3, 0, 1)); return [g[0] + 14 * u, g[1] - 74 * u]; }
+    return g;
+  };
+  const sc = {
+    kind: 'catch', title: 'Sinking liner', where: 'Outfield', truth, margin: tLand - tGlove,
+    prompt: 'Catch or no catch?', note: 'Did the glove get under it before it hit the grass?',
+    options: [{ label: 'Catch', key: 'c', val: 'catch', cls: 'red' }, { label: 'No catch', key: 'n', val: 'nocatch', cls: 'green' }],
+    end, start: 0.4,
+    events: [{ t: Math.min(tLand, tGlove), label: caught ? 'Glove gets under the ball' : 'Ball hits the grass' }, { t: Math.max(tLand, tGlove), label: caught ? 'Ball would have reached the grass' : 'Glove reaches the ball' }],
+    sounds: [{ t: Math.min(tLand, tGlove) + 0.01, fn: sfx.pop }, { t: tGlove + 0.05, fn: sfx.slide }],
+    draw(c, t, o = {}) {
+      sceneBG(c, 'grass');
+      // fielder
+      let J;
+      const gpp = gloveP(t, true), gb = gloveP(t, false);
+      if (!gpp) { const v = 24 * FT, L = v * 0.25; J = mirrorJ(runPose(t, td, -(Lx + 250) + 0.2 * L, v, 0.25, gy, 1), 0); }
+      else {
+        const k = clamp((t - td) / 0.2, 0, 1), g = gb;
+        const sh = [g[0] + 62, g[1] - 16 + 10 * (1 - k)], hip = [sh[0] + 70, sh[1] - 4 - 26 * (1 - k)];
+        J = { hA: g, eA: [g[0] + 30, g[1] - 12], neck: sh, head: [sh[0] - 14, sh[1] - 22], hip, hB: [sh[0] + 10, sh[1] + 14], eB: [sh[0] + 6, sh[1] + 6], kA: [hip[0] + 50, hip[1] - 12 - 20 * (1 - k)], fA: [hip[0] + 100, hip[1] - 26 - 30 * (1 - k)], kB: [hip[0] + 46, hip[1] + 6], fB: [hip[0] + 96, hip[1] - 6] };
+        if (t > tGlove) { const lk = clamp((t - tGlove) / 0.12, 0, 1); for (const kk of ['neck', 'head', 'hip', 'kA', 'fA', 'kB', 'fB', 'eB', 'hB']) J[kk] = [J[kk][0], J[kk][1] + 10 * lk]; }
+        J.hA = gpp; J.eA = ik(J.neck, gpp, 34, 34, -1);
+      }
+      fig(c, J, Object.assign({}, field, { gloveA: !!gpp }));
+      if (!gpp) { c.fillStyle = '#6b4424'; c.beginPath(); c.arc(J.hA[0], J.hA[1], 12, 0, 7); c.fill(); }
+      // ball
+      let bp;
+      if (t < tLand - 0.75) bp = null;
+      else if (caught) {
+        const tIn = tLand - 0.012;
+        if (t < tIn) bp = ballPos(t); else if (gpp) bp = [gpp[0] - 2, gpp[1] - 4];
+      } else {
+        if (t < tLand) bp = ballPos(t);
+        else if (t < tGlove) { const k = (t - tLand) / (tGlove - tLand); bp = [Lx + 5 * k, gy - 7 - Math.sin(Math.PI * k) * 9]; }
+        else if (gpp) bp = [gpp[0] - 2, gpp[1] - 4];
+        if (t > tLand) { const age = t - tLand; if (age < 0.5) { for (let i = 0; i < 6; i++) { c.fillStyle = `rgba(60,140,70,${0.8 * (1 - age / 0.5)})`; c.fillRect(Lx - 6 + i * 3, gy - 4 - age * 40 * (0.5 + i % 3 * 0.3), 2, 4); } c.fillStyle = `rgba(110,80,50,${0.6 * (1 - age / 0.5)})`; c.beginPath(); c.ellipse(Lx, gy - 2, 6 + age * 20, 2.5, 0, 0, 7); c.fill(); } }
+      }
+      if (bp) { if (bp[1] < gy - 10) { c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(bp[0], gy - 1, 6, 2, 0, 0, 7); c.fill(); } sceneBall(c, bp[0], bp[1], 6); }
+      // grass tufts in front
+      c.fillStyle = '#2f8a45'; for (let x = Lx - 90; x < Lx + 140; x += 7) { const h = 4 + ((x * 7) % 5); c.fillRect(x, gy - h + 4, 2, h); }
+      if (o.replay) replayHud(c, t, sc); else hudTag(c, 'DIVING!', 'You: second base umpire, going out');
+    }
+  };
+  return sc;
+}
+/* --- fair or foul, looking straight down the line --- */
+function sceneFairFoul(owner) {
+  const d = DF();
+  const PX = 5; // px per inch
+  const lineHalf = 2, ballR = 1.45;
+  const thr = lineHalf + ballR;
+  const off = thr + clamp(gauss() * 1.4 * d.spread, -4, 4);   // inches of ball centre past the line's centre, toward foul
+  const right = Math.random() < 0.5; // which foul line
+  const fairDir = right ? -1 : 1; // screen direction of fair territory
+  const lineX = 480;
+  const landX = lineX - fairDir * off * PX;
+  const landY = 330, tLand = 1.3;
+  const truth = Math.abs(off) <= thr || off < 0 ? 'fair' : 'foul';
+  const touches = Math.abs(off) <= thr;
+  const end = tLand + 0.9;
+  const sc = {
+    kind: 'fairfoul', title: 'Down the line', where: right ? 'Right-field line' : 'Left-field line', truth, margin: (off - thr) / 12, unit: 'in',
+    prompt: 'Fair or foul?', note: 'Any part of the ball on the chalk is fair.',
+    options: [{ label: 'Fair', key: 'f', val: 'fair', cls: 'green' }, { label: 'Foul', key: 'x', val: 'foul', cls: 'red' }],
+    end, start: 0.5,
+    events: [{ t: tLand, label: touches ? 'Ball lands touching the chalk' : (truth === 'fair' ? 'Ball lands inside the line' : 'Ball lands outside the line') }],
+    offIn: off - thr,
+    sounds: [{ t: tLand, fn: sfx.thud }],
+    draw(c, t, o = {}) {
+      c.fillStyle = '#245f33'; c.fillRect(0, 0, W, H);
+      for (let i = -6; i < 12; i++) { c.fillStyle = i % 2 ? '#2a6c3b' : '#22592f'; c.beginPath(); c.moveTo(i * 120, 0); c.lineTo(i * 120 + 60, 0); c.lineTo(i * 120 + 260, H); c.lineTo(i * 120 + 200, H); c.fill(); }
+      for (let i = 0; i < 500; i++) { const x = (i * 97) % W, y = (i * 61) % H; c.fillStyle = 'rgba(20,60,30,.35)'; c.fillRect(x, y, 2, 3); }
+      c.fillStyle = '#f4f4ee'; c.fillRect(lineX - lineHalf * PX, 0, lineHalf * 2 * PX, H);
+      c.fillStyle = 'rgba(0,0,0,.08)'; for (let y = 0; y < H; y += 9) c.fillRect(lineX - lineHalf * PX + ((y * 13) % 17), y, 3, 2);
+      c.font = '24px Graduate, serif'; c.fillStyle = 'rgba(255,255,255,.28)'; c.textAlign = 'center';
+      c.fillText('FAIR', lineX + fairDir * 220, 90); c.fillText('FOUL', lineX - fairDir * 220, 90); c.textAlign = 'left';
+      // landing mark
+      if (t > tLand) {
+        const age = t - tLand;
+        if (touches) { for (let i = 0; i < 14; i++) { const a = i / 14 * 6.28; const r = 6 + age * 70; c.fillStyle = `rgba(255,255,255,${0.7 * Math.max(0, 1 - age / 0.8)})`; c.beginPath(); c.arc(landX + Math.cos(a) * r, landY + Math.sin(a) * r * 0.7, 3 + age * 6, 0, 7); c.fill(); } }
+        c.fillStyle = touches ? 'rgba(255,255,255,.55)' : 'rgba(40,25,10,.45)'; c.beginPath(); c.ellipse(landX, landY, ballR * PX * 1.1, ballR * PX * 0.8, 0, 0, 7); c.fill();
+      }
+      // ball + shadow
+      let gx, gyy, h;
+      if (t < tLand) { const k = clamp((t - (tLand - 1.0)) / 1.0, 0, 1); gx = lerp(landX + fairDir * 60, landX, k); gyy = lerp(H + 80, landY, k); h = (1 - k) * 260; }
+      else { const k = (t - tLand) / 0.9; gx = landX - fairDir * 8 * k * 10; gyy = landY - k * 420; h = Math.sin(Math.PI * Math.min(1, k)) * 70; }
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(gx, gyy, ballR * PX, ballR * PX * 0.6, 0, 0, 7); c.fill();
+      sceneBall(c, gx, gyy - h * 0.6, ballR * PX * (1 + h / 500));
+      if (o.replay) { replayHud(c, t, sc); if (t >= tLand) { c.strokeStyle = '#ffb547'; c.lineWidth = 2; c.beginPath(); c.arc(landX, landY, ballR * PX + 6, 0, 7); c.stroke(); } }
+      else hudTag(c, 'DOWN THE LINE', owner === 'plate' ? 'You: plate umpire, straddling the line' : 'You: base umpire, straddling the line');
+    }
+  };
+  return sc;
+}
+
+/* ================= pitch tracker graphics ================= */
+function drawKZone(c, x, y, w, p, callV, big) {
+  const ppf = w / 3.2; // pixels per foot
+  const cx = x + w / 2, zb = y + w * 1.15;
+  const toS = (px, pz) => [cx + px * ppf, zb - (pz - p.zone.b + 0.55) * ppf];
+  c.fillStyle = 'rgba(5,8,15,.82)'; c.fillRect(x, y, w, w * 1.32);
+  const a = toS(-HALF, p.zone.t), b = toS(HALF, p.zone.b);
+  c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = big ? 2.5 : 1.5; c.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+  c.strokeStyle = 'rgba(255,255,255,.2)'; c.lineWidth = 1;
+  for (let i = 1; i < 3; i++) { c.beginPath(); c.moveTo(lerp(a[0], b[0], i / 3), a[1]); c.lineTo(lerp(a[0], b[0], i / 3), b[1]); c.moveTo(a[0], lerp(a[1], b[1], i / 3)); c.lineTo(b[0], lerp(a[1], b[1], i / 3)); c.stroke(); }
+  const pt = toS(p.px, p.pz);
+  c.fillStyle = p.strike ? '#e5483c' : '#45a8ff'; c.beginPath(); c.arc(pt[0], pt[1], BR * ppf, 0, 7); c.fill();
+  c.strokeStyle = '#fff'; c.lineWidth = 1; c.stroke();
+  c.font = (big ? 22 : 15) + 'px VT323, monospace'; c.fillStyle = '#c6cfe0'; c.textAlign = 'center';
+  c.fillText(`${p.mph.toFixed(0)} ${p.typeKey}`, cx, y + w * 1.32 - (big ? 12 : 8));
+  c.textAlign = 'left';
+}
+function trackerOverlay(p, callV, correct) {
+  overlay((c, age, life) => {
+    c.globalAlpha = Math.min(1, (life - age) * 3, age * 6);
+    drawKZone(c, W - 170, 120, 150, p, callV);
+    c.font = '18px Graduate, serif'; c.fillStyle = correct ? '#33c27a' : '#e5483c'; c.textAlign = 'center';
+    c.fillText(correct ? 'GOOD CALL' : 'MISSED', W - 95, 112); c.textAlign = 'left';
+  }, 2.2);
+}
+function banner(text, sub, col = '#ffb547', life = 1.4, size = 64) {
+  overlay((c, age) => {
+    const k = Math.min(1, age * 8), a = Math.min(1, (life - age) * 4);
+    c.globalAlpha = a; c.textAlign = 'center';
+    c.font = `${Math.round(size * (1.25 - 0.25 * k))}px Graduate, serif`;
+    c.lineWidth = 8; c.strokeStyle = 'rgba(5,8,15,.85)'; c.strokeText(text, 480, 300); c.fillStyle = col; c.fillText(text, 480, 300);
+    if (sub) { c.font = '24px "Barlow Condensed", sans-serif'; c.lineWidth = 5; c.strokeText(sub, 480, 338); c.fillStyle = '#eef1f6'; c.fillText(sub, 480, 338); }
+    c.textAlign = 'left';
+  }, life);
+}
+function heckle(text) {
+  const x = rand(140, 820), y = rand(150, 240), tilt = rand(-0.08, 0.08);
+  overlay((c, age, life) => {
+    c.globalAlpha = Math.min(1, (life - age) * 2); c.translate(x, y - age * 30); c.rotate(tilt);
+    c.font = '22px "Barlow Condensed", sans-serif'; const w = c.measureText(text).width + 24;
+    c.fillStyle = 'rgba(250,250,245,.95)'; c.beginPath(); c.roundRect ? c.roundRect(-w / 2, -20, w, 34, 8) : c.rect(-w / 2, -20, w, 34); c.fill();
+    c.beginPath(); c.moveTo(-8, 14); c.lineTo(4, 14); c.lineTo(-10, 28); c.fill();
+    c.fillStyle = '#1a1205'; c.textAlign = 'center'; c.fillText(text, 0, 4); c.textAlign = 'left';
+  }, 2.4);
+}
+const HECKLES_PITCH = ['YOU MISSED IT, BLUE!', 'GET SOME GLASSES!', 'THAT WAS A FOOT OFF!', 'CALL IT BOTH WAYS!', 'C’MON, UMP!', 'IS YOUR MASK ON BACKWARDS?', 'THE ROBOTS ARE CALLING!', 'OPEN YOUR EYES!', 'WHAT GAME ARE YOU WATCHING?'];
+const HECKLES_BASE = ['BEAT IT BY A STEP!', 'GET SOME GLASSES!', 'YOU’RE OUT OF POSITION, BLUE!', 'WATCH THE REPLAY!', 'NOT EVEN CLOSE!', 'C’MON, UMP!'];
+
+/* ================= game state ================= */
+let G = null;
+function newGame() {
+  const rosters = makeRosters();
+  G = {
+    innings: opts.innings, inning: 1, half: 0, outs: 0, balls: 0, strikes: 0, bases: [0, 0, 0],
+    score: [0, 0], line: [[], []], hits: [0, 0], bat: [0, 0], rosters,
+    pitcher: [rosters[0].sp, rosters[1].sp], pcount: [0, 0], penUsed: [0, 0],
+    abs: [2, 2], replay: [1, 1], frust: [0, 0], ejected: [false, false], over: false, walkoff: false,
+    mood: 72, lastAgainst: null,
+    st: { pitch: { n: 0, ok: 0 }, base: { n: 0, ok: 0 }, missed: [], overturned: 0, confirmed: 0, slow: 0, times: [], ej: 0, badEj: 0, challenged: 0, pitches: 0 }
+  };
+}
+const owns = who => opts.role === 'crew' || opts.role === who;
+const bt = () => G.half, ftm = () => 1 - G.half;
+const innLabel = () => `${G.half ? 'B' : 'T'}${G.inning}`;
+const batter = () => G.rosters[G.half].bats[G.bat[G.half]];
+
+/* ================= HUD ================= */
+function renderBoard() {
+  const n = Math.max(G ? G.innings : opts.innings, G ? G.inning : 1);
+  let h = '<tr><th></th>'; for (let i = 1; i <= n; i++) h += `<th>${i}</th>`; h += '<th>R</th><th>H</th></tr>';
+  for (const tm of [0, 1]) {
+    h += `<tr class="${G && G.half === tm && !G.over ? 'batting' : ''}"><td class="tm">${TEAMS[tm].abbr}</td>`;
+    for (let i = 1; i <= n; i++) {
+      const v = G ? G.line[tm][i - 1] : undefined, now = G && !G.over && G.inning === i && G.half === tm;
+      h += `<td class="${now ? 'now' : ''}">${v === undefined ? (G && (i < G.inning || (i === G.inning && tm < G.half)) ? 'X' : '') : v}</td>`;
+    }
+    h += `<td class="rhe">${G ? G.score[tm] : 0}</td><td class="rhe">${G ? G.hits[tm] : 0}</td></tr>`;
+  }
+  $('#ls').innerHTML = h;
+  const dots = (el, n, on, cls) => { el.innerHTML = Array.from({ length: n }, (_, i) => `<span class="dot ${i < on ? cls : ''}"></span>`).join(''); };
+  dots($('#cb'), 3, G ? G.balls : 0, 'b'); dots($('#cs'), 2, G ? G.strikes : 0, 's'); dots($('#co'), 2, G ? G.outs : 0, 'o');
+  ['b1', 'b2', 'b3'].forEach((id, i) => { $('#' + id).setAttribute('fill', G && G.bases[i] ? '#ffb547' : '#1d2538'); $('#' + id).setAttribute('stroke', '#3a4560'); });
+  if (G) {
+    const b = batter(), p = G.pitcher[ftm()], z = [b.ht * 0.27 * 12, b.ht * 0.535 * 12];
+    $('#matchup').innerHTML = `<span>Pitching: <b>${p.name}</b> (${p.hand}HP, ${TEAMS[ftm()].nick}) · ${G.pcount[ftm()]} pitches</span><span>At bat: <b>${b.name}</b> (bats ${b.hand}, ${Math.floor(b.ht)}'${Math.round((b.ht % 1) * 12)}") · ABS zone ${z[0].toFixed(1)}–${z[1].toFixed(1)} in.</span>`;
+  }
+}
+function renderCrew() {
+  const where = { plate: 'Home plate umpire', base: 'Base umpire', crew: 'Working the whole crew' }[opts.role];
+  $('#where').textContent = `${where} · ${DF().label}`;
+  if (!G) return;
+  const s = G.st, n = s.pitch.n + s.base.n, okc = s.pitch.ok + s.base.ok;
+  $('#acc').textContent = n ? (okc / n * 100).toFixed(1) : '--';
+  $('#acc-sub').textContent = n ? `${okc} of ${n} calls` : 'no calls yet';
+  $('#k-pitch').textContent = `${s.pitch.ok} / ${s.pitch.n}`; $('#k-base').textContent = `${s.base.ok} / ${s.base.n}`;
+  $('#k-over').textContent = s.overturned; $('#k-ej').textContent = s.ej;
+  const m = (id, v, inv) => { const el = $('#' + id); el.style.width = clamp(v, 2, 100) + '%'; const bad = inv ? v > 66 : v < 34, mid = inv ? v > 40 : v < 60; el.style.background = bad ? 'var(--strike)' : mid ? 'var(--warn)' : 'var(--safe)'; };
+  m('m-crowd', G.mood); $('#m-crowd-t').textContent = G.mood > 70 ? 'calm' : G.mood > 45 ? 'restless' : G.mood > 25 ? 'angry' : 'furious';
+  m('m-away', G.frust[0], true); m('m-home', G.frust[1], true);
+  $('#m-away-t').textContent = G.ejected[0] ? 'tossed' : Math.round(G.frust[0]); $('#m-home-t').textContent = G.ejected[1] ? 'tossed' : Math.round(G.frust[1]);
+  $('#m-away-l').textContent = TEAMS[0].nick; $('#m-home-l').textContent = TEAMS[1].nick;
+  $('#c-away-n').textContent = TEAMS[0].abbr; $('#c-home-n').textContent = TEAMS[1].abbr;
+  const pips = (el, left, max) => { el.innerHTML = Array.from({ length: max }, (_, i) => `<span class="pip ${i < left ? '' : 'used'}"></span>`).join(''); };
+  pips($('#c-away-abs'), G.abs[0], Math.max(2, G.abs[0])); pips($('#c-home-abs'), G.abs[1], Math.max(2, G.abs[1]));
+  pips($('#c-away-rep'), G.replay[0], 1); pips($('#c-home-rep'), G.replay[1], 1);
+}
+function renderAll() { renderBoard(); renderCrew(); }
+function log(text, cls = '') {
+  const li = document.createElement('li'); li.className = cls;
+  li.innerHTML = `<span class="inn">${G ? innLabel() : ''}</span>${text}`;
+  const ol = $('#log'); ol.prepend(li); while (ol.children.length > 80) ol.lastChild.remove();
+}
+
+/* ================= calls / input ================= */
+let pending = null;
+function setPrompt(text, sub) { $('#prompt').innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`; }
+function clearButtons(msg) { $('#btns').innerHTML = msg ? `<span class="waiting">${msg}</span>` : ''; }
+function ask(text, sub, options, o = {}) {
+  setPrompt(text, sub);
+  const box = $('#btns'); box.innerHTML = '';
+  return new Promise(res => {
+    const done = val => { if (!pending) return; const ms = (stage.time - pending.at) * 1000; pending = null; clearButtons(); res({ val, ms }); };
+    pending = { options, done, at: stage.time, nag: !!o.nag, nagged: false };
+    for (const op of options) {
+      const b = document.createElement('button'); b.className = `call ${op.cls || ''}`; b.type = 'button';
+      b.innerHTML = `${op.label}${op.key ? ` <kbd>${op.key.toUpperCase()}</kbd>` : ''}`;
+      b.addEventListener('click', () => done(op.val)); box.appendChild(b);
+    }
+    if (TEST) { const want = o.truth && Math.random() < 0.85 ? o.truth : pick(options).val; setTimeout(() => done(want), 5); }
+  });
+}
+addEventListener('keydown', e => {
+  if (!pending || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase(); const op = pending.options.find(o => o.key === k);
+  if (op) { e.preventDefault(); pending.done(op.val); }
+});
+
+/* ================= crowd + dugout reactions ================= */
+function react(hurt, correct, close, kindWord) {
+  // hurt: team index the call went against. The crowd is the home team's.
+  if (hurt === 1) {
+    if (!correct) { sfx.boo(1, 2.8); stage.mood = 'boo'; stage.moodT = 2.6; stage.excite = 1; heckle(pick(kindWord === 'pitch' ? HECKLES_PITCH : HECKLES_BASE)); setBoard('BOOOOO', 'THE FANS DISAGREE', 2.6, '#e5483c', true); }
+    else if (close) { sfx.boo(0.4, 1.4); stage.mood = 'boo'; stage.moodT = 1.2; stage.excite = 0.5; }
+  } else {
+    if (!correct) { sfx.cheer(0.45, 1.3); stage.mood = 'cheer'; stage.moodT = 1.2; stage.excite = 0.6; if (Math.random() < 0.6) heckle(`${TEAMS[0].nick.toUpperCase()} DUGOUT: ` + pick(['NO WAY!', 'TERRIBLE!', 'COME ON!'])); }
+    else if (close) { sfx.cheer(0.3, 1); stage.mood = 'cheer'; stage.moodT = 1; stage.excite = 0.4; }
+  }
+}
+function judge(kind, correct, close, desc, hurt) {
+  const s = G.st, bucket = kind === 'pitch' ? s.pitch : s.base;
+  bucket.n++; if (correct) bucket.ok++;
+  if (!correct) s.missed.push({ inn: `${G.half ? 'Bottom' : 'Top'} ${ord(G.inning)}`, desc });
+  G.mood = clamp(G.mood + (correct ? (close ? 2 : 0.6) : (hurt === 1 ? -12 : -5)), 0, 100);
+}
+function frustrate(team, correct, close, kind) {
+  if (!correct) G.frust[team] = clamp(G.frust[team] + (kind === 'pitch' ? 34 : 44), 0, 100);
+  else if (close) G.frust[team] = clamp(G.frust[team] + 6, 0, 100);
+  G.lastAgainst = { team, correct, kind };
+}
+async function maybeArgue() {
+  const la = G.lastAgainst; if (!la) return;
+  const team = la.team, thr = G.ejected[team] ? 92 : 74;
+  if (G.frust[team] < thr) return;
+  const who = G.ejected[team] ? `${TEAMS[team].nick} bench coach` : `${TEAMS[team].nick} manager ${TEAMS[team].mgr}`;
+  const bs = la.kind === 'pitch';
+  banner('HERE COMES THE SKIPPER', who, '#f2c14e', 1.6, 44);
+  setBoard('UH OH', 'MANAGER ON THE FIELD', 4, '#f2c14e');
+  sfx.boo(0.25, 1.5); stage.excite = 0.6;
+  await wait(900);
+  const r = await ask(`${who} wants a word.`, bs ? 'Arguing balls and strikes is an automatic ejection in the rulebook.' : 'You can listen, walk away, or run them.', [
+    { label: 'Hear them out', key: '1', val: 'listen', cls: 'plain' },
+    { label: 'Walk away', key: '2', val: 'walk', cls: 'plain' },
+    { label: 'Eject', key: '3', val: 'eject', cls: 'amber' }
+  ]);
+  if (r.val === 'listen') { G.frust[team] -= 45; log(`You let ${who} vent. Play resumes.`); G.mood = clamp(G.mood + 2, 0, 100); }
+  else if (r.val === 'walk') { G.frust[team] -= 22; log(`You turn your back on ${who}.`); if (Math.random() < 0.4) { heckle('DON’T WALK AWAY FROM ME!'); G.frust[team] += 10; } }
+  else {
+    G.st.ej++; G.ejected[team] = true; G.frust[team] = 12;
+    const deserved = bs || la.correct;
+    if (!deserved) G.st.badEj++;
+    banner('YOU’RE GONE!', `${who} is ejected`, '#f2c14e', 1.8, 54); say('You\'re gone!', 0.6, 1);
+    if (team === 1) { sfx.boo(1, 3); stage.mood = 'boo'; stage.moodT = 2.8; stage.excite = 1; G.mood = clamp(G.mood - 10, 0, 100); }
+    else { sfx.cheer(0.9, 2.2); stage.mood = 'cheer'; stage.moodT = 2; stage.excite = 0.9; G.mood = clamp(G.mood + 4, 0, 100); }
+    log(`Ejection: ${who} is tossed${deserved ? '' : ' after a call you missed'}.`, 'big');
+    await wait(1600);
+  }
+  G.frust[team] = clamp(G.frust[team], 0, 100);
+  renderCrew();
+}
+
+/* ================= pitch generation ================= */
+function zoneFor(b) { return { b: b.ht * 0.27, t: b.ht * 0.535 }; }
+function edgeIn(px, pz, z) { // + = inches outside (ball misses entirely), - = inches inside
+  const dx = Math.abs(px) - (HALF + BR), dt = pz - (z.t + BR), db = (z.b - BR) - pz;
+  const out = Math.max(dx, dt, db);
+  if (out > 0) return Math.hypot(Math.max(dx, 0), Math.max(dt, db, 0)) * 12;
+  return out * 12;
+}
+function genPitch(pit, b) {
+  const z = zoneFor(b), d = DF();
+  const keys = ['FF', 'FF', 'FF', 'SI', 'SL', 'SL', 'CU', 'CH', 'CH'];
+  const tk = pick(keys), ty = PT[tk];
+  const mph = pit.velo + ty.dv + gauss() * 0.8;
+  let tx, tz; const r = Math.random(); const edge = d.edge * (G.balls === 3 ? 0.7 : 1);
+  if (r < edge) {
+    const e = randi(0, 3);
+    if (e < 2) { tx = (e ? 1 : -1) * (HALF + BR * 0.4); tz = rand(z.b, z.t); }
+    else if (e === 2) { tz = z.t + BR * 0.4; tx = rand(-HALF, HALF); }
+    else { tz = z.b - BR * 0.3; tx = rand(-HALF, HALF); }
+  } else if (r < edge + 0.3 + (G.balls === 3 ? 0.15 : 0)) { tx = rand(-0.45, 0.45); tz = rand(z.b + 0.3, z.t - 0.3); }
+  else if (Math.random() < 0.5) { tx = pick([-1, 1]) * rand(1.0, 1.7); tz = rand(z.b - 0.6, z.t + 0.4); }
+  else { tx = rand(-0.9, 0.9); tz = z.b - rand(0.35, 1.1); }
+  const sd = pit.ctrl / 12 * (r < edge ? 0.55 : 1);
+  const px = tx + gauss() * sd, pz = clamp(tz + gauss() * sd, 0.4, 5.2);
+  const side = b.hand === 'R' ? -1 : 1, hs = pit.hand === 'R' ? 1 : -1;
+  const T = 54 / (mph * 1.4667) * d.slow;
+  const dist = edgeIn(px, pz, z);
+  const toward = Math.hypot(px, pz - (z.b + z.t) / 2) || 1;
+  const fr = d.framing * (Math.abs(dist) < 3 ? 0.22 : 0.06);
+  return {
+    side, ft: ftm(), bt: bt(), ph: pit.hand, ht: b.ht, zone: z, px, pz, dist, strike: dist <= 0, mph, type: ty, typeKey: tk,
+    rel: { x: -hs * 1.6, y: 54.5, z: 5.9 }, brk: { x: ty.hb * hs * (1 + gauss() * 0.1), z: ty.vb }, tr: 1.15, T, slow: d.slow,
+    target: { x: tx * 0.8, z: (tz + (z.b + z.t) / 2) / 2 },
+    frame: { x: -px / toward * fr, z: -(pz - (z.b + z.t) / 2) / toward * fr }
+  };
+}
+function decide(p, b) {
+  const d = p.dist;
+  let sw = d <= 0 ? 0.66 : Math.max(0.03, 0.42 - d * 0.06);
+  if (G.strikes === 2) sw += d <= 0 ? 0.2 : 0.12;
+  if (G.balls === 3 && G.strikes < 2) sw *= 0.55;
+  if (G.balls === 0 && G.strikes === 0) sw *= 0.82;
+  sw /= b.eye;
+  if (Math.random() >= sw) return { type: 'take' };
+  if (d > 0 && Math.random() < 0.24) return { type: 'check', depth: clamp(0.5 + gauss() * 0.15, 0.18, 0.85) };
+  const cp = (d <= 0 ? 0.85 : Math.max(0.25, 0.62 - d * 0.04)) * b.contact;
+  if (Math.random() > cp) return { type: 'swing', result: 'miss' };
+  return { type: 'swing', result: Math.random() < 0.45 ? 'foul' : 'play' };
+}
+
+/* ================= the game loop ================= */
+async function runGame() {
+  newGame(); renderAll();
+  $('#log').innerHTML = '';
+  log(`${TEAMS[0].name} at ${TEAMS[1].name}, ${G.innings} innings. You're the ${{ plate: 'home plate umpire', base: 'base umpire', crew: 'whole crew' }[opts.role]}.`, 'big');
+  setBoard('PLAY BALL', `${TEAMS[0].abbr} AT ${TEAMS[1].abbr}`, 3);
+  while (!G.over) await halfInning();
+  await endGame();
+}
+async function halfInning() {
+  G.outs = 0; G.balls = 0; G.strikes = 0; G.bases = [0, 0, 0];
+  G.line[G.half][G.inning - 1] = 0;
+  G.frust = G.frust.map(f => Math.max(0, f - 10));
+  if (G.inning > G.innings) { G.bases[1] = 1; log('Extra innings: automatic runner placed on second.'); }
+  renderAll();
+  if (G.inning === 7 && G.half === 1 && G.innings === 9) { banner('SEVENTH-INNING STRETCH', 'Everybody up', '#ffb547', 3.2, 40); setBoard('STRETCH', 'SING ALONG', 5); sfx.organ(STRETCH, 0.3); stage.excite = 0.6; await wait(3400); }
+  banner(`${G.half ? 'BOTTOM' : 'TOP'} OF THE ${ord(G.inning).toUpperCase()}`, `${TEAMS[G.half].name} batting`, '#ffb547', 1.6, 46);
+  clearButtons('Teams changing sides');
+  setPrompt(`${G.half ? 'Bottom' : 'Top'} of the ${ord(G.inning)}`, `${TEAMS[G.half].nick} batting, ${TEAMS[1 - G.half].nick} in the field.`);
+  await wait(1700);
+  while (G.outs < 3 && !G.over) await plateAppearance();
+  if (G.over) return;
+  log(`End of the ${G.half ? 'bottom' : 'top'} of the ${ord(G.inning)}: ${TEAMS[0].abbr} ${G.score[0]}, ${TEAMS[1].abbr} ${G.score[1]}.`);
+  if (G.half === 0) {
+    if (G.inning >= G.innings && G.score[1] > G.score[0]) { G.over = true; return; }
+    G.half = 1;
+  } else {
+    if (G.inning >= G.innings && G.score[0] !== G.score[1]) { G.over = true; return; }
+    G.half = 0; G.inning++;
+  }
+}
+function addRuns(n, how) {
+  if (n <= 0) return;
+  G.score[G.half] += n; G.line[G.half][G.inning - 1] = (G.line[G.half][G.inning - 1] || 0) + n;
+  if (G.half === 1) { sfx.cheer(1, 2.6); stage.mood = 'cheer'; stage.moodT = 2.4; stage.excite = 1; setBoard(n > 1 ? `${n} RUNS SCORE` : 'RUN SCORES', how || '', 3, '#ffb547', true); }
+  if (G.half === 1 && G.inning >= G.innings && G.score[1] > G.score[0]) { G.over = true; G.walkoff = true; }
+  renderBoard();
+}
+function forceAdvance() { const b = G.bases; let runs = 0; if (b[0]) { if (b[1]) { if (b[2]) runs++; b[2] = 1; } b[1] = 1; } b[0] = 1; return runs; }
+function advanceAll(n) { let runs = 0; const nb = [0, 0, 0]; for (let i = 2; i >= 0; i--) if (G.bases[i]) { if (i + n >= 3) runs++; else nb[i + n] = 1; } if (n >= 4) runs++; else nb[n - 1] = 1; G.bases = nb; return runs; }
+function outRec(n = 1) { G.outs = Math.min(3, G.outs + n); renderBoard(); }
+
+async function plateAppearance() {
+  const b = batter();
+  G.balls = 0; G.strikes = 0; renderAll();
+  // bullpen
+  const ft = ftm();
+  if (G.pcount[ft] > rand(88, 104) && G.penUsed[ft] < 3) {
+    const np = G.rosters[ft].pen[G.penUsed[ft]++]; G.pitcher[ft] = np; G.pcount[ft] = 0;
+    log(`Pitching change: ${np.name} in for the ${TEAMS[ft].nick}.`); banner('PITCHING CHANGE', `${np.name} (${np.hand}HP)`, '#ffb547', 1.6, 40);
+    renderAll(); await wait(1600);
+  }
+  if (G.half === 1 && (G.bases[1] || G.bases[2]) && Math.random() < 0.3) { sfx.organ(CHARGE, 0.16); setBoard('CHARGE!', 'MAKE SOME NOISE', 2.5, '#ffb547', true); stage.excite = 0.8; }
+  clearButtons('Pitcher is set');
+  setPrompt(`${b.name} steps in`, `${TEAMS[G.half].nick}, bats ${b.hand === 'R' ? 'right' : 'left'}-handed.`);
+  while (!G.over) {
+    if (G.bases[0] && !G.bases[1] && Math.random() < 0.055) {
+      await stealPlay(); renderAll();
+      if (G.outs >= 3) return; // batter leads off next inning
+    }
+    const r = await doPitch(b);
+    renderAll();
+    if (r === 'done') { G.bat[G.half] = (G.bat[G.half] + 1) % 9; await maybeArgue(); return; }
+    await maybeArgue();
+  }
+}
+
+async function doPitch(b) {
+  const ft = ftm(), pit = G.pitcher[ft];
+  G.pcount[ft]++; G.st.pitches++;
+  const p = genPitch(pit, b); p.act = decide(p, b);
+  const mine = owns('plate');
+  const tp = p.tr + p.T, tc = p.tr + p.T * 1.036;
+  const bip = p.act.type === 'swing' && p.act.result !== 'miss';
+  if (bip) {
+    const res = p.act.result;
+    if (res === 'foul') p.land = [pick([-1, 1]) * rand(35, 80), rand(10, 50), 0, rand(18, 40)];
+    else {
+      p.bip = bipKind(b);
+      p.land = { hr: [rand(-120, 120), 420, 30, 90], gb: [rand(-50, 50), rand(90, 125), 0, 1.5], ld: [rand(-140, 140), rand(150, 250), 2, 14], fb: [rand(-160, 160), rand(220, 320), 4, 70], pu: [rand(-30, 30), rand(30, 90), 3, 85] }[p.bip];
+    }
+  }
+  const events = [];
+  if (bip) events.push({ t: tp, fn: p.act.result === 'foul' ? sfx.foul : sfx.crack }); else events.push({ t: tc, fn: sfx.pop });
+  const end = bip ? tp + (p.act.result === 'foul' ? 0.5 : 0.9) : tc + 0.32;
+  clearButtons(mine ? 'Watch the pitch' : 'The plate umpire has this one');
+  await playClip((c, t) => drawPitchView(c, t, p), { from: 0, to: end, speed: mine ? 1 : 3, events });
+
+  if (p.act.type === 'take' || p.act.type === 'check') {
+    const check = p.act.type === 'check';
+    const truth = check ? (p.act.depth >= 0.5 ? 'strike' : 'ball') : (p.strike ? 'strike' : 'ball');
+    const close = check ? Math.abs(p.act.depth - 0.5) < 0.12 : Math.abs(p.dist) < 1.6;
+    let call;
+    if (mine) {
+      const r = await ask(check ? 'Check swing. Did the bat go around?' : 'Your call', check ? 'If the barrel passed the front of the plate, it\'s a strike.' : `${p.mph.toFixed(0)} mph ${p.type.n.toLowerCase()} · count ${G.balls}-${G.strikes}`,
+        check ? [{ label: 'Swung · Strike', key: 's', val: 'strike', cls: 'red' }, { label: 'Held up · Ball', key: 'b', val: 'ball', cls: 'blue' }]
+              : [{ label: 'Strike', key: 's', val: 'strike', cls: 'red' }, { label: 'Ball', key: 'b', val: 'ball', cls: 'blue' }], { nag: true, truth });
+      call = r.val; G.st.times.push(r.ms);
+      if (r.ms > 3500) { G.st.slow++; G.mood = clamp(G.mood - 2, 0, 100); }
+    } else {
+      const miss = DF().partner * (close ? 3 : 0.3);
+      call = Math.random() < miss ? (truth === 'strike' ? 'ball' : 'strike') : truth;
+    }
+    const correct = call === truth;
+    const hurt = call === 'strike' ? bt() : ft;
+    if (call === 'strike') { banner(G.strikes === 2 ? 'STRIKE THREE!' : 'STRIKE!', null, '#e5483c', 1.1, G.strikes === 2 ? 66 : 60); if (mine) say(G.strikes === 2 ? 'Strike three!' : 'Strike!'); }
+    else { banner('BALL', null, '#45a8ff', 0.9, 46); if (mine && G.balls === 3) say('Ball four', 0.8); }
+    if (mine) {
+      judge('pitch', correct, close, check ? `Check swing on ${b.name}: you called ${call}, it was a ${truth}.` : `${p.mph.toFixed(0)} mph ${p.type.n.toLowerCase()} to ${b.name}: you called ${call}, it was ${Math.abs(p.dist).toFixed(1)} in. ${p.dist <= 0 ? 'inside the zone' : 'off the zone'}.`, hurt);
+      frustrate(hurt, correct, close, 'pitch');
+      react(hurt, correct, close, 'pitch');
+      if (opts.tracker && !check) trackerOverlay(p, call, correct);
+    }
+    renderCrew();
+    await wait(mine ? 900 : 350);
+    let final = call;
+    if (!check) final = await absChallenge(p, call, truth, mine);
+    return applyPitch(final, check ? 'check' : 'take', b);
+  }
+  if (p.act.result === 'miss') { banner(G.strikes === 2 ? 'STRIKE THREE!' : 'SWING AND A MISS', null, '#e5483c', 1, 50); await wait(mine ? 700 : 250); return applyPitch('strike', 'swing', b); }
+  if (p.act.result === 'foul') { banner('FOUL BALL', null, '#eef1f6', 0.8, 40); await wait(mine ? 500 : 200); if (G.strikes < 2) G.strikes++; renderBoard(); return 'cont'; }
+  return await ballInPlay(b, p.bip);
+}
+function bipKind(b) {
+  const r = Math.random(), hr = 0.035 * b.power;
+  return r < hr ? 'hr' : r < hr + 0.44 ? 'gb' : r < hr + 0.65 ? 'ld' : r < hr + 0.94 ? 'fb' : 'pu';
+}
+function applyPitch(call, how, b) {
+  if (call === 'strike') {
+    G.strikes++;
+    if (G.strikes >= 3) { outRec(); log(`${b.name} strikes out ${how === 'swing' ? 'swinging' : 'looking'}.`); if (G.half === 0) { sfx.cheer(0.6, 1.4); stage.excite = 0.6; } return 'done'; }
+  } else {
+    G.balls++;
+    if (G.balls >= 4) { const r = forceAdvance(); log(`${b.name} walks.${r ? ' A run is forced in.' : ''}`); addRuns(r, 'BASES-LOADED WALK'); return 'done'; }
+  }
+  renderBoard(); return 'cont';
+}
+async function absChallenge(p, call, truth, mine) {
+  const wrong = call !== truth;
+  const challenger = call === 'strike' ? bt() : ftm();
+  if (G.abs[challenger] <= 0) return call;
+  const absd = Math.abs(p.dist);
+  let pr = wrong ? clamp(0.45 + absd * 0.16, 0.45, 0.92) : (absd < 1.2 ? 0.1 : 0.015);
+  if (G.strikes === 2 || G.balls === 3) pr *= 1.3;
+  if (Math.random() >= pr) return call;
+  const who = call === 'strike' ? `${batter().name} taps the helmet` : `The ${TEAMS[challenger].nick} catcher taps the cap`;
+  G.st.challenged += mine ? 1 : 0;
+  banner('ABS CHALLENGE', who, '#f2c14e', 1.5, 52); setBoard('ABS CHALLENGE', TEAMS[challenger].abbr, 4, '#f2c14e', true);
+  sfx.cheer(0.25, 1); clearButtons('Automated ball-strike system reviewing');
+  setPrompt('ABS challenge', `${TEAMS[challenger].nick} challenge your ${call} call.`);
+  await wait(1200);
+  await playClip((c, t) => {
+    drawPitchView(c, p.tr + p.T * 1.036 + 0.3, p);
+    c.fillStyle = 'rgba(3,6,12,.72)'; c.fillRect(0, 0, W, H);
+    const w = 300, x = 480 - w / 2, y = 70;
+    const k = clamp(t / 1.2, 0, 1);
+    const q = Object.assign({}, p, { px: lerp(p.px * 3, p.px, easeOut(k)), pz: lerp(p.pz + 2, p.pz, easeOut(k)) });
+    drawKZone(c, x, y, w, k < 1 ? Object.assign(q, { strike: p.strike }) : p, call, true);
+    c.font = '22px Graduate, serif'; c.textAlign = 'center'; c.fillStyle = '#ffb547'; c.fillText('ABS REVIEW', 480, 52);
+    if (t > 1.3) { c.font = '26px "Barlow Condensed", sans-serif'; c.fillStyle = '#eef1f6'; c.fillText(p.strike ? `In the zone by ${Math.abs(p.dist).toFixed(1)} in.` : `Missed the zone by ${Math.abs(p.dist).toFixed(1)} in.`, 480, y + w * 1.32 + 40); }
+    c.textAlign = 'left';
+  }, { from: 0, to: 2.6 });
+  const final = truth;
+  if (final !== call) {
+    if (mine) G.st.overturned++;
+    banner('OVERTURNED', `It's a ${final}`, '#e5483c', 1.7, 60);
+    log(`ABS overturns ${mine ? 'your' : 'the'} ${call} call. It's a ${final}. ${TEAMS[challenger].nick} keep their challenge.`, 'rev');
+    if (challenger === 1) { sfx.cheer(1, 2.2); stage.mood = 'cheer'; stage.moodT = 2; } else { sfx.boo(0.8, 2.2); stage.mood = 'boo'; stage.moodT = 2; }
+    if (mine) G.mood = clamp(G.mood - 4, 0, 100);
+    G.frust[challenger] = clamp(G.frust[challenger] - 18, 0, 100);
+    if (G.lastAgainst && G.lastAgainst.team === challenger) G.lastAgainst = null;
+  } else {
+    G.abs[challenger]--;
+    if (mine) G.st.confirmed++;
+    banner('CALL STANDS', `${final === 'strike' ? 'Strike' : 'Ball'} confirmed`, '#33c27a', 1.6, 56);
+    log(`ABS confirms ${mine ? 'your' : 'the'} ${call} call. ${TEAMS[challenger].nick} lose a challenge (${G.abs[challenger]} left).`, 'good');
+    if (mine) G.mood = clamp(G.mood + 4, 0, 100);
+  }
+  renderCrew();
+  await wait(1700);
+  return final;
+}
+
+/* --- big calls on the bases (and at the plate, and down the lines) --- */
+async function bigCall(sc, owner, hurtIf) {
+  // hurtIf: { [callValue]: teamIndex hurt by that call }
+  const mine = owns(owner);
+  let call;
+  if (mine) {
+    banner(sc.title.toUpperCase(), null, '#ffb547', 1.0, 44);
+    clearButtons('Get in position');
+    setPrompt(sc.title, `You: ${sc.where.toLowerCase()}. ${sc.note}`);
+    await wait(900);
+    await playClip((c, t) => sc.draw(c, t), { from: sc.start, to: sc.end, speed: DF().play, events: sc.sounds });
+    const r = await ask(sc.prompt, sc.note, sc.options, { nag: true, truth: sc.truth });
+    call = r.val; G.st.times.push(r.ms);
+    if (r.ms > 3500) { G.st.slow++; G.mood = clamp(G.mood - 2, 0, 100); }
+  } else {
+    const close = Math.abs(sc.margin) < (sc.unit === 'in' ? 0.1 : 0.05);
+    call = Math.random() < DF().partner * (close ? 2.5 : 0.4) ? sc.options.find(o => o.val !== sc.truth).val : sc.truth;
+  }
+  const correct = call === sc.truth;
+  const label = sc.options.find(o => o.val === call).label.toUpperCase();
+  const close = sc.unit === 'in' ? Math.abs(sc.offIn) < 1.2 : Math.abs(sc.margin) < 0.06;
+  const hurt = hurtIf[call];
+  if (mine) {
+    banner(label + '!', null, call === 'out' || call === 'catch' || call === 'foul' ? '#e5483c' : '#33c27a', 1.2, 66);
+    say(label === 'NO CATCH' ? 'No catch!' : label.charAt(0) + label.slice(1).toLowerCase() + '!');
+    const truthLabel = sc.options.find(o => o.val === sc.truth).label.toLowerCase();
+    judge('base', correct, close, `${sc.title}: you called ${label.toLowerCase()}, it was ${truthLabel}${sc.unit === 'in' ? '' : ` by ${marginText(sc)}`}${sc.detail ? ` (${sc.detail})` : ''}.`, hurt);
+    frustrate(hurt, correct, close, 'base');
+    react(hurt, correct, close, 'base');
+    renderCrew();
+    await wait(1300);
+  } else {
+    log(`${sc.where} umpire calls ${label.toLowerCase()} on the ${sc.title.toLowerCase()}.`);
+    await wait(400);
+  }
+  // replay challenge by the team hurt
+  if (G.replay[hurt] > 0) {
+    const m = Math.abs(sc.margin);
+    const pr = !correct ? (m < 0.05 ? 0.8 : 0.95) : (m < 0.04 ? 0.22 : 0.05);
+    if (Math.random() < pr) return await replayReview(sc, call, hurt, mine);
+  }
+  return call;
+}
+async function replayReview(sc, call, team, mine) {
+  const mgr = G.ejected[team] ? `The ${TEAMS[team].nick} bench coach` : `${TEAMS[team].mgr}`;
+  banner('MANAGER’S CHALLENGE', `${mgr} wants another look`, '#f2c14e', 1.6, 46);
+  setBoard('UNDER REVIEW', 'REPLAY CENTER', 8, '#f2c14e', true);
+  clearButtons('Replay center is reviewing the play');
+  setPrompt('Under review', `${TEAMS[team].nick} challenge the ${call === 'nocatch' ? 'no-catch' : call} call.`);
+  await wait(1500);
+  const e0 = sc.events[0].t, e1 = sc.events[sc.events.length - 1].t;
+  await playClip((c, t) => sc.draw(c, t, { replay: true }), { from: Math.max(sc.start, e0 - 0.45), to: Math.min(sc.end, e1 + 0.35), speed: 1 / 6, events: sc.sounds, pauses: sc.events.map(e => ({ t: e.t, dur: 0.9 })) });
+  const wrong = call !== sc.truth;
+  const inconclusive = wrong && Math.abs(sc.margin) < (sc.unit === 'in' ? 0.02 : 0.012);
+  let final = call;
+  if (wrong && !inconclusive) {
+    final = sc.truth;
+    if (mine) G.st.overturned++;
+    const fl = sc.options.find(o => o.val === final).label;
+    banner('CALL OVERTURNED', `${fl}${sc.unit === 'in' ? '' : ` by ${marginText(sc)}`}`, '#e5483c', 2, 56);
+    log(`Replay overturns ${mine ? 'your' : 'the'} call: ${fl.toLowerCase()}. ${TEAMS[team].nick} keep their challenge.`, 'rev');
+    if (team === 1) { sfx.cheer(1, 2.4); stage.mood = 'cheer'; stage.moodT = 2; } else { sfx.boo(0.9, 2.4); stage.mood = 'boo'; stage.moodT = 2; }
+    if (mine) G.mood = clamp(G.mood - 5, 0, 100);
+    G.frust[team] = clamp(G.frust[team] - 20, 0, 100);
+    if (G.lastAgainst && G.lastAgainst.team === team) G.lastAgainst = null;
+  } else {
+    G.replay[team] = 0;
+    if (mine && !wrong) G.st.confirmed++;
+    banner(wrong ? 'CALL STANDS' : 'CALL CONFIRMED', wrong ? 'Not enough evidence to overturn' : `${sc.options.find(o => o.val === call).label} by ${sc.unit === 'in' ? Math.abs(sc.offIn).toFixed(1) + ' in.' : marginText(sc)}`, '#33c27a', 2, 52);
+    log(`Replay: ${wrong ? 'call stands, inconclusive' : 'call confirmed'}. ${TEAMS[team].nick} lose their challenge.`, wrong ? 'miss' : 'good');
+    if (team === 1 && wrong) { sfx.boo(0.9, 2.2); stage.mood = 'boo'; stage.moodT = 2; }
+    if (mine && !wrong) G.mood = clamp(G.mood + 5, 0, 100);
+  }
+  renderCrew(); await wait(2000);
+  return final;
+}
+
+async function stealPlay() {
+  const runnerTeam = bt();
+  banner('RUNNER GOING', 'Steal attempt', '#ffb547', 1, 40);
+  log('Runner breaks for second.');
+  const sc = sceneTag('second');
+  const final = await bigCall(sc, 'base', { out: runnerTeam, safe: ftm() });
+  G.bases[0] = 0;
+  if (final === 'out') { outRec(); log('Caught stealing.'); }
+  else { G.bases[1] = 1; log('Stolen base.'); }
+  renderBoard();
+}
+async function plateTag(desc) {
+  const sc = sceneTag('home');
+  const final = await bigCall(sc, 'plate', { out: bt(), safe: ftm() });
+  if (final === 'out') { outRec(); log(`${desc} Out at the plate.`); }
+  else { addRuns(1, 'SAFE AT HOME'); log(`${desc} Safe at home.`); }
+}
+async function ballInPlay(b, kind) {
+  const mine = owns('plate');
+  if (kind === 'hr') {
+    const runs = advanceAll(4); G.hits[G.half]++;
+    banner('HOME RUN', b.name, '#ffb547', 2, 64);
+    log(`${b.name} homers. ${runs} run${runs > 1 ? 's' : ''} score.`, 'big');
+    if (G.half === 1) sfx.organ(CHARGE, 0.12);
+    addRuns(runs, 'HOME RUN'); if (G.half === 0) { sfx.boo(0.3, 1); }
+    await wait(mine ? 2000 : 1200); return 'done';
+  }
+  if (kind === 'pu') { outRec(); log(`${b.name} pops out.`); await wait(500); return 'done'; }
+  if (kind === 'gb') {
+    if (Math.random() < 0.24) { const rr = advanceAll(1); G.hits[G.half]++; log(`${b.name} grounds a single through the infield.`); addRuns(rr); await wait(600); return 'done'; }
+    if (Math.random() < 0.5) {
+      const sc = sceneForce();
+      const final = await bigCall(sc, 'base', { out: bt(), safe: ftm() });
+      if (final === 'out') { outRec(); if (G.outs < 3) { const rr = G.bases[2] ? 1 : 0; G.bases = [0, G.bases[0], G.bases[1]]; addRuns(rr); } log(`${b.name} is out at first.`); }
+      else { const rr = forceAdvance(); G.hits[G.half]++; addRuns(rr); log(`${b.name} beats it out for an infield single.`); }
+      return 'done';
+    }
+    if (G.bases[0] && G.outs < 2 && Math.random() < 0.42) {
+      outRec(2); G.bases[0] = 0;
+      if (G.outs < 3) { const rr = G.bases[2] ? 1 : 0; G.bases = [0, 0, G.bases[1]]; addRuns(rr); }
+      log(`${b.name} grounds into a double play.`); banner('DOUBLE PLAY', null, '#eef1f6', 1, 44); await wait(800); return 'done';
+    }
+    outRec(); if (G.outs < 3) { const rr = G.bases[2] ? 1 : 0; G.bases = [0, G.bases[0], G.bases[1]]; addRuns(rr); }
+    log(`${b.name} grounds out.`); await wait(600); return 'done';
+  }
+  if (kind === 'ld') {
+    const x = Math.random();
+    if (x < 0.17) {
+      const owner = Math.random() < 0.5 ? 'plate' : 'base';
+      const sc = sceneFairFoul(owner);
+      const final = await bigCall(sc, owner, { fair: ftm(), foul: bt() });
+      if (final === 'fair') { const rr = advanceAll(2); G.hits[G.half]++; log(`${b.name} lines a double down the line.`); addRuns(rr, 'DOUBLE'); return 'done'; }
+      if (G.strikes < 2) G.strikes++; log('Foul ball down the line.'); renderBoard(); return 'cont';
+    }
+    if (x < 0.32) {
+      const sc = sceneCatch();
+      const final = await bigCall(sc, 'base', { catch: bt(), nocatch: ftm() });
+      if (final === 'catch') { outRec(); log(`Diving catch robs ${b.name}.`); }
+      else { const rr = advanceAll(1); G.hits[G.half]++; addRuns(rr); log(`${b.name} singles on the short hop.`); }
+      return 'done';
+    }
+    if (x < 0.58) { outRec(); log(`${b.name} lines out.`); await wait(500); return 'done'; }
+    if (x < 0.86) return await single(b);
+    const rr = advanceAll(2); G.hits[G.half]++; log(`${b.name} doubles into the gap.`); addRuns(rr, 'DOUBLE'); await wait(800); return 'done';
+  }
+  // fly ball
+  const y = Math.random();
+  if (y < 0.72) {
+    outRec(); log(`${b.name} flies out.`);
+    if (G.outs < 3 && G.bases[2] && Math.random() < 0.6) {
+      G.bases[2] = 0;
+      if (Math.random() < 0.35) await plateTag('Runner tags from third.');
+      else { addRuns(1, 'SACRIFICE FLY'); log('Sacrifice fly, run scores.'); }
+    }
+    await wait(500); return 'done';
+  }
+  if (y < 0.8) {
+    const sc = sceneCatch();
+    const final = await bigCall(sc, 'base', { catch: bt(), nocatch: ftm() });
+    if (final === 'catch') { outRec(); log(`Diving catch takes a hit away from ${b.name}.`); }
+    else { const rr = advanceAll(2); G.hits[G.half]++; addRuns(rr); log(`${b.name} doubles when it skips past.`); }
+    return 'done';
+  }
+  if (y < 0.95) { const rr = advanceAll(2); G.hits[G.half]++; log(`${b.name} doubles off the wall.`); addRuns(rr, 'DOUBLE'); await wait(800); return 'done'; }
+  const rr = advanceAll(3); G.hits[G.half]++; log(`${b.name} triples.`); addRuns(rr, 'TRIPLE'); await wait(800); return 'done';
+}
+async function single(b) {
+  const bs = G.bases; let runs = 0; const nb = [1, 0, 0]; let send = false;
+  if (bs[2]) runs++;
+  if (bs[1]) { if (Math.random() < 0.62) send = true; else nb[2] = 1; }
+  if (bs[0]) { if (!nb[2] && Math.random() < 0.3) nb[2] = 1; else nb[1] = 1; }
+  G.hits[G.half]++; G.bases = nb; addRuns(runs);
+  log(`${b.name} singles.`);
+  if (G.over) return 'done';
+  if (send) { if (Math.random() < 0.4) await plateTag('The runner from second is waved home.'); else { addRuns(1); log('Runner scores from second.'); } }
+  await wait(500); return 'done';
+}
+
+/* ================= end of game ================= */
+function grade(acc) {
+  if (acc >= 97) return ['A+', 'Crew chief material']; if (acc >= 95) return ['A', 'Big league ready'];
+  if (acc >= 93) return ['A-', 'A clean night']; if (acc >= 91) return ['B+', 'Solid work']; if (acc >= 88) return ['B', 'Respectable'];
+  if (acc >= 85) return ['B-', 'A few too many misses']; if (acc >= 81) return ['C', 'Triple-A tonight']; if (acc >= 75) return ['D', 'Rough night, Blue'];
+  return ['F', 'Hand in your mask'];
+}
+async function endGame() {
+  clearButtons(); renderAll();
+  const win = G.score[1] > G.score[0] ? 1 : 0;
+  banner(G.walkoff ? 'WALK-OFF!' : 'BALLGAME', `${TEAMS[win].name} win ${Math.max(...G.score)}-${Math.min(...G.score)}`, '#ffb547', 3, 60);
+  if (win === 1) { sfx.cheer(1, 3); sfx.organ(CHARGE, 0.14); } else sfx.boo(0.5, 2);
+  log(`Final: ${TEAMS[0].abbr} ${G.score[0]}, ${TEAMS[1].abbr} ${G.score[1]}.`, 'big');
+  setBoard('FINAL', `${TEAMS[0].abbr} ${G.score[0]}  ${TEAMS[1].abbr} ${G.score[1]}`, 999);
+  await wait(2500);
+  const s = G.st, n = s.pitch.n + s.base.n, okc = s.pitch.ok + s.base.ok;
+  let acc = n ? okc / n * 100 : 100;
+  const adj = acc - s.badEj * 2 - s.slow * 0.3;
+  const [letter, word] = grade(adj);
+  const avgMs = s.times.length ? s.times.reduce((a, b) => a + b, 0) / s.times.length : 0;
+  const best = store('heyblue.best') || {};
+  const key = `${opts.role}-${opts.diff}`;
+  const isBest = n >= 10 && (!best[key] || adj > best[key].adj);
+  if (isBest) { best[key] = { adj: +adj.toFixed(1), letter, date: new Date().toISOString().slice(0, 10), innings: G.innings }; store('heyblue.best', best); }
+  const sc = $('#scorecard');
+  sc.innerHTML = `
+    <div class="eyebrow">Umpire scorecard · ${TEAMS[0].abbr} ${G.score[0]}, ${TEAMS[1].abbr} ${G.score[1]}${G.inning > G.innings ? ` (${G.inning} inn.)` : ''}</div>
+    <div class="grade"><div class="letter">${letter}</div><div><h2>${word}</h2><p>${n ? `You got ${okc} of ${n} calls right (${acc.toFixed(1)}%).` : 'You didn\'t have to make a call.'} Big league plate umpires get about 94% of called pitches right.${isBest ? ' That\'s your best game at this position and level.' : ''}</p></div></div>
+    <div class="sc-grid">
+      <div><b>${s.pitch.ok}/${s.pitch.n}</b><span>Pitches called right</span></div>
+      <div><b>${s.base.ok}/${s.base.n}</b><span>Base calls right</span></div>
+      <div><b>${s.overturned}</b><span>Calls overturned</span></div>
+      <div><b>${s.confirmed}</b><span>Challenges you won</span></div>
+      <div><b>${(avgMs / 1000).toFixed(2)}s</b><span>Average time to call</span></div>
+      <div><b>${s.ej}</b><span>Ejections${s.badEj ? ` (${s.badEj} after your miss)` : ''}</span></div>
+      <div><b>${Math.round(G.mood)}</b><span>Crowd mood at the end</span></div>
+      <div><b>${s.pitches}</b><span>Pitches in the game</span></div>
+    </div>
+    ${s.missed.length ? `<div class="group"><span class="gl">Calls you missed</span><ol class="misses">${s.missed.slice(0, 12).map(m => `<li><b>${m.inn}:</b> ${m.desc}</li>`).join('')}</ol></div>` : '<p>No missed calls. Perfect game behind the mask.</p>'}
+    <button class="go" id="again">Work another game</button>`;
+  sc.hidden = false;
+  $('#again').addEventListener('click', () => { sc.hidden = true; $('#title').hidden = false; showCareer(); setPrompt('Choose your position and press Play ball.'); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  sc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setPrompt('Ballgame.', 'Your scorecard is above.');
+  if (TEST) window.HEYBLUE_DONE = { score: G.score, st: G.st, innings: G.inning };
+}
+
+/* ================= title screen ================= */
+function showCareer() {
+  const best = store('heyblue.best') || {}; const ks = Object.keys(best);
+  $('#career').textContent = ks.length ? 'Your best games: ' + ks.map(k => { const [r, d] = k.split('-'); return `${{ plate: 'Plate', base: 'Bases', crew: 'Crew' }[r]} / ${DIFF[d].label}: ${best[k].letter} (${best[k].adj}%)`; }).join(' · ') : '';
+}
+function initTitle() {
+  $('#r-' + opts.role).checked = true; $('#i' + opts.innings).checked = true; $('#d-' + opts.diff).checked = true;
+  $('#o-sound').checked = opts.sound; $('#o-voice').checked = opts.voice; $('#o-tracker').checked = opts.tracker;
+  const note = () => { $('#diff-note').textContent = DIFF[opts.diff].note; };
+  note(); showCareer();
+  document.querySelectorAll('input[name=role]').forEach(i => i.addEventListener('change', () => { opts.role = i.value; renderCrew(); }));
+  document.querySelectorAll('input[name=inn]').forEach(i => i.addEventListener('change', () => { opts.innings = +i.value; }));
+  document.querySelectorAll('input[name=diff]').forEach(i => i.addEventListener('change', () => { opts.diff = i.value; note(); renderCrew(); }));
+  $('#o-sound').addEventListener('change', e => { opts.sound = e.target.checked; if (AU.m) AU.m.gain.value = opts.sound ? 0.75 : 0; });
+  $('#o-voice').addEventListener('change', e => { opts.voice = e.target.checked; });
+  $('#o-tracker').addEventListener('change', e => { opts.tracker = e.target.checked; });
+  $('#start').addEventListener('click', () => {
+    store('heyblue.opts', opts);
+    audioInit();
+    $('#title').hidden = true; $('#scorecard').hidden = true;
+    $('#screen').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    runGame().catch(err => { console.error(err); setPrompt('Something went wrong.', String(err && err.message || err)); });
+  });
+}
+renderBoard(); renderCrew(); initTitle();
+requestAnimationFrame(frame);
+if (TEST) {
+  window.HEYBLUE_START = (role, inn, diff) => { opts.role = role; opts.innings = inn; opts.diff = diff; $('#start').click(); };
+  window.HEYBLUE_STILL = (kind, t) => {
+    if (!G) newGame(); TS = 0;
+    let draw;
+    if (kind === 'pitch' || kind === 'swing' || kind === 'check') { const b = batter(); const p = genPitch(G.pitcher[1], b); p.act = kind === 'pitch' ? { type: 'take' } : kind === 'check' ? { type: 'check', depth: 0.55 } : { type: 'swing', result: 'miss' }; draw = c => drawPitchView(c, p.tr + p.T * t, p); }
+    else { const sc = { force: sceneForce, steal: () => sceneTag('second'), home: () => sceneTag('home'), catch: sceneCatch, fairfoul: () => sceneFairFoul('base') }[kind](); draw = c => sc.draw(c, t <= 1 ? lerp(sc.start, sc.end, t) : sc.events[0].t, { replay: t > 1 }); }
+    stage.clip = { draw, t: 0, to: 0, speed: 0, events: [], pauses: [], pause: 0, res: null };
+  };
+}
+})();
+</script>
+</body>
+</html>
