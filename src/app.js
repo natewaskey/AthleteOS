@@ -9,12 +9,49 @@
   const MAX_VIDEO_MB = 300;
   const RPE_LABELS = ['', 'Very easy', 'Easy', 'Easy', 'Moderate', 'Moderate', 'Somewhat hard', 'Hard', 'Very hard', 'Very, very hard', 'Max effort'];
 
-  const ATHLETE_TABS = [['today', 'Today'], ['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['wellness', 'Wellness'], ['coachai', '✨ AI Coach'], ['messages', 'Messages'], ['profile', 'Profile'], ['settings', 'Settings']];
-  // Training on your own: no coach, messages or team features; you log your own injuries.
-  const SOLO_TABS = [['today', 'Today'], ['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['form', 'Form'], ['progress', 'Progress'], ['wellness', 'Wellness'], ['coachai', '✨ AI Coach'], ['profile', 'Profile'], ['settings', 'Settings']];
-  // Routes reachable from buttons but without their own tab.
-  const HIDDEN_ROUTES = ['screen', 'records', 'goals', 'challenges', 'live', 'summary', 'health', 'profile'];
-  const COACH_TABS = [['team', 'Team'], ['plan', 'Plan'], ['calendar', 'Calendar'], ['performance', 'Performance'], ['health', 'Health'], ['form', 'Form'], ['coachai', '✨ AI Coach'], ['messages', 'Messages'], ['settings', 'Settings']];
+  // Navigation: a few sections, each with optional sub-pages (pills at the top of the page).
+  // Routes stay the same as before, so every link inside the app keeps working.
+  const ATHLETE_SECTIONS = [
+    { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
+    { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'form', 'live', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['form', 'Form check'], ['history', 'History']] },
+    { id: 'ai', label: 'AI Coach', icon: 'sparkle', routes: ['coachai'], accent: true },
+    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['challenges', 'Challenges'], ['screen', 'Movement screen'], ['goals', 'Goals']] },
+    { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
+    { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
+    { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
+  ];
+  const COACH_SECTIONS = [
+    { id: 'team', label: 'Team', icon: 'users', routes: ['team'] },
+    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar']] },
+    { id: 'ai', label: 'AI Coach', icon: 'sparkle', routes: ['coachai'], accent: true },
+    { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
+    { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
+    { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
+    { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'] },
+    { id: 'settings', label: 'Settings', icon: 'gear', routes: ['settings'] },
+  ];
+  // Routes reachable from buttons but not listed in a section.
+  const HIDDEN_ROUTES = ['records'];
+  const ICONS = {
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+    dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>',
+    sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/>',
+    chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+    heart: '<path d="M19.5 13.5c1.3-1.4 2.5-3 2.5-5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .6-4.5 2-1.5-1.4-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2 1.2 3.6 2.5 5L12 21z"/><path d="M3.5 12h4l2-3 3 6 2-3h6"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.5A8 8 0 1 1 21 12z"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M22 20a7 7 0 0 0-4-6.3"/>',
+    trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
+    shield: '<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M12 9v6M9 12h6"/>',
+    video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+    wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
+  };
+  const icon = (n, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
   const Form = window.FormUI;
   const Plan = window.PlanUI;
   const Programs = window.ProgramUI;
@@ -418,53 +455,65 @@
       const t = today();
       const consentBanner = !solo() && C.needsConsent(a, t) ? `<div class="banner warn" role="note">🔒 You’re under 18, so a parent or guardian needs to approve sharing your data with your coaches. <button class="btn btn-sm" data-tab-link="settings">Set up consent</button></div>` : '';
       if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding(a);
-      const weeks = C.weeklySummary(a.workouts, t, 8);
-      const recent = sortedWorkouts(a).slice(0, 5);
       const th = C.thread(state.messages, a.id);
       const lastCoach = [...th].reverse().find((m) => m.from === 'coach');
       const unread = C.unreadCount(state.messages, 'athlete', a.id);
+      const checkin = checkinFor(a, t);
+      const ready = C.readiness(checkin, a.checkins, a.workouts, t);
+      const mine = (state.assignments || []).filter((x) => x.athleteId === a.id && x.status === 'assigned').sort((x, y) => (x.date < y.date ? -1 : 1));
+      const session = mine.find((x) => x.date === t) || mine.filter((x) => x.date < t && C.daysBetween(x.date, t) <= 2).pop() || null;
+      const next = session ? null : mine.find((x) => x.date > t);
+      const games = window.Calendar ? window.Calendar.gameContext(state, a, t) : {};
+      const gameLine = games.today ? `Game day: ${games.today.title}. Warm up well and trust your training.` : games.tomorrow ? `${games.tomorrow.title} is tomorrow, so today tapers automatically.` : '';
+      const sub = ready ? `${ready.advice}${gameLine ? ' ' + gameLine : ''}` : `Check in to get today’s readiness score.${gameLine ? ' ' + gameLine : ''}`;
+      const qa = (attrs, ic, label) => `<button class="qa" ${attrs}>${icon(ic)}<span>${label}</span></button>`;
+      const coachCard = solo()
+        ? `<section class="card span-4"><div class="card-head"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>${goalList(a) || '<p class="muted" style="margin:0">No goals yet.</p>'}</section>`
+        : `<section class="card span-4"><div class="card-head"><h3>${esc(coachName())}</h3>${unread ? `<span class="pill bad">${unread} new</span>` : ''}</div>
+            ${coachCreds() ? `<div class="muted small" style="margin:-.3rem 0 .4rem">${esc(coachCreds())}</div>` : ''}
+            ${lastCoach ? `<p style="margin:.2rem 0 .3rem">“${esc(lastCoach.text || 'Sent a video')}”</p><p class="muted small" style="margin:0 0 .75rem">${esc(relTime(lastCoach.ts))}</p>` : '<p class="muted">No messages from your coach yet.</p>'}
+            <button class="btn" data-tab-link="messages" style="width:100%">Message coach</button></section>`;
 
       return `
-        <h1 class="page-title">${esc(greet())}${a.name ? ', ' + esc(a.name.split(' ')[0]) : ''}</h1>
-        <p class="muted" style="margin-top:0">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</p>
         ${consentBanner}
+        <section class="hero">
+          <div class="hero-main">
+            <div class="eyebrow">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</div>
+            <h1 class="hero-title">${esc(greet())}${a.name ? ', <span class="grad-text">' + esc(a.name.split(' ')[0]) + '</span>' : ''}</h1>
+            <p class="hero-sub">${esc(sub)}</p>
+            <div class="quick-actions">
+              ${qa('data-action="open-checkin"', 'check', checkin ? 'Edit check-in' : 'Check in')}
+              ${qa('data-action="open-log"', 'plus', 'Log workout')}
+              ${qa('data-tab="coachai"', 'sparkle', 'Ask AI')}
+              ${qa('data-tab-link="live"', 'video', 'Live coach')}
+              ${qa('data-well-tab="mind"', 'wind', 'Breathe')}
+            </div>
+          </div>
+          <div class="hero-gauge">
+            <div class="gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" style="--pct:${ready ? ready.score : 0}" role="img" aria-label="${ready ? `Readiness ${ready.score} out of 100` : 'No check-in yet'}">
+              <div><strong>${ready ? ready.score : '–'}</strong><span>Readiness</span></div>
+            </div>
+            <div class="gauge-label">${ready ? esc(ready.label) : '<button class="btn btn-sm btn-primary" data-action="open-checkin">Check in</button>'}</div>
+          </div>
+          <div class="hero-session">
+            <div class="eyebrow">${session ? (session.date === t ? 'Today’s session' : 'Still to do') : 'Up next'}</div>
+            ${session
+              ? `<div class="session-name">${esc(session.plan.name)}</div><div class="muted small">${C.estimateMinutes(session.plan)} min · ${esc(session.plan.blocks.map((b) => C.BLOCK_TYPES[b.type].label).slice(0, 3).join(' · '))}</div>
+                 <button class="btn btn-primary btn-glow" data-plan-open="${session.id}">${icon('bolt')}<span>${session.startedAt ? 'Continue' : 'Start session'}</span></button>`
+              : next
+                ? `<div class="session-name">${esc(next.plan.name)}</div><div class="muted small">${esc(relDate(next.date))} · ${C.estimateMinutes(next.plan)} min</div><button class="btn" data-tab="plan">View plan</button>`
+                : `<div class="session-name">Rest or free day</div><div class="muted small">Nothing scheduled.</div><button class="btn" data-prog-action="new">${icon('sparkle')}<span>Build a program</span></button>`}
+          </div>
+        </section>
         <div class="grid">
           ${Health.athleteInjuriesCard(a.id)}
-          ${Plan.todayCard(a)}
-          ${readinessCard(a)}
           ${loadCard(a)}
-          ${weekStatCards(a)}
-          ${trendCard(a)}
-          ${
-            solo()
-              ? `<section class="card span-4"><div class="card-head"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>
-            ${goalList(a) || '<p class="muted">No goals yet.</p>'}</section>`
-              : `<section class="card span-4">
-            <div class="card-head"><h3>${esc(coachName())}</h3>${unread ? `<span class="pill bad">${unread} new</span>` : ''}</div>
-            ${coachCreds() ? `<div class="muted small" style="margin:-.3rem 0 .4rem">🎓 ${esc(coachCreds())}</div>` : ''}
-            ${lastCoach ? `<p style="margin:.2rem 0 .3rem">“${esc(lastCoach.text || 'Sent a video')}”</p><p class="muted small" style="margin:0 0 .75rem">${esc(relTime(lastCoach.ts))}</p>` : '<p class="muted">No messages from your coach yet.</p>'}
-            <button class="btn" data-tab-link="messages" style="width:100%">Message coach</button>
-            <div class="card-head" style="margin-top:1rem"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>
-            ${goalList(a) || '<p class="muted">No goals yet.</p>'}
-          </section>`
-          }
-          <section class="card span-6">
-            <div class="card-head"><h3>Weekly load · 8 weeks</h3></div>
-            ${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}
-          </section>
-          ${Cal.card()}
+          ${Cal.card({ span: 'span-6' })}
           ${Well.todayCard()}
           ${Chal.card({ span: 'span-4' })}
-          ${Assist.summaryCard(a, { span: 'span-8', compact: true })}
-          <section class="card span-4 ai-card"><div class="card-head"><h3>✨ Ask your AI coach</h3></div>
-            <div class="chips">${['Why is my readiness ' + (a.checkins.find((c) => c.date === t) ? 'where it is' : 'low') + '?', 'What should I do today?', 'What should I eat?'].map((q) => `<button class="chip chip-btn" data-ai-go="${esc(q)}">${esc(q)}</button>`).join('')}</div></section>
-          ${Health.recoveryCard(a)}
-          ${a.screens.length ? '' : Screens.card(a)}
-          ${solo() ? '' : Progress.wallCard()}
-          <section class="card span-6">
-            <div class="card-head"><h3>Recent</h3><button class="btn btn-sm btn-ghost" data-tab-link="history">All</button></div>
-            ${recent.length ? `<ul class="list">${recent.map((w) => workoutItem(w, { actions: true })).join('')}</ul>` : '<p class="muted">No workouts yet.</p>'}
-          </section>
+          ${coachCard}
+          ${Assist.summaryCard(a, { span: 'span-12', compact: true })}
+          ${a.screens.length ? '' : Screens.card(a, { span: 'span-12' })}
         </div>`;
     },
 
@@ -505,8 +554,13 @@
 
     progress() {
       const a = me();
-      return Progress.athleteView(`${Assist.summaryCard(a)}${Screens.card(a, { span: 'span-6' })}${Chal.card({ span: 'span-6' })}
-        <section class="card span-6"><div class="card-head"><h3>🎯 Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>${goalList(a) || '<p class="muted" style="margin:0">No goals yet.</p>'}</section>`);
+      const t = today();
+      const weeks = C.weeklySummary(a.workouts, t, 8);
+      return Progress.athleteView(`${Assist.summaryCard(a)}${weekStatCards(a)}${trendCard(a, 'span-8')}
+        <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
+        ${Screens.card(a, { span: 'span-6' })}${Chal.card({ span: 'span-6' })}
+        <section class="card span-6"><div class="card-head"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>${goalList(a) || '<p class="muted" style="margin:0">No goals yet.</p>'}</section>
+        ${solo() ? '' : Progress.wallCard()}`);
     },
 
     screen() {
@@ -1204,55 +1258,87 @@
 
   // ---------- chrome ----------
 
-  const firstTab = () => (tabsFor()[0] || [''])[0];
-
-  function tabsFor() {
+  function sections() {
     if (state.mode == null) return [];
-    if (solo()) return SOLO_TABS;
-    return role() === 'coach' ? COACH_TABS : ATHLETE_TABS;
+    if (role() === 'coach') return COACH_SECTIONS;
+    return ATHLETE_SECTIONS.filter((x) => !(x.team && solo()));
+  }
+  // [firstRoute, label] per section (kept for callers that only need the landing routes).
+  const tabsFor = () => sections().map((x) => [x.routes[0], x.label]);
+  const firstTab = () => (tabsFor()[0] || [''])[0];
+  const sectionOf = (route) => sections().find((x) => x.routes.includes(route)) || null;
+  const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
+
+  function badgeFor(sec, unread) {
+    let n = 0;
+    if (sec.routes.includes('messages')) n += unread;
+    if (sec.routes.includes('form')) n += Form.unseenCount();
+    if (sec.routes.includes('plan') && role() !== 'coach') n += Plan.dueCount();
+    return n;
+  }
+
+  // Perspective switch + athlete/staff picker (demo/team controls).
+  function roleControls() {
+    const isCoach = role() === 'coach';
+    const a = me();
+    if (solo()) return '<span class="pill info">Training on my own</span>';
+    return `<div class="segmented" role="group" aria-label="Perspective">
+        <button data-action="set-role" data-role="athlete" aria-pressed="${!isCoach}">Athlete</button>
+        <button data-action="set-role" data-role="coach" aria-pressed="${isCoach}">Coach</button>
+      </div>
+      ${!isCoach && state.athletes.length > 1 ? `<select id="athlete-switch" aria-label="Viewing as athlete">${state.athletes.map((x) => `<option value="${x.id}" ${x.id === a.id ? 'selected' : ''}>${esc(athleteName(x))}</option>`).join('')}</select>` : ''}
+      ${isCoach && state.staff.length > 1 ? `<select id="staff-switch" aria-label="Signed in as">${state.staff.map((x) => `<option value="${x.id}" ${x.id === (activeStaff() || {}).id ? 'selected' : ''}>${esc(x.name || 'Unnamed')} · ${esc(roleLabel(x).split(' ')[0])}</option>`).join('')}</select>` : ''}`;
   }
 
   function renderChrome() {
     const isCoach = role() === 'coach';
     const a = me();
     const unread = isCoach ? C.unreadCount(state.messages, 'coach') : C.unreadCount(state.messages, 'athlete', a.id);
-    if (state.mode == null) {
-      $('#role-bar').innerHTML = '';
-      $('#tabs').innerHTML = '';
+    const none = state.mode == null;
+    document.body.classList.toggle('no-nav', none);
+    if (none) {
+      ['#role-bar', '#tabs', '#side-foot', '#bottombar', '#subnav'].forEach((sel) => ($(sel).innerHTML = ''));
       return;
     }
-    if (solo()) {
-      $('#role-bar').innerHTML = '<span class="pill info hide-sm">Training on my own</span><button class="btn btn-primary" data-action="open-log">+ Log<span class="hide-sm"> workout</span></button>';
-      $('#tabs').innerHTML = tabsFor()
-        .map(([id, label]) => {
-          const n = id === 'form' ? Form.unseenCount() : id === 'plan' ? Plan.dueCount() : 0;
-          return `<button role="tab" data-tab="${id}" aria-selected="${ui.tab === id}">${label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`;
-        })
-        .join('');
-      return;
-    }
-    $('#role-bar').innerHTML = `
-      <div class="segmented" role="group" aria-label="Perspective">
-        <button data-action="set-role" data-role="athlete" aria-pressed="${!isCoach}">Athlete</button>
-        <button data-action="set-role" data-role="coach" aria-pressed="${isCoach}">Coach</button>
-      </div>
-      ${
-        !isCoach && state.athletes.length > 1
-          ? `<select id="athlete-switch" aria-label="Viewing as athlete">${state.athletes.map((x) => `<option value="${x.id}" ${x.id === a.id ? 'selected' : ''}>${esc(athleteName(x))}</option>`).join('')}</select>`
-          : ''
-      }
-      ${
-        isCoach && state.staff.length > 1
-          ? `<select id="staff-switch" aria-label="Signed in as">${state.staff.map((x) => `<option value="${x.id}" ${x.id === (activeStaff() || {}).id ? 'selected' : ''}>${esc(x.name || 'Unnamed')} · ${esc(roleLabel(x).split(' ')[0])}</option>`).join('')}</select>`
-          : ''
-      }
-      ${!isCoach ? '<button class="btn btn-primary" data-action="open-log">+ Log<span class="hide-sm"> workout</span></button>' : ''}`;
-    $('#tabs').innerHTML = tabsFor()
-      .map(([id, label]) => {
-        const n = id === 'messages' ? unread : id === 'form' ? Form.unseenCount() : id === 'plan' ? Plan.dueCount() : 0;
-        return `<button role="tab" data-tab="${id}" aria-selected="${ui.tab === id}">${label}${n ? ` <span class="badge">${n}</span>` : ''}</button>`;
+    const secs = sections();
+    const active = sectionOf(ui.tab);
+    const logBtn = isCoach ? '' : `<button class="btn btn-primary btn-log" data-action="open-log">${icon('plus')}<span>Log workout</span></button>`;
+    // Sidebar (desktop)
+    $('#tabs').innerHTML = secs
+      .map((x) => {
+        const n = badgeFor(x, unread);
+        return `<button class="nav-item ${x.accent ? 'accent' : ''}" data-tab="${x.routes[0]}" aria-current="${active === x ? 'page' : 'false'}">${icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
       })
       .join('');
+    // Role controls live in the sidebar on desktop and the top bar on phones (rendered once to keep ids unique).
+    const controls = roleControls();
+    $('#side-foot').innerHTML = isMobile() ? '' : `${logBtn}<div class="side-controls">${controls}</div>`;
+    $('#role-bar').innerHTML = isMobile() ? `<div class="top-controls">${controls}</div>${isCoach ? '' : `<button class="icon-btn primary" data-action="open-log" aria-label="Log workout">${icon('plus')}</button>`}` : '';
+    // Bottom bar (phones): four sections + More
+    const primary = secs.slice(0, 4);
+    const rest = secs.slice(4);
+    const restActive = rest.includes(active);
+    const restBadge = rest.reduce((t, x) => t + badgeFor(x, unread), 0);
+    $('#bottombar').innerHTML =
+      primary.map((x) => {
+        const n = badgeFor(x, unread);
+        return `<button class="tab-item ${x.accent ? 'accent' : ''}" data-tab="${x.routes[0]}" aria-current="${active === x ? 'page' : 'false'}">${x.accent ? `<span class="ai-orb-btn">${icon(x.icon)}</span>` : icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+      }).join('') +
+      `<button class="tab-item" data-action="open-more" aria-current="${restActive ? 'page' : 'false'}">${icon('grid')}<span>More</span>${restBadge ? `<span class="badge">${restBadge}</span>` : ''}</button>`;
+    // Sub-pages of the current section
+    const sub = active && active.sub;
+    const current = active && active.sub ? (active.sub.find(([r]) => r === ui.tab) || (ui.tab === 'live' ? ['form'] : ui.tab === 'summary' ? ['progress'] : [null]))[0] : null;
+    $('#subnav').innerHTML = sub ? `<div class="pill-tabs" role="tablist">${sub.map(([r, l]) => `<button role="tab" data-tab="${r}" aria-selected="${r === current}">${l}</button>`).join('')}</div>` : '';
+    $('#more-panel').innerHTML = `<div class="more-grip"></div><div class="more-grid">${rest.map((x) => {
+      const n = badgeFor(x, unread);
+      return `<button class="more-item" data-tab="${x.routes[0]}" data-close-more>${icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+    }).join('')}</div>`;
+  }
+
+  function openMore(show) {
+    const sheet = $('#more-sheet');
+    sheet.hidden = !show;
+    document.body.classList.toggle('sheet-open', !!show);
   }
 
   function render() {
@@ -1263,7 +1349,7 @@
     }
     const views = role() === 'coach' ? coachViews : athleteViews;
     if (ui.tab === 'records' && role() === 'athlete') ui.tab = 'progress';
-    const allowed = tabsFor().some(([id]) => id === ui.tab) || HIDDEN_ROUTES.includes(ui.tab);
+    const allowed = !!sectionOf(ui.tab) || HIDDEN_ROUTES.includes(ui.tab);
     if (!views[ui.tab] || !allowed) ui.tab = firstTab();
     // Opening a thread marks it read before counts are drawn.
     if (ui.tab === 'messages') {
@@ -1282,12 +1368,20 @@
   }
 
   function go(tab, id = null) {
+    const changed = tab !== ui.tab || (id || null) !== ui.id;
     ui.tab = tab;
     ui.id = id || null;
     const hash = '#' + tab + (ui.id ? '/' + ui.id : '');
     if (tab && location.hash !== hash) history.replaceState(null, '', hash);
+    openMore(false);
     render();
     window.scrollTo(0, 0);
+    if (changed) {
+      const v = $('#view');
+      v.classList.remove('view-enter');
+      void v.offsetWidth;
+      v.classList.add('view-enter');
+    }
   }
 
   function setRole(r) {
@@ -1692,6 +1786,8 @@
         save();
         return render();
       }
+      case 'open-more':
+        return openMore(true);
       case 'choose-mode': {
         const m = el.dataset.mode;
         const was = state.mode;
@@ -1939,6 +2035,15 @@
     })
   );
 
+  // More sheet (phones): tap outside or press Escape to close; re-render the chrome when crossing the phone/desktop breakpoint.
+  $('#more-sheet').addEventListener('click', (e) => {
+    if (e.target.id === 'more-sheet') openMore(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#more-sheet').hidden) openMore(false);
+  });
+  window.matchMedia('(max-width: 860px)').addEventListener('change', () => state.mode != null && renderChrome());
+
   window.addEventListener('hashchange', () => {
     const [tab, id] = location.hash.slice(1).split('/');
     go(tab, id);
@@ -2002,7 +2107,7 @@
   }
 
   try {
-    applyTheme(localStorage.getItem(THEME_KEY) || 'system');
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
   } catch {}
 
   // ---------- boot ----------

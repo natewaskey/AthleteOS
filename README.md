@@ -4,6 +4,12 @@ A private training operating system for athletes. Log workouts, check in each mo
 
 ## Features
 
+### Look & navigation
+- Dark-first "glass and glow" design: glass cards, orange-to-pink gradient accents, glowing readiness rings. Light theme is in Settings.
+- Desktop has a sidebar with a handful of sections (Home, Train, AI Coach, Progress, Wellness, Messages, Profile). Related pages sit under pill tabs inside each section.
+- Phones get a floating bottom tab bar with a center AI Coach orb. Everything else is under **More**.
+- Home is one hero card: greeting, readiness gauge, today's session and one-tap quick actions (check in, log, Ask AI, Live coach, Breathe).
+
 ### Three ways to use it (no coach needed)
 The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
 - **On my own:** the full athlete experience without any coach or team features. You get check-ins, logging, programs (built-in or AI), your own workout builder and scheduling, form analysis, the movement screen, progress, goals and a Health tab where you log your own injuries. There are no messages, sharing or team wall.
