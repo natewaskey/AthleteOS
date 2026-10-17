@@ -541,7 +541,16 @@
       else loadScore = 0.1;
     }
 
-    let score = 100 * (0.35 * sleepScore + 0.2 * sorenessScore + 0.15 * stressScore + 0.15 * moodScore + 0.15 * loadScore);
+    // Each factor keeps the points it earned out of its maximum, so the UI can explain the score.
+    const sore = Object.keys(checkin.soreAreas || {}).length;
+    const factors = [
+      { key: 'sleep', label: 'Sleep', detail: `${checkin.sleep}h, quality ${checkin.sleepQuality}/5`, points: 35 * sleepScore, max: 35 },
+      { key: 'soreness', label: 'Soreness', detail: sore ? `${sore} sore area${sore === 1 ? '' : 's'} on the body map` : `${checkin.soreness}/5`, points: 20 * sorenessScore, max: 20 },
+      { key: 'stress', label: 'Stress', detail: `${checkin.stress}/5`, points: 15 * stressScore, max: 15 },
+      { key: 'mood', label: 'Mood & energy', detail: `${checkin.mood}/5`, points: 15 * moodScore, max: 15 },
+      { key: 'load', label: 'Training load', detail: ratio == null ? 'still building a baseline' : `ACWR ${ratio.toFixed(2)} (${acwrZone(ratio).label.toLowerCase()})`, points: 15 * loadScore, max: 15 },
+    ];
+    let score = factors.reduce((t, f) => t + f.points, 0);
 
     if (checkin.restingHR != null) {
       const baseline = checkins
@@ -550,15 +559,24 @@
       if (baseline.length >= 3) {
         const avg = sum(baseline) / baseline.length;
         const delta = checkin.restingHR - avg;
-        if (delta > 3) score -= Math.min(15, (delta - 3) * 3);
+        if (delta > 3) {
+          const pen = Math.min(15, (delta - 3) * 3);
+          score -= pen;
+          factors.push({ key: 'rhr', label: 'Resting heart rate', detail: `${checkin.restingHR} bpm, ${Math.round(delta)} above your usual ${Math.round(avg)}`, points: -pen, max: 0 });
+        }
       }
     }
 
     // Pain means "keep it easy" at best, however good everything else looks.
-    if (painAreas(checkin).length) score = Math.min(score - 10, 54);
+    if (painAreas(checkin).length) {
+      const capped = Math.min(score - 10, 54);
+      factors.push({ key: 'pain', label: 'Pain reported', detail: painAreas(checkin).map((id) => BODY_AREA_LABEL[id]).join(', '), points: capped - score, max: 0 });
+      score = capped;
+    }
 
     score = Math.round(clamp(score, 0, 100));
-    return { score, ...readinessBand(score) };
+    for (const f of factors) f.points = Math.round(f.points * 10) / 10;
+    return { score, ...readinessBand(score), factors };
   }
 
   function readinessBand(score) {
@@ -666,6 +684,8 @@
     };
   }
 
+  const FOCUS_IDS = ['faster', 'stronger', 'comeback', 'varsity', 'fit'];
+
   function normalizeAthlete(input) {
     return {
       id: input.id || uid(),
@@ -694,6 +714,10 @@
       routine: Array.isArray(input.routine) ? input.routine.map((x) => String(x).slice(0, 120)).filter(Boolean).slice(0, 12) : null,
       cueWords: String(input.cueWords || '').slice(0, 80),
       profile: normalizeProfile(input.profile),
+      focus: FOCUS_IDS.includes(input.focus) ? input.focus : null, // main goal picked at onboarding
+      partnerId: input.partnerId ? String(input.partnerId) : null, // training partner (another athlete id)
+      autoAdapt: input.autoAdapt !== false, // let the weekly adapter adjust upcoming sessions
+      adapt: input.adapt && typeof input.adapt === 'object' ? JSON.parse(JSON.stringify(input.adapt)) : null,
       chat: objList(input.chat, 200).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 8000), ts: Number(m.ts) || 0, source: m.source === 'claude' ? 'claude' : m.source === 'builtin' ? 'builtin' : undefined })),
       summarySeen: String(input.summarySeen || ''),
       // Movement screens; scoring lives in screen.js, this only keeps the raw answers tidy.
@@ -1214,6 +1238,7 @@
       mode: null, // null until chosen: 'solo' (training on your own) or 'team'
       events: [],
       challenges: [],
+      nudges: [],
       coachChat: [],
     };
   }
@@ -1303,6 +1328,7 @@
       mode: raw.mode === 'solo' || raw.mode === 'team' ? raw.mode : raw.mode === null ? null : 'team',
       events: objList(raw.events, 3000),
       challenges: objList(raw.challenges, 300),
+      nudges: objList(raw.nudges, 500).map((n) => ({ id: String(n.id || uid()), from: String(n.from || ''), to: String(n.to || ''), text: String(n.text || '').slice(0, 140), ts: Number(n.ts) || 0, seen: !!n.seen })),
       coachChat: objList(raw.coachChat, 200).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 8000), ts: Number(m.ts) || 0, source: m.source })),
     };
   }
@@ -1663,6 +1689,15 @@
       { id: 'inj-jordan', athleteId: 'jordan', type: 'injury', area: 'knee-l', label: 'Left knee pain (patellar tendon)', date: addDays(todayISO, -1), status: 'limited', restrictions: ['no-jumping'], expectedReturn: addDays(todayISO, 10), notes: 'Pain landing from jumps since Friday’s game. Seeing the athletic trainer Wednesday.', stages: [], createdBy: 'Coach Rivera' },
       { id: 'inj-sam', athleteId: 'sam', type: 'concussion', area: 'head', label: 'Concussion (flip-turn wall contact)', date: addDays(todayISO, -4), status: 'limited', restrictions: ['no-contact', 'no-jumping', 'no-lower-load', 'no-upper-load'], notes: 'Symptom-free since Saturday. Cleared by school nurse for light aerobic work.', stages: [{ doneAt: now2 - 50 * 3600000, by: 'Coach Rivera' }, { doneAt: now2 - 20 * 3600000, by: 'Coach Rivera' }, {}, {}, {}, {}], createdBy: 'Coach Rivera' },
     ];
+    // Smart features: goals, a training-partner pair and a nudge waiting for Riley.
+    const byId = (id) => s.athletes.find((a) => a.id === id);
+    if (byId('riley') && byId('maya')) {
+      byId('riley').focus = 'faster';
+      byId('maya').focus = 'stronger';
+      byId('riley').partnerId = 'maya';
+      byId('maya').partnerId = 'riley';
+      s.nudges = [{ id: uid(), from: 'maya', to: 'riley', text: '🔥 Keep the streak alive!', ts: Date.now() - 40 * 60 * 1000, seen: false }];
+    }
     for (const a of s.athletes) a.badgesSeen = ['first-workout', 'ten-workouts', 'tester', 'test-pr', 'first-pr', 'streak-7', 'checkin-7', 'perfect-week', 'form-80'];
 
     // ---------- calendar, wellness, challenges and profiles ----------

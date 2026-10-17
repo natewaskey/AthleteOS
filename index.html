@@ -42,7 +42,7 @@
 
     <dialog id="workout-dialog">
       <form id="workout-form" method="dialog">
-        <h2 id="workout-dialog-title">Log workout</h2>
+        <div class="row dialog-title-row"><h2 id="workout-dialog-title" style="margin:0">Log workout</h2><div class="spacer"></div><button type="button" class="btn btn-sm" data-smart="voice">🎙 Say it instead</button></div>
         <div class="grid-2">
           <label>Date <input type="date" name="date" required /></label>
           <label>Activity <select name="sport" id="sport-select"></select></label>
@@ -164,11 +164,13 @@
     <script src="src/mind.js"></script>
     <script src="src/insights.js"></script>
     <script src="src/live-coach.js"></script>
+    <script src="src/smart.js"></script>
     <script src="src/assistant-ui.js"></script>
     <script src="src/calendar-ui.js"></script>
     <script src="src/wellness-ui.js"></script>
     <script src="src/challenges-ui.js"></script>
     <script src="src/profile-ui.js"></script>
+    <script src="src/smart-ui.js"></script>
     <script src="src/platform.js"></script>
     <script src="src/app.js"></script>
   </body>

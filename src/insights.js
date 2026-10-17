@@ -100,6 +100,8 @@
     const age = C.ageOn(a, t);
     lines.push(`Athlete: ${a.name || 'Athlete'}${age != null ? `, age ${age}` : ''}, sport ${C.sportInfo(a.sport).label}${a.position ? ` (${a.position})` : ''}. Today is ${t}. Units the athlete sees: ${state.settings.units}.`);
     lines.push(`Mode: ${state.mode === 'solo' ? 'training on their own (no coach)' : 'on a team with coaches'}.`);
+    const FOCUS_LABEL = { faster: 'get faster', stronger: 'get stronger', comeback: 'come back from injury', varsity: 'make varsity', fit: 'stay fit and healthy' };
+    if (a.focus) lines.push(`Main goal: ${FOCUS_LABEL[a.focus]}. Tie advice back to this goal.`);
     const ci = a.checkins.find((c) => c.date === t);
     if (ci) {
       const r = C.readiness(ci, a.checkins, a.workouts, t);

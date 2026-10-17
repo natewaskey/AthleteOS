@@ -8,7 +8,26 @@ A private training operating system for athletes. Log workouts, check in each mo
 - Dark-first "glass and glow" design: glass cards, orange-to-pink gradient accents, glowing readiness rings. Light theme is in Settings.
 - Desktop has a sidebar with a handful of sections (Home, Train, AI Coach, Progress, Wellness, Messages, Profile). Related pages sit under pill tabs inside each section.
 - Phones get a floating bottom tab bar with a center AI Coach orb. Everything else is under **More**.
-- Home is one hero card: greeting, readiness gauge, today's session and one-tap quick actions (check in, log, Ask AI, Live coach, Breathe).
+- Home is one hero card (greeting, readiness gauge, today's session and one-tap actions: check in, voice log, Ask AI, Live coach, Breathe) plus one "what's next" card.
+
+### Smart coaching
+- **The why behind every number.** Tap the readiness ring, the training-load card or the injury-risk chip to see each factor's points (for example "Sleep 30 / 35"), what's holding you back most, and one tip.
+- **Injury early warning.** One risk score built from load spikes (ACWR), repeat soreness on the body map, recent pain, short sleep, low readiness, monotonous training and active injuries. It shows on Home, Progress and the coach's roster and alerts.
+- **Voice logging.** Say "3 sets of 5 squats at 225, then bench 3 by 8 at 185" or "ran 3 miles in 25 minutes, felt like a 7". The app works out the activity, sets, reps, weight, distance, time and effort, and shows a preview before saving. Speech uses the browser's built-in recognition; where that's blocked you can type instead.
+- **Adaptive plan.** Once a week the plan reviews the last 7 days (finished vs missed sessions, readiness, soreness, pain, load) and reshapes the next 7:
+  - a recovery week when risk is high;
+  - a lighter week after missed sessions;
+  - a little more load or one more set after a strong week;
+  - a taper the day before games;
+  - exercise swaps around sore areas.
+  Each change says why and can be undone. You can turn it off in Settings.
+- **Training partners.** Pair with a teammate to compare streaks and sessions this week and send nudges (limited to 3 a day). Partners see effort only, never health data.
+- **Goal-based onboarding.** Pick a main goal: get faster, get stronger, come back from injury, make varsity, or stay fit. It sets the program builder's default, the first suggested step, Home tips and the AI coach's context.
+- **10-second check-in.** Four taps: sleep, energy, body and stress, with a live readiness preview. "More detail" opens the full body map, and choosing "Pain" sends you there automatically.
+- **Simpler layout.**
+  - Home shows readiness, today's session and one "what's next" card.
+  - Movement screen and records live inside Progress.
+  - Rarely used settings (data export, erase, API key, demo team) sit under **Advanced**.
 
 ### Three ways to use it (no coach needed)
 The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
@@ -211,6 +230,8 @@ src/nutrition.js      food list, meal totals, targets, water, sweat rate, photo-
 src/challenges.js     challenge logic: automatic/manual counting, leaderboards, pace, completions
 src/mind.js           breathing patterns, routine, visualization, journal, streaks and trends
 src/insights.js       weekly summary, AI context snapshots, built-in coach answers
+src/smart.js          readiness/load "why", injury risk, voice parser, weekly adapter, partners, goals
+src/smart-ui.js       why dialogs, 10-second check-in, voice log, adapt/risk/partner cards, goal picker
 src/live-coach.js     real-time rep counting and cues (engine + camera screen)
 src/assistant-ui.js   AI coach chat and weekly recap screens
 src/calendar-ui.js    calendar screens, event dialog, attendance

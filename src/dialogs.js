@@ -22,7 +22,9 @@
       finish(null);
     });
     el.addEventListener('click', (e) => {
-      if (e.target === el) finish(null); // backdrop
+      if (e.target === el) return finish(null); // backdrop
+      const v = e.target.closest('[data-dlg-value]');
+      if (v) finish(v.dataset.dlgValue);
     });
     el.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -43,6 +45,7 @@
   function open(html, focusSel) {
     if (pending) finish(null);
     const d = ensure();
+    d.classList.remove('wide');
     d.innerHTML = html;
     d.querySelector('[data-dlg-cancel]')?.addEventListener('click', () => finish(null));
     return new Promise((resolve) => {
@@ -124,5 +127,12 @@
     return p;
   }
 
-  root.Dialogs = { confirm, prompt, showText, isOpen: () => !!pending };
+  // Free-form dialog. Resolves with the data-dlg-value of the button pressed, or null when dismissed.
+  function html(content, { focus = '[data-dlg-ok], [data-dlg-cancel]', wide = false } = {}) {
+    const p = open(`<div class="app-dialog">${content}</div>`, focus);
+    el.classList.toggle('wide', wide);
+    return p;
+  }
+
+  root.Dialogs = { confirm, prompt, showText, html, close: () => finish(null), el: () => el, isOpen: () => !!pending };
 })(window);

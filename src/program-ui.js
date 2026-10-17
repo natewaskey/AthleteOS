@@ -22,7 +22,7 @@
   function defaults() {
     const me = ctx.role() === 'athlete' ? ctx.me() : null;
     return {
-      goal: 'general', sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4, phase: 'general',
+      goal: (me && me.focus && root.Smart && root.Smart.FOCUS[me.focus].goal) || 'general', sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4, phase: 'general',
       equipment: ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'cones', 'kettlebell'], focus: [], avoidAreas: [], restrictions: [], request: '', engine: 'builtin',
     };
   }

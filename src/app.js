@@ -15,7 +15,7 @@
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'form', 'live', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['form', 'Form check'], ['history', 'History']] },
     { id: 'ai', label: 'AI Coach', icon: 'sparkle', routes: ['coachai'], accent: true },
-    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['challenges', 'Challenges'], ['screen', 'Movement screen'], ['goals', 'Goals']] },
+    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
     { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
@@ -50,6 +50,7 @@
     check: '<path d="M20 6 9 17l-5-5"/>',
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
+    mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/>',
   };
   const icon = (n, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
   const Form = window.FormUI;
@@ -64,6 +65,8 @@
   const Chal = window.ChallengesUI;
   const Prof = window.ProfileUI;
   const Assist = window.AssistantUI;
+  const Smart = window.SmartUI;
+  const SM = window.Smart;
   const LiveCam = window.LiveCoach;
   const P = window.Platform;
 
@@ -297,7 +300,7 @@
     const t = today();
     const checkin = checkinFor(a, t);
     const ready = C.readiness(checkin, a.checkins, a.workouts, t);
-    const action = coach ? '' : `<button class="btn btn-sm" data-action="open-checkin">${checkin ? 'Edit check-in' : 'Check in'}</button>`;
+    const action = `${ready ? `<button class="btn btn-sm btn-ghost" data-smart="why-ready" data-athlete="${a.id}">Why?</button>` : ''}${coach ? '' : `<button class="btn btn-sm" data-action="open-checkin">${checkin ? 'Edit check-in' : 'Check in'}</button>`}`;
     if (!ready) {
       return `<section class="card span-6"><div class="card-head"><h3>Readiness</h3>${action}</div>
         <div class="readiness"><div class="ring" style="--pct:0"><span>–</span></div>
@@ -322,7 +325,7 @@
     const ratioPct = load.ratio == null ? null : C.clamp((load.ratio / 2) * 100, 0, 100);
     const zonePill = { none: '', low: 'info', optimal: 'good', high: 'warn', danger: 'bad' }[load.zone.key];
     return `<section class="card span-6">
-      <div class="card-head"><h3>Training load</h3>${zonePill ? `<span class="pill ${zonePill}">${esc(load.zone.label)}</span>` : ''}</div>
+      <div class="card-head"><h3>Training load</h3><div class="row" style="gap:.4rem">${zonePill ? `<span class="pill ${zonePill}">${esc(load.zone.label)}</span>` : ''}<button class="btn btn-sm btn-ghost" data-smart="why-load" data-athlete="${a.id}">Why?</button></div></div>
       <div class="row" style="align-items:baseline">
         <div class="stat">${load.ratio == null ? '—' : num(load.ratio, 2)}<small>ACWR</small></div>
         <div class="spacer"></div>
@@ -455,9 +458,6 @@
       const t = today();
       const consentBanner = !solo() && C.needsConsent(a, t) ? `<div class="banner warn" role="note">🔒 You’re under 18, so a parent or guardian needs to approve sharing your data with your coaches. <button class="btn btn-sm" data-tab-link="settings">Set up consent</button></div>` : '';
       if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding(a);
-      const th = C.thread(state.messages, a.id);
-      const lastCoach = [...th].reverse().find((m) => m.from === 'coach');
-      const unread = C.unreadCount(state.messages, 'athlete', a.id);
       const checkin = checkinFor(a, t);
       const ready = C.readiness(checkin, a.checkins, a.workouts, t);
       const mine = (state.assignments || []).filter((x) => x.athleteId === a.id && x.status === 'assigned').sort((x, y) => (x.date < y.date ? -1 : 1));
@@ -467,54 +467,44 @@
       const gameLine = games.today ? `Game day: ${games.today.title}. Warm up well and trust your training.` : games.tomorrow ? `${games.tomorrow.title} is tomorrow, so today tapers automatically.` : '';
       const sub = ready ? `${ready.advice}${gameLine ? ' ' + gameLine : ''}` : `Check in to get today’s readiness score.${gameLine ? ' ' + gameLine : ''}`;
       const qa = (attrs, ic, label) => `<button class="qa" ${attrs}>${icon(ic)}<span>${label}</span></button>`;
-      const coachCard = solo()
-        ? `<section class="card span-4"><div class="card-head"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>${goalList(a) || '<p class="muted" style="margin:0">No goals yet.</p>'}</section>`
-        : `<section class="card span-4"><div class="card-head"><h3>${esc(coachName())}</h3>${unread ? `<span class="pill bad">${unread} new</span>` : ''}</div>
-            ${coachCreds() ? `<div class="muted small" style="margin:-.3rem 0 .4rem">${esc(coachCreds())}</div>` : ''}
-            ${lastCoach ? `<p style="margin:.2rem 0 .3rem">“${esc(lastCoach.text || 'Sent a video')}”</p><p class="muted small" style="margin:0 0 .75rem">${esc(relTime(lastCoach.ts))}</p>` : '<p class="muted">No messages from your coach yet.</p>'}
-            <button class="btn" data-tab-link="messages" style="width:100%">Message coach</button></section>`;
 
+      // Home stays to three things: readiness, today's session, and one "what's next" card.
       return `
         ${consentBanner}
+        ${Smart.nudgeBanner(a)}
+        ${Smart.adaptBanner(a)}
         <section class="hero">
           <div class="hero-main">
-            <div class="eyebrow">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}</div>
+            <div class="eyebrow">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}${a.focus ? ' · ' + Smart.focusTag(a) : ''}</div>
             <h1 class="hero-title">${esc(greet())}${a.name ? ', <span class="grad-text">' + esc(a.name.split(' ')[0]) + '</span>' : ''}</h1>
             <p class="hero-sub">${esc(sub)}</p>
             <div class="quick-actions">
               ${qa('data-action="open-checkin"', 'check', checkin ? 'Edit check-in' : 'Check in')}
-              ${qa('data-action="open-log"', 'plus', 'Log workout')}
+              ${qa('data-smart="voice"', 'mic', 'Voice log')}
               ${qa('data-tab="coachai"', 'sparkle', 'Ask AI')}
               ${qa('data-tab-link="live"', 'video', 'Live coach')}
               ${qa('data-well-tab="mind"', 'wind', 'Breathe')}
             </div>
           </div>
           <div class="hero-gauge">
-            <div class="gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" style="--pct:${ready ? ready.score : 0}" role="img" aria-label="${ready ? `Readiness ${ready.score} out of 100` : 'No check-in yet'}">
-              <div><strong>${ready ? ready.score : '–'}</strong><span>Readiness</span></div>
-            </div>
-            <div class="gauge-label">${ready ? esc(ready.label) : '<button class="btn btn-sm btn-primary" data-action="open-checkin">Check in</button>'}</div>
+            <button class="gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" style="--pct:${ready ? ready.score : 0}" ${ready ? 'data-smart="why-ready"' : 'data-action="open-checkin"'} aria-label="${ready ? `Readiness ${ready.score} out of 100. Show why` : 'No check-in yet. Check in'}">
+              <div><strong>${ready ? ready.score : '–'}</strong><span>${ready ? 'Why? ›' : 'Check in'}</span></div>
+            </button>
+            <div class="gauge-label">${ready ? esc(ready.label) : 'How are you feeling?'}</div>
+            ${Smart.riskChip(a)}
           </div>
           <div class="hero-session">
             <div class="eyebrow">${session ? (session.date === t ? 'Today’s session' : 'Still to do') : 'Up next'}</div>
             ${session
               ? `<div class="session-name">${esc(session.plan.name)}</div><div class="muted small">${C.estimateMinutes(session.plan)} min · ${esc(session.plan.blocks.map((b) => C.BLOCK_TYPES[b.type].label).slice(0, 3).join(' · '))}</div>
+                 ${session.adjusted && /Weekly adapt/.test((session.adjusted.reasons || [])[0] || '') ? `<button class="adapted-tag" data-smart="why-adapt">${icon('sparkle')} Adapted for you</button>` : ''}
                  <button class="btn btn-primary btn-glow" data-plan-open="${session.id}">${icon('bolt')}<span>${session.startedAt ? 'Continue' : 'Start session'}</span></button>`
               : next
                 ? `<div class="session-name">${esc(next.plan.name)}</div><div class="muted small">${esc(relDate(next.date))} · ${C.estimateMinutes(next.plan)} min</div><button class="btn" data-tab="plan">View plan</button>`
                 : `<div class="session-name">Rest or free day</div><div class="muted small">Nothing scheduled.</div><button class="btn" data-prog-action="new">${icon('sparkle')}<span>Build a program</span></button>`}
           </div>
         </section>
-        <div class="grid">
-          ${Health.athleteInjuriesCard(a.id)}
-          ${loadCard(a)}
-          ${Cal.card({ span: 'span-6' })}
-          ${Well.todayCard()}
-          ${Chal.card({ span: 'span-4' })}
-          ${coachCard}
-          ${Assist.summaryCard(a, { span: 'span-12', compact: true })}
-          ${a.screens.length ? '' : Screens.card(a, { span: 'span-12' })}
-        </div>`;
+        <div class="grid">${Smart.nextCard(a)}</div>`;
     },
 
     history() {
@@ -556,10 +546,15 @@
       const a = me();
       const t = today();
       const weeks = C.weeklySummary(a.workouts, t, 8);
-      return Progress.athleteView(`${Assist.summaryCard(a)}${weekStatCards(a)}${trendCard(a, 'span-8')}
+      const prs = C.strengthRecords(a.workouts).length + C.enduranceRecords(a.workouts).length;
+      return Progress.athleteView(`${Assist.summaryCard(a)}
+        ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
+        ${trendCard(a, 'span-8')}
         <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
-        ${Screens.card(a, { span: 'span-6' })}${Chal.card({ span: 'span-6' })}
-        <section class="card span-6"><div class="card-head"><h3>Goals</h3><button class="btn btn-sm btn-ghost" data-tab-link="goals">Manage</button></div>${goalList(a) || '<p class="muted" style="margin:0">No goals yet.</p>'}</section>
+        ${Smart.partnerCard(a, { span: 'span-6' })}
+        ${Screens.card(a, { span: 'span-6' })}
+        <section class="card span-6"><div class="card-head"><h3>🏅 Personal records</h3><button class="btn btn-sm btn-ghost" data-tab-link="records">All records</button></div>
+          <p class="muted" style="margin:0">${prs ? `${prs} records across your lifts and endurance efforts.` : 'Log lifts and timed efforts to start setting records.'}</p></section>
         ${solo() ? '' : Progress.wallCard()}`);
     },
 
@@ -601,7 +596,7 @@
 
     records() {
       const { endHTML, strHTML } = recordsTables(me());
-      return `<h1 class="page-title">Personal records</h1>
+      return `<button class="btn btn-sm btn-ghost" data-tab-link="progress" style="margin-bottom:.5rem">‹ Progress</button><h1 class="page-title">Personal records</h1>
         <div class="grid">
           <section class="card span-6"><div class="card-head"><h3>Endurance</h3></div>${endHTML}</section>
           <section class="card span-6"><div class="card-head"><h3>Strength · estimated 1RM</h3></div>${strHTML}</section>
@@ -630,7 +625,9 @@
     },
 
     plan() {
-      return Plan.view(ui.id);
+      const a = me();
+      const upcoming = (state.assignments || []).some((x) => x.athleteId === a.id && x.status === 'assigned' && x.date >= today());
+      return (!ui.id && (upcoming || a.adapt) ? `<div class="grid" style="margin-bottom:1rem">${Smart.adaptCard(a)}</div>` : '') + Plan.view(ui.id);
     },
 
     form() {
@@ -659,6 +656,10 @@
                 <label>Primary sport <select name="sport">${sportOptions(a.sport)}</select></label>
                 <label>Position / event <input name="position" value="${esc(a.position)}" maxlength="40" placeholder="e.g. Guard" /></label>
               </div>
+              <div class="grid-2">
+                <label>Main goal <select name="focus"><option value="">Not set</option>${Object.entries(SM.FOCUS).map(([k, f]) => `<option value="${k}" ${a.focus === k ? 'selected' : ''}>${f.icon} ${esc(f.label)}</option>`).join('')}</select></label>
+                <label class="check" style="align-self:end"><input type="checkbox" name="autoAdapt" ${a.autoAdapt !== false ? 'checked' : ''}/> Auto-adapt my plan each week</label>
+              </div>
               ${prefsFields()}
               <fieldset><legend>Privacy</legend>
                 ${solo() ? '' : `<label class="check"><input type="checkbox" name="shareNotes" ${a.privacy.shareNotes ? 'checked' : ''}/> Share check-in notes with my coach</label>
@@ -672,13 +673,15 @@
           </section>
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
-          ${myDataCard(a)}
-          ${aiCard()}
-          ${dataCard()}
-          ${explainerCard()}
+          ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard())}
         </div>`;
     },
   };
+
+  // Rarely used settings (data export, erase, API key, how scores work) sit behind one toggle.
+  function advanced(inner) {
+    return `<details class="advanced span-12"${ui.advancedOpen ? ' open' : ''}><summary><span>Advanced</span><span class="muted small">Data, AI key, demo team, how the numbers work</span></summary><div class="grid">${inner}</div></details>`;
+  }
 
   function guardianCard(a) {
     const age = C.ageOn(a, today());
@@ -864,14 +867,22 @@
   }
 
   function onboarding(a) {
+    if (a && !a.focus) return `<div class="card" style="max-width:760px;margin:1.5rem auto">${Smart.focusPicker()}</div>`;
+    const f = a && SM.FOCUS[a.focus];
     return `<div class="card empty" style="max-width:640px;margin:2rem auto">
-      <h1 style="font-size:1.6rem;color:var(--text)">Let’s get started</h1>
-      <p>${solo() ? 'Start with a quick movement screen to see where you are, then build a program or log your training.' : 'Log training, do a quick body-map check-in each day, message your coach and send video.'}</p>
-      <div class="row" style="justify-content:center;margin-top:1rem">
-        ${a && !a.screens.length ? '<button class="btn btn-primary" data-screen-action="start">📋 Movement screen</button>' : ''}
-        <button class="btn ${a && !a.screens.length ? '' : 'btn-primary'}" data-action="open-log">Log a workout</button>
+      ${f ? `<div class="eyebrow">Step 2 of 2 · ${f.icon} ${esc(f.label)}</div>
+        <h1 style="font-size:1.6rem;color:var(--text);margin:.4rem 0">Let’s get started</h1>
+        <p style="margin:0 0 1rem">${esc(f.tip)}</p>
+        <button class="btn btn-primary btn-glow" ${f.next.action}>${esc(f.next.label)}</button>
+        <p class="muted small" style="margin:1.25rem 0 0">Or start another way</p>`
+      : `<h1 style="font-size:1.6rem;color:var(--text)">Let’s get started</h1>
+        <p>${solo() ? 'Start with a quick movement screen to see where you are, then build a program or log your training.' : 'Log training, do a quick body-map check-in each day, message your coach and send video.'}</p>`}
+      <div class="row" style="justify-content:center;margin-top:.6rem">
+        ${a && !a.screens.length && a.focus !== 'comeback' ? '<button class="btn" data-screen-action="start">📋 Movement screen</button>' : ''}
+        <button class="btn" data-action="open-log">Log a workout</button>
+        <button class="btn" data-smart="voice">🎙 Voice log</button>
         <button class="btn" data-action="open-checkin">Daily check-in</button>
-        <button class="btn" data-prog-action="new">✨ Build a program</button>
+        ${f && /prog-action/.test(f.next.action) ? '' : '<button class="btn" data-prog-action="new">✨ Build a program</button>'}
       </div>
       <p class="muted small" style="margin-top:1rem"><button class="btn-link" data-action="load-sample">Explore with a demo team</button></p></div>`;
   }
@@ -889,6 +900,10 @@
       const checkedIn = statuses.filter((s) => s.checkin).length;
       const alerts = statuses.flatMap((s) => s.flags.filter((f) => f.level !== 'info').map((f) => ({ ...f, a: s.athlete })));
       for (const x of [...Health.alerts(), ...Plan.alerts()]) if (athleteById(x.athleteId)) alerts.push({ ...x, a: athleteById(x.athleteId) });
+      for (const a of state.athletes) {
+        const r = SM.injuryRisk(state, a, t);
+        if (r.level !== 'low' && !consentLocked(a)) alerts.push({ level: r.level === 'high' ? 'bad' : 'warn', text: `${r.label} injury risk: ${r.factors.slice(0, 2).map((f) => f.label.toLowerCase()).join(', ')}`, a });
+      }
       alerts.sort((x, y) => (x.level === 'bad' ? 0 : 1) - (y.level === 'bad' ? 0 : 1));
       const unread = C.unreadCount(state.messages, 'coach');
       const avgReady = statuses.filter((s) => s.readiness).map((s) => s.readiness.score);
@@ -905,8 +920,7 @@
             <div class="muted">${alerts.filter((x) => x.level === 'warn').length} to watch</div></section>
           <section class="card span-3 clickable" data-tab-link="messages"><h3>Messages</h3><div class="stat">${unread}<small>unread</small></div>
             <div class="muted">${unread ? 'Tap to reply' : 'All caught up'}</div></section>
-          ${Cal.card({ span: 'span-6', days: 7 })}
-          ${Chal.card({ span: 'span-6' })}
+          ${Cal.card({ span: 'span-12', days: 7 })}
 
           <section class="card span-12">
             <div class="card-head"><h3>Needs attention</h3></div>
@@ -937,7 +951,7 @@
     },
 
     performance() {
-      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard() + Chal.card());
+      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard());
     },
 
     calendar() {
@@ -1035,8 +1049,7 @@
           ${certsCard()}
           ${staffCard()}
           ${modeCard()}
-          ${aiCard()}
-          ${dataCard()}
+          ${advanced(aiCard() + dataCard())}
         </div>`;
     },
   };
@@ -1080,6 +1093,7 @@
       <div class="chips">${s.checkin ? soreChips(s.checkin.soreAreas, 3) || '<span class="muted small">No soreness reported</span>' : ''}</div>
       ${Plan.todayLine(a.id)}
       ${Health.statusPill(a.id)}
+      ${(() => { const r = SM.injuryRisk(state, a, today()); return r.level === 'low' ? '' : `<div class="small risk-line risk-${r.level}">🛡️ ${r.label} injury risk · ${esc(r.factors[0].label.toLowerCase())}</div>`; })()}
       <div class="muted small">${s.lastWorkout ? `Last trained ${esc(relDate(s.lastWorkout).toLowerCase())}` : 'No training logged'}</div>
     </article>`;
   }
@@ -1107,6 +1121,8 @@
       <div class="grid">
         ${readinessCard(a, { coach: true })}
         ${loadCard(a)}
+        ${Smart.riskCard(a, { span: 'span-6' })}
+        ${Smart.adaptCard(a, { span: 'span-6' })}
         <section class="card span-6">
           <div class="card-head"><h3>Body map · ${s.checkin ? 'today' : 'no check-in today'}</h3></div>
           ${Body.render(s.checkin ? s.checkin.soreAreas : {})}
@@ -1348,7 +1364,6 @@
       return;
     }
     const views = role() === 'coach' ? coachViews : athleteViews;
-    if (ui.tab === 'records' && role() === 'athlete') ui.tab = 'progress';
     const allowed = !!sectionOf(ui.tab) || HIDDEN_ROUTES.includes(ui.tab);
     if (!views[ui.tab] || !allowed) ui.tab = firstTab();
     // Opening a thread marks it read before counts are drawn.
@@ -1356,6 +1371,7 @@
       if (role() === 'athlete') markThreadRead(me().id);
       else if (ui.id) markThreadRead(ui.id);
     }
+    if (role() === 'athlete' && SM.autoAdapt(state, me(), today())) save();
     renderChrome();
     $('#view').innerHTML = views[ui.tab]();
     hydrateVideos($('#view'));
@@ -1529,6 +1545,22 @@
     wDialog.showModal();
   }
 
+  // A prefilled but unsaved workout (from voice logging).
+  function openWorkoutDraft(w) {
+    openWorkout(w);
+    editingId = null;
+    $('#workout-dialog-title').textContent = 'Log workout';
+  }
+
+  function logWorkout(w) {
+    const a = me();
+    a.workouts.push(w);
+    Progress.onWorkoutLogged(a, w);
+    save();
+    toast(`Logged “${w.title}” · ${num(C.sessionLoad(w))} AU`);
+    render();
+  }
+
   wForm.addEventListener('input', (e) => {
     if (e.target.name === 'sport') {
       if (wForm.sport.value !== wForm.dataset.originalSport) clearConverted(wForm.distance);
@@ -1692,6 +1724,10 @@
 
   // ---------- global events ----------
 
+  document.addEventListener('toggle', (e) => {
+    if (e.target.matches && e.target.matches('details.advanced')) ui.advancedOpen = e.target.open;
+  }, true);
+
   document.addEventListener('click', async (e) => {
     const tabBtn = e.target.closest('[data-tab], [data-tab-link]');
     if (tabBtn) {
@@ -1723,6 +1759,8 @@
       case 'open-log':
         return openWorkout();
       case 'open-checkin':
+        return Smart.quickCheckin();
+      case 'open-checkin-full':
         return openCheckin();
       case 'close-dialog':
         return el.closest('dialog').close();
@@ -1940,7 +1978,7 @@
     } else if (f.id === 'profile-form') {
       e.preventDefault();
       const d = data();
-      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '' });
+      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, autoAdapt: !!d.autoAdapt });
       if (!solo()) me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
     } else if (f.id === 'coach-form') {
@@ -2141,6 +2179,7 @@
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
   const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
+  Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
   Chal.init(shared);
   Prof.init(shared);
