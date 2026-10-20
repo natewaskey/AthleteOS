@@ -67,6 +67,7 @@
   const Assist = window.AssistantUI;
   const Smart = window.SmartUI;
   const SM = window.Smart;
+  const Sci = window.ScienceUI;
   const LiveCam = window.LiveCoach;
   const P = window.Platform;
 
@@ -333,6 +334,7 @@
       </div>
       ${ratioPct == null ? '' : `<div class="gauge" aria-hidden="true"><i style="left:${ratioPct}%"></i></div><div class="gauge-scale"><span>0</span><span>0.8</span><span>1.3</span><span>1.5</span><span>2.0</span></div>`}
       <p class="muted" style="margin:.5rem 0 0">${esc(load.zone.advice)}${mono.monotony != null && mono.monotony > 2 ? ' The week is very monotonous; vary hard and easy days.' : ''}</p>
+      <p class="muted small" style="margin:.35rem 0 0">${load.method === 'ewma' ? 'Weighted 7:28-day ratio' : 'Rolling 7:28-day ratio (under 5 weeks of history)'}${load.weekChange != null ? ` · ${load.weekChange > 0 ? '+' : ''}${load.weekChange}% vs last week` : ''}</p>
     </section>`;
   }
 
@@ -549,12 +551,15 @@
       const prs = C.strengthRecords(a.workouts).length + C.enduranceRecords(a.workouts).length;
       return Progress.athleteView(`${Assist.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
+        ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
+        ${Sci.ageCard(a)}
         ${trendCard(a, 'span-8')}
         <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
         ${Smart.partnerCard(a, { span: 'span-6' })}
         ${Screens.card(a, { span: 'span-6' })}
         <section class="card span-6"><div class="card-head"><h3>🏅 Personal records</h3><button class="btn btn-sm btn-ghost" data-tab-link="records">All records</button></div>
           <p class="muted" style="margin:0">${prs ? `${prs} records across your lifts and endurance efforts.` : 'Log lifts and timed efforts to start setting records.'}</p></section>
+        <section class="card span-12 sci-cta"><div class="row"><div class="main"><strong>🔬 The science behind your numbers</strong><div class="muted small">Every score, warning and exercise choice, with the research and how strong it is.</div></div><button class="btn" data-sci="library">Open evidence library</button></div></section>
         ${solo() ? '' : Progress.wallCard()}`);
     },
 
@@ -660,6 +665,11 @@
                 <label>Main goal <select name="focus"><option value="">Not set</option>${Object.entries(SM.FOCUS).map(([k, f]) => `<option value="${k}" ${a.focus === k ? 'selected' : ''}>${f.icon} ${esc(f.label)}</option>`).join('')}</select></label>
                 <label class="check" style="align-self:end"><input type="checkbox" name="autoAdapt" ${a.autoAdapt !== false ? 'checked' : ''}/> Auto-adapt my plan each week</label>
               </div>
+              <div class="grid-2">
+                <label>Level <select name="level"><option value="">Not set</option>${[['rec', 'Recreational'], ['youth-club', 'Youth club'], ['high-school', 'High school'], ['club', 'Club (adult)'], ['college', 'College'], ['pro', 'Professional'], ['masters', 'Masters']].map(([k, l]) => `<option value="${k}" ${a.level === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+                <label>Sex <select name="sex"><option value="">Prefer not to say</option><option value="female" ${a.sex === 'female' ? 'selected' : ''}>Female</option><option value="male" ${a.sex === 'male' ? 'selected' : ''}>Male</option></select></label>
+              </div>
+              <p class="hint" style="margin-top:-.4rem">Sex is optional. It’s only used for youth growth estimates, which use separate formulas.</p>
               ${prefsFields()}
               <fieldset><legend>Privacy</legend>
                 ${solo() ? '' : `<label class="check"><input type="checkbox" name="shareNotes" ${a.privacy.shareNotes ? 'checked' : ''}/> Share check-in notes with my coach</label>
@@ -951,7 +961,7 @@
     },
 
     performance() {
-      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard());
+      return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard() + Sci.importCard({ span: 'span-6', team: true }));
     },
 
     calendar() {
@@ -1046,6 +1056,7 @@
               <button class="btn" type="submit">+ Add athlete</button>
             </form>
           </section>
+          ${Sci.importCard({ team: true })}
           ${certsCard()}
           ${staffCard()}
           ${modeCard()}
@@ -1123,6 +1134,8 @@
         ${loadCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
+        ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
+        ${Sci.ageCard(a, { span: 'span-12' })}
         <section class="card span-6">
           <div class="card-head"><h3>Body map · ${s.checkin ? 'today' : 'no check-in today'}</h3></div>
           ${Body.render(s.checkin ? s.checkin.soreAreas : {})}
@@ -1455,10 +1468,11 @@
   }
 
   function explainerCard() {
-    return `<section class="card span-12"><div class="card-head"><h3>How the numbers work</h3></div>
-      <p><strong>Session load</strong> = duration (min) × RPE, the session-RPE method (Foster). It works across every activity, from a game to a lift.</p>
-      <p><strong>ACWR</strong> compares average daily load over the last 7 days (acute) with the last 28 (chronic). 0.8–1.3 is the sweet spot; spikes above 1.5 deserve respect.</p>
-      <p><strong>Readiness</strong> blends sleep (35%), body-map soreness (20%), stress (15%), mood (15%) and load balance (15%), minus penalties for pain and an elevated resting heart rate.</p>
+    return `<section class="card span-12"><div class="card-head"><h3>How the numbers work</h3><button class="btn btn-sm" data-sci="library">🔬 Evidence library</button></div>
+      <p><strong>Session load</strong> = duration (min) × RPE, the session-RPE method (Foster 2001). It works across every activity, from a game to a lift.</p>
+      <p><strong>Load ratio</strong> compares recent (7-day) with longer-term (28-day) load using exponentially weighted averages once there are 5 weeks of history (Williams 2017). Big jumps on last week are flagged on their own. It’s a guide, not a predictor (Impellizzeri 2020).</p>
+      <p><strong>Readiness</strong> blends sleep (35%), body-map soreness (20%), stress (15%), mood (15%) and load balance (15%), minus penalties for pain and for resting HR or HRV outside your own normal range.</p>
+      <p><strong>Personal baselines</strong>: each marker is compared with your last 28 days (mean ± 1 SD), so an athlete with a naturally low HRV isn’t flagged every day.</p>
       <p><strong>Form analysis</strong> tracks 33 body points in your video (on-device, with Google’s MediaPipe), measures joint angles and positions at each rep’s key moment, and compares them with target positions built from your own limb lengths.</p>
       <p class="muted" style="margin-bottom:0">These are guides, not medical advice. Pain that persists should be seen by a professional.</p></section>`;
   }
@@ -1650,6 +1664,8 @@
     cForm.stress.value = src.stress ?? 2;
     cForm.mood.value = src.mood ?? 4;
     cForm.restingHR.value = src.restingHR ?? '';
+    const devHrv = (a.metrics || []).find((m) => m.key === 'hrv' && m.date === t);
+    cForm.hrv.value = src.hrv ?? (devHrv ? Math.round(devHrv.value) : '');
     cForm.note.value = src.note ?? '';
     cForm.hydration.value = src.hydration ?? 3;
     cForm.fuel.value = src.fuel ?? 3;
@@ -1978,7 +1994,7 @@
     } else if (f.id === 'profile-form') {
       e.preventDefault();
       const d = data();
-      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, autoAdapt: !!d.autoAdapt });
+      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, autoAdapt: !!d.autoAdapt, level: C.LEVELS.includes(d.level) ? d.level : '', sex: ['male', 'female'].includes(d.sex) ? d.sex : '' });
       if (!solo()) me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
     } else if (f.id === 'coach-form') {
@@ -2179,6 +2195,7 @@
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
   const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
+  Sci.init(shared);
   Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
   Chal.init(shared);

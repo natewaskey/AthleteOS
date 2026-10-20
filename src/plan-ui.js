@@ -509,7 +509,7 @@
       }
     }
     const adjustedNote = a.adjusted && a.adjusted.level && a.adjusted.level !== 'kept'
-      ? `<div class="banner info-banner">🔧 Auto-adjusted (${a.adjusted.level === 'recover' ? 'recovery' : 'reduced'})${a.adjusted.reasons.length ? `: ${esc(a.adjusted.reasons.join(' '))}` : ''}</div>`
+      ? `<div class="banner info-banner">🔧 Auto-adjusted (${({ recover: 'recovery', deload: 'recovery week', ease: 'lighter', progress: 'progressed', maintain: 'tweaked' })[a.adjusted.level] || 'reduced'})${a.adjusted.reasons.length ? `: ${esc(a.adjusted.reasons.join(' '))}` : ''}</div>`
       : '';
     return `<button class="btn btn-sm btn-ghost" data-tab-link="plan" style="margin-bottom:.5rem">‹ ${coach ? 'Training plan' : 'My plan'}</button>
       <div class="row" style="margin-bottom:.75rem">
@@ -597,7 +597,7 @@
     return `<div class="session-item ${complete ? 'complete' : ''} ${flag ? 'flag-' + flag.level : ''}">
       <div class="row" style="flex-wrap:nowrap;align-items:flex-start">
         <span class="item-num">${i.group ? esc(i.group) : n}</span>
-        <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>
+        <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>${root.ScienceUI ? ' ' + root.ScienceUI.evidenceChip(i.name) : ''}
           <div class="small">${esc(prescription(i, athlete))}</div>
           ${i.notes ? `<div class="muted small">${esc(i.notes)}</div>` : ''}
           ${flag ? `<div class="small flag-note">${flag.level === 'bad' ? '⛔' : '⚠️'} ${esc(flag.reason)}</div>` : ''}

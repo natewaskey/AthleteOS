@@ -123,6 +123,7 @@
       ${form ? '<canvas id="howto-demo" width="480" height="300" aria-label="Animated demo of good form"></canvas><p class="hint">Animated demo of good technique. Film yourself and use 📐 Check form to compare.</p>' : ''}
       <h3>Coaching cues</h3>
       <ol class="cue-list">${P.cues(name).map((c) => `<li>${esc(c)}</li>`).join('')}</ol>
+      ${root.ScienceUI ? root.ScienceUI.evidenceBlock(name) : ''}
       <a class="btn" href="${P.demoLink(name)}" target="_blank" rel="noopener">▶ Watch video demos</a>`;
     sheet.showModal();
     if (form && root.Movement) animateDemo($('#howto-demo', sheet), form);

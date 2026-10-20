@@ -32,12 +32,15 @@
       .join('')}</ul>`;
   }
 
-  function whyShell({ eyebrow, title, big, bigClass = '', summary, body, tip }) {
+  const sci = (keys) => (root.ScienceUI ? root.ScienceUI.scienceSection(keys) : '');
+
+  function whyShell({ eyebrow, title, big, bigClass = '', summary, body, tip, science = [] }) {
     return `<div class="why">
       <div class="why-head"><div class="why-big ${bigClass}">${big}</div>
         <div><div class="eyebrow">${esc(eyebrow)}</div><h2 id="app-dialog-title">${esc(title)}</h2>${summary ? `<p class="muted" style="margin:.2rem 0 0">${esc(summary)}</p>` : ''}</div></div>
       ${body}
       ${tip ? `<div class="why-tip">${ctx.icon('sparkle')}<span>${esc(tip)}</span></div>` : ''}
+      ${sci(science)}
       <div class="dialog-actions"><button type="button" class="btn btn-primary" data-dlg-cancel>Got it</button></div>
     </div>`;
   }
@@ -55,7 +58,8 @@
         big: `<span>${ex.score}</span>`,
         bigClass: 'band-' + ex.band,
         summary: ex.biggest ? `${ex.biggest.label} is holding you back most today (−${Math.round(ex.biggest.lost)} points).` : 'Every factor is in good shape today.',
-        body: factorRows(rows) + `<p class="hint">Points earned out of each factor’s maximum. Sleep counts most (35), then soreness (20), stress, mood and training load (15 each).</p>`,
+        body: factorRows(rows) + `<p class="hint">Points earned out of each factor’s maximum. Sleep counts most (35), then soreness (20), stress, mood and training load (15 each). Resting HR and HRV are judged against your own normal.</p>` + (root.ScienceUI ? root.ScienceUI.baselineWhy(a) : ''),
+        science: ['sleep', 'wellness', 'hrv', 'baseline'],
         tip: ex.tip,
       })
     );
@@ -74,8 +78,9 @@
       ${ex.top.length ? `<h3 class="why-sub">Biggest sessions this week</h3><ul class="why-list">${ex.top.map((w) => `<li class="why-row"><div class="why-main"><strong>${esc(w.title)}</strong><span class="muted small">${esc(ctx.relDate(w.date))}</span></div><div class="why-val">${Math.round(w.load)} AU</div></li>`).join('')}</ul>` : ''}
       <h3 class="why-sub">What the ratio means</h3>
       ${factorRows(bands.map(([v, d, t]) => ({ label: v, detail: d, tone: t, value: '' })))}
-      <p class="hint">Load = minutes × effort (RPE). The ratio compares your last 7 days with your last 28.</p>`;
-    return dlg(whyShell({ eyebrow: 'Why is training load', title: ex.ratio == null ? 'Building a baseline' : `${ex.ratio.toFixed(2)} · ${ex.zone.label}`, big: `<span>${ex.ratio == null ? '—' : ex.ratio.toFixed(2)}</span>`, bigClass: 'tone-' + tone, summary: ex.summary, body, tip: ex.zone.advice }));
+      ${ex.weekChange != null ? `<p style="margin:.6rem 0 0">This week vs last: <strong>${ex.weekChange > 0 ? '+' : ''}${ex.weekChange}%</strong>${ex.weekChange >= 30 ? ' (a big jump on its own)' : ''}.</p>` : ''}
+      <p class="hint">Load = minutes × effort (session RPE). ${ex.method === 'ewma' ? 'The ratio uses exponentially weighted averages (7-day acute vs 28-day chronic), which weight recent days more.' : 'With under 5 weeks of history the ratio uses simple 7-day vs 28-day averages.'} Treat it as a guide, not a predictor.</p>`;
+    return dlg(whyShell({ science: ['load', 'monotony'], eyebrow: 'Why is training load', title: ex.ratio == null ? 'Building a baseline' : `${ex.ratio.toFixed(2)} · ${ex.zone.label}`, big: `<span>${ex.ratio == null ? '—' : ex.ratio.toFixed(2)}</span>`, bigClass: 'tone-' + tone, summary: ex.summary, body, tip: ex.zone.advice }));
   }
 
   function whyRisk(a) {
@@ -83,7 +88,7 @@
     const body = r.factors.length
       ? factorRows(r.factors.map((f) => ({ label: f.label, detail: f.detail, tone: f.points >= 20 ? 'bad' : 'warn', value: `+${f.points}`, pct: null })))
       : '<p class="muted">No warning signs right now: load is steady, no pain, sleep and soreness look fine.</p>';
-    return dlg(whyShell({ eyebrow: 'Injury early warning', title: `${r.label} risk`, big: `<span>${r.score}</span>`, bigClass: 'risk-' + r.level, summary: r.factors.length ? `${r.factors.length} warning sign${r.factors.length === 1 ? '' : 's'} adding up to ${r.score} / 100.` : '', body: body + '<p class="hint">Built from load spikes, repeat soreness on the body map, pain, sleep, readiness and active injuries. A guide, not a diagnosis.</p>', tip: r.advice }));
+    return dlg(whyShell({ science: ['load', 'sleep', 'cmj', 'baseline', 'maturity'], eyebrow: 'Injury early warning', title: `${r.label} risk`, big: `<span>${r.score}</span>`, bigClass: 'risk-' + r.level, summary: r.factors.length ? `${r.factors.length} warning sign${r.factors.length === 1 ? '' : 's'} adding up to ${r.score} / 100.` : '', body: body + '<p class="hint">Built from load spikes, repeat soreness on the body map, pain, sleep, readiness, personal baselines (HRV, jumps), GPS sprint load, growth spurts and active injuries. A guide, not a diagnosis.</p>', tip: r.advice }));
   }
 
   function whyAdapt(a) {
@@ -145,6 +150,7 @@
           date: t,
           sleep: +fd.get('sleep'),
           sleepQuality: existing ? existing.sleepQuality : 3,
+          hrv: existing && existing.hrv != null ? existing.hrv : ((a.metrics || []).find((m) => m.key === 'hrv' && m.date === t) || {}).value ?? null,
           mood: +fd.get('mood'),
           stress: +fd.get('stress'),
           soreAreas: keepMap ? existing.soreAreas : undefined,

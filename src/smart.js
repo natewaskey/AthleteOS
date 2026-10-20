@@ -15,6 +15,7 @@
   const C = node ? require('./core.js') : root.Core;
   const P = node ? require('./program.js') : root.Program;
   const Cal = node ? require('./calendar.js') : root.Calendar;
+  const Sci = node ? require('./science.js') : root.Science;
 
   const KM_PER_MI = 1.609344;
   const KG_PER_LB = 0.45359237;
@@ -61,6 +62,8 @@
     const change = usual7 ? Math.round(((total7 - usual7) / usual7) * 100) : null;
     return {
       ratio: load.ratio,
+      method: load.method,
+      weekChange: load.weekChange,
       zone: load.zone,
       total7,
       usual7,
@@ -108,6 +111,24 @@
 
     const inj = P.activeInjuries(state, a.id);
     if (inj.length) add(10, 'Active injury', inj.map((i) => i.label || i.area || 'injury').join(', '));
+
+    // Personal baselines: several markers outside the athlete's own normal range at once.
+    if (Sci) {
+      const off = Sci.baselines(a, todayISO).filter((b) => b.status === 'worse' && b.key !== 'readiness' && b.key !== 'cmj');
+      if (off.length >= 2) add(10, 'Outside your normal', off.map((b) => b.label.toLowerCase()).join(', ') + ' below your usual range');
+      const jump = Sci.baselines(a, todayISO).find((b) => b.key === 'cmj' && b.z != null);
+      if (jump && jump.z <= -1.5) add(12, 'Jump output down', `CMJ ${jump.value.toFixed(1)} cm vs your normal ${jump.mean.toFixed(1)} cm: a sign of neuromuscular fatigue`);
+      const gps = Sci.gpsWeek(a, todayISO);
+      if (gps && gps.gps_hsr.change != null && gps.gps_hsr.prev >= 200 && gps.gps_hsr.change >= 50) add(10, 'Sprint load jump', `high-speed running up ${gps.gps_hsr.change}% on last week`);
+      const mat = Sci.maturity(a, todayISO);
+      if (mat && mat.status === 'circa') add(15, 'Growth spurt', mat.velocity != null && mat.velocity >= 7 ? `growing ${mat.velocity} cm/year` : 'near peak height velocity');
+      const band = Sci.ageBand(a, todayISO);
+      if (band && band.key === 'masters') {
+        const hard = new Set(a.workouts.filter((w) => w.rpe >= 7 && C.daysBetween(w.date, todayISO) >= 0 && C.daysBetween(w.date, todayISO) < 7).map((w) => w.date));
+        const b2b = [...hard].filter((d) => hard.has(C.addDays(d, 1))).length;
+        if (b2b) add(8, 'Back-to-back hard days', `${b2b} pair${b2b === 1 ? '' : 's'} this week; masters athletes need 48 hours between hard sessions`);
+      }
+    }
 
     factors.sort((x, y) => y.points - x.points);
     const score = Math.min(100, factors.reduce((s, f) => s + f.points, 0));
@@ -298,12 +319,15 @@
     }
 
     const injuries = P.activeInjuries(state, a.id);
+    // Youth in the growth spurt: trim jumping and sprinting volume whatever the week looked like.
+    const growing = Sci && (Sci.maturity(a, todayISO) || {}).status === 'circa';
+    if (growing) reasons.push('You’re in a growth spurt, so jumping and sprinting volume is trimmed to protect growing bones and tendons.');
     const changes = [];
     for (const s of upcoming) {
       const notes = [];
       const games = Cal ? Cal.gameContext(state, a, s.date) : {};
       const taper = !!games.tomorrow;
-      const dropSets = decision === 'deload' || decision === 'ease' || taper ? 1 : 0;
+      const dropSets = decision === 'deload' || decision === 'ease' || taper || (growing && s.plan.blocks.some((b) => ['plyo', 'speed'].includes(b.type))) ? 1 : 0;
       const loadScale = decision === 'deload' ? 0.9 : decision === 'progress' && !taper ? 1.025 : 1;
       const swaps = [];
       for (const b of s.plan.blocks) {

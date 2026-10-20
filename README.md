@@ -10,6 +10,31 @@ A private training operating system for athletes. Log workouts, check in each mo
 - Phones get a floating bottom tab bar with a center AI Coach orb. Everything else is under **More**.
 - Home is one hero card (greeting, readiness gauge, today's session and one-tap actions: check in, voice log, Ask AI, Live coach, Breathe) plus one "what's next" card.
 
+### Sports science (built for elite and club athletes)
+- **Personal baselines.** Every marker (readiness, sleep, HRV, resting HR, soreness, stress, mood, jump height) is compared with the athlete's own last 28 days (mean ± 1 SD), shown as a "normal range" bar. Resting HR and HRV affect readiness only when they leave the athlete's own normal range.
+- **Better load model.** With 5+ weeks of history, the acute:chronic ratio uses exponentially weighted averages (Williams 2017), and big jumps on last week are flagged on their own. It's labelled a guide, not a predictor, given the published criticism of the ratio (Impellizzeri 2020).
+- **Age bands.** Guidance for four groups:
+  - Youth (under 12)
+  - Adolescent (12–17)
+  - Adult (18–34)
+  - Masters (35+)
+
+  Youth growth tracking estimates maturity offset with the Mirwald (2002) formula from height, sitting height and weight, and growth velocity from repeat measurements. A growth spurt raises injury risk and trims jumping and sprinting volume in the weekly adapter. For masters athletes, back-to-back hard days are flagged.
+- **Device data via CSV.** Supported data:
+  - Recovery: HRV, resting HR, sleep
+  - Jumps: CMJ, RSI
+  - GPS: distance, high-speed running, sprints, accelerations, player load
+  - Bar velocity
+
+  Column names are matched loosely, and a name column routes rows to athletes on a team. GPS rows with a duration become sessions. Re-importing the same file doesn't duplicate anything.
+- **Velocity-based training.** A load–velocity profile per lift estimates the day's 1RM from bar speed, only when the fit is good (r² ≥ 0.8).
+- **More risk signals.** Jump height down (CMJ z ≤ −1.5), several markers outside the athlete's normal range, a jump in high-speed running, a growth spurt, and masters athletes with back-to-back hard days.
+- **Evidence library.**
+  - Exercises carry a research grade (A/B/C) with short citations. Example: Nordic hamstring curls, van Dyk 2019.
+  - Every "why" breakdown has a "science behind this" section.
+  - Settings → Advanced and Progress open the full library.
+  - The citations should be reviewed by a qualified sports scientist.
+
 ### Smart coaching
 - **The why behind every number.** Tap the readiness ring, the training-load card or the injury-risk chip to see each factor's points (for example "Sleep 30 / 35"), what's holding you back most, and one tip.
 - **Injury early warning.** One risk score built from load spikes (ACWR), repeat soreness on the body map, recent pain, short sleep, low readiness, monotonous training and active injuries. It shows on Home, Progress and the coach's roster and alerts.
@@ -185,6 +210,10 @@ Everything is stored in the browser (`localStorage` for data, IndexedDB for vide
 - **Claude requests from a server:** the optional AI mode currently calls Anthropic directly from the browser with a user-supplied key. A production version should proxy through a server.
 - **Direct wearable sync** (Garmin/Apple/Whoop APIs): these require developer agreements. File import (GPX/TCX) works today.
 
+## Turning it into an app
+
+See [docs/APP_ROADMAP.md](docs/APP_ROADMAP.md) for the plan (Capacitor + Supabase, club teams first) and the checklist of what to set up.
+
 ## Run it
 
 ```sh
@@ -232,6 +261,10 @@ src/mind.js           breathing patterns, routine, visualization, journal, strea
 src/insights.js       weekly summary, AI context snapshots, built-in coach answers
 src/smart.js          readiness/load "why", injury risk, voice parser, weekly adapter, partners, goals
 src/smart-ui.js       why dialogs, 10-second check-in, voice log, adapt/risk/partner cards, goal picker
+src/science.js        personal baselines, age bands, maturity offset, velocity profiles, GPS weeks
+src/importer.js       CSV import for HRV, jumps, GPS and bar velocity
+src/evidence.js       research grades and citations for exercises and scoring rules
+src/science-ui.js     normal ranges, performance data, age & growth, import, evidence library
 src/live-coach.js     real-time rep counting and cues (engine + camera screen)
 src/assistant-ui.js   AI coach chat and weekly recap screens
 src/calendar-ui.js    calendar screens, event dialog, attendance

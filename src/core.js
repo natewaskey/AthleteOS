@@ -322,12 +322,45 @@
    * Acute:chronic workload ratio using rolling averages.
    * acute = mean daily load over last 7 days, chronic = mean over last 28 days.
    */
+  /*
+   * With 5+ weeks of history the ratio uses exponentially weighted moving averages
+   * (Williams et al. 2017, BJSM), which weight recent days more and avoid the rolling-average
+   * artefacts criticised by Impellizzeri et al. (2020). Shorter histories fall back to rolling means.
+   * Also returns the week-to-week change in total load.
+   */
   function acwr(workouts, todayISO) {
     const loads = dailyLoads(workouts, todayISO, 28);
-    const acute = sum(loads.slice(-7)) / 7;
-    const chronic = sum(loads) / 28;
+    let acute = sum(loads.slice(-7)) / 7;
+    let chronic = sum(loads) / 28;
+    let method = 'rolling';
+    const first = workouts.reduce((m, w) => (w.date <= todayISO && (!m || w.date < m) ? w.date : m), null);
+    const span = first ? daysBetween(first, todayISO) + 1 : 0;
+    if (span >= 35) {
+      const all = dailyLoads(workouts, todayISO, Math.min(span, 180));
+      let c = sum(all.slice(0, 28)) / 28;
+      let a = sum(all.slice(21, 28)) / 7;
+      const la = 2 / (7 + 1);
+      const lc = 2 / (28 + 1);
+      for (let i = 28; i < all.length; i++) {
+        a = la * all[i] + (1 - la) * a;
+        c = lc * all[i] + (1 - lc) * c;
+      }
+      acute = a;
+      chronic = c;
+      method = 'ewma';
+    }
     const ratio = chronic > 0 ? acute / chronic : null;
-    return { acute, chronic, ratio, zone: acwrZone(ratio) };
+    const week = sum(loads.slice(-7));
+    const prevWeek = sum(dailyLoads(workouts, addDays(todayISO, -7), 7));
+    const weekChange = prevWeek > 0 ? Math.round(((week - prevWeek) / prevWeek) * 100) : null;
+    // A sharp jump on last week is its own warning, even when the smoothed ratio looks fine.
+    let zone = acwrZone(ratio);
+    const rank = { none: 0, low: 0, optimal: 1, high: 2, danger: 3 };
+    if (weekChange != null && prevWeek >= 300) {
+      const jump = weekChange >= 60 ? 'danger' : weekChange >= 30 ? 'high' : null;
+      if (jump && rank[jump] > rank[zone.key]) zone = { key: jump, label: jump === 'danger' ? 'Spike' : 'Caution', advice: `Load is up ${weekChange}% on last week. ${jump === 'danger' ? 'That is a big jump; consider an easier day.' : 'Watch recovery and sleep.'}` };
+    }
+    return { acute, chronic, ratio, zone, method, week, prevWeek, weekChange };
   }
 
   function acwrZone(ratio) {
@@ -516,6 +549,7 @@
       stress: clamp(Math.round(Number(input.stress) || 3), 1, 5), // 1 = calm, 5 = very stressed
       mood: clamp(Math.round(Number(input.mood) || 3), 1, 5), // 1 = low, 5 = great
       restingHR: input.restingHR === '' || input.restingHR == null ? null : clamp(Math.round(Number(input.restingHR)), 25, 220),
+      hrv: input.hrv === '' || input.hrv == null || !(Number(input.hrv) > 0) ? null : clamp(Math.round(Number(input.hrv)), 5, 300), // morning rMSSD, ms
       weight: input.weight === '' || input.weight == null ? null : Math.max(0, Number(input.weight)),
     };
   }
@@ -552,17 +586,33 @@
     ];
     let score = factors.reduce((t, f) => t + f.points, 0);
 
+    // Resting HR and HRV are judged against the athlete's own normal, not population values.
+    const prior = (key, days) => checkins.filter((c) => c[key] != null && c.date < checkin.date && daysBetween(c.date, checkin.date) <= days).map((c) => c[key]);
     if (checkin.restingHR != null) {
-      const baseline = checkins
-        .filter((c) => c.restingHR != null && c.date < checkin.date && daysBetween(c.date, checkin.date) <= 14)
-        .map((c) => c.restingHR);
-      if (baseline.length >= 3) {
-        const avg = sum(baseline) / baseline.length;
+      const base = prior('restingHR', 28);
+      if (base.length >= 3) {
+        const avg = sum(base) / base.length;
+        const sd = Math.max(1.5, Math.sqrt(sum(base.map((v) => (v - avg) ** 2)) / base.length));
         const delta = checkin.restingHR - avg;
-        if (delta > 3) {
-          const pen = Math.min(15, (delta - 3) * 3);
+        const z = delta / sd;
+        if (delta > 3 && z > 1) {
+          const pen = Math.min(15, Math.max((delta - 3) * 3, (z - 1) * 6));
           score -= pen;
-          factors.push({ key: 'rhr', label: 'Resting heart rate', detail: `${checkin.restingHR} bpm, ${Math.round(delta)} above your usual ${Math.round(avg)}`, points: -pen, max: 0 });
+          factors.push({ key: 'rhr', label: 'Resting heart rate', detail: `${checkin.restingHR} bpm, ${Math.round(delta)} above your normal ${Math.round(avg)}`, points: -pen, max: 0 });
+        }
+      }
+    }
+    if (checkin.hrv != null) {
+      // Log-transformed rMSSD against a 28-day personal baseline (Plews et al. 2013).
+      const base = prior('hrv', 28).map(Math.log);
+      if (base.length >= 5) {
+        const avg = sum(base) / base.length;
+        const sd = Math.max(0.04, Math.sqrt(sum(base.map((v) => (v - avg) ** 2)) / base.length));
+        const z = (Math.log(checkin.hrv) - avg) / sd;
+        if (z < -1) {
+          const pen = Math.min(12, 4 + (-z - 1) * 6);
+          score -= pen;
+          factors.push({ key: 'hrv', label: 'Heart rate variability', detail: `${checkin.hrv} ms, below your normal range (~${Math.round(Math.exp(avg))} ms)`, points: -pen, max: 0 });
         }
       }
     }
@@ -685,6 +735,7 @@
   }
 
   const FOCUS_IDS = ['faster', 'stronger', 'comeback', 'varsity', 'fit'];
+  const LEVELS = ['rec', 'youth-club', 'high-school', 'club', 'college', 'pro', 'masters'];
 
   function normalizeAthlete(input) {
     return {
@@ -715,6 +766,12 @@
       cueWords: String(input.cueWords || '').slice(0, 80),
       profile: normalizeProfile(input.profile),
       focus: FOCUS_IDS.includes(input.focus) ? input.focus : null, // main goal picked at onboarding
+      sex: input.sex === 'male' || input.sex === 'female' ? input.sex : '', // optional; used for maturity estimates
+      level: LEVELS.includes(input.level) ? input.level : '', // competition level
+      // Height log for growth tracking (youth maturity, growth spurts).
+      growth: objList(input.growth, 200).filter((g) => /^\d{4}-\d{2}-\d{2}$/.test(g.date || '') && Number(g.heightCm) > 50).map((g) => ({ date: g.date, heightCm: +Number(g.heightCm).toFixed(1), sittingCm: Number(g.sittingCm) > 30 ? +Number(g.sittingCm).toFixed(1) : null, weightKg: Number(g.weightKg) > 10 ? +Number(g.weightKg).toFixed(1) : null })),
+      // Imported device data: HRV, jumps, GPS, bar velocity. Normalised by importer.js.
+      metrics: objList(input.metrics, 6000),
       partnerId: input.partnerId ? String(input.partnerId) : null, // training partner (another athlete id)
       autoAdapt: input.autoAdapt !== false, // let the weekly adapter adjust upcoming sessions
       adapt: input.adapt && typeof input.adapt === 'object' ? JSON.parse(JSON.stringify(input.adapt)) : null,
@@ -1698,6 +1755,37 @@
       byId('maya').partnerId = 'riley';
       s.nudges = [{ id: uid(), from: 'maya', to: 'riley', text: '🔥 Keep the streak alive!', ts: Date.now() - 40 * 60 * 1000, seen: false }];
     }
+    // Science features: club level, device data (HRV, jumps, GPS, bar speed) and a growth log for Riley.
+    const wave = (i, k) => Math.sin(i * 1.7 + k) * 0.5 + Math.sin(i * 0.6 + k * 2) * 0.5; // deterministic wobble
+    s.athletes.forEach((a, k) => {
+      a.level = 'club';
+      const hrvBase = [82, 64, 58, 90, 55][k] || 70;
+      const cmjBase = [38, 52, 36, 33, 48][k] || 40;
+      for (const c of a.checkins) {
+        const i = daysBetween(c.date, todayISO);
+        // Maya's HRV dips this week along with her load spike.
+        c.hrv = Math.round(hrvBase * (1 + 0.06 * wave(i, k)) * (a.id === 'maya' && i <= 3 ? 0.8 : 1));
+      }
+      for (let i = 27; i >= 0; i -= 2) {
+        const d = addDays(todayISO, -i);
+        const cmj = cmjBase * (1 + 0.025 * wave(i, k + 3)) * (a.id === 'maya' && i <= 2 ? 0.9 : 1);
+        a.metrics.push({ date: d, key: 'cmj', value: Math.round(cmj * 10) / 10, source: 'demo' });
+      }
+      if (['soccer', 'football', 'basketball'].includes(a.sport)) {
+        for (const w of a.workouts.filter((x) => daysBetween(x.date, todayISO) < 21)) {
+          const hsr = Math.round(w.duration * (a.id === 'maya' && daysBetween(w.date, todayISO) < 7 ? 9 : 5.5) * (1 + 0.1 * wave(daysBetween(w.date, todayISO), k)));
+          a.metrics.push({ date: w.date, key: 'gps_total', value: Math.round(w.duration * 78), source: 'demo' }, { date: w.date, key: 'gps_hsr', value: hsr, source: 'demo' }, { date: w.date, key: 'gps_sprint', value: Math.round(hsr * 0.22), source: 'demo' }, { date: w.date, key: 'gps_accel', value: Math.round(w.duration * 0.5), source: 'demo' });
+        }
+      }
+      a.metrics.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+    });
+    if (byId('riley')) {
+      const r = byId('riley');
+      r.sex = 'female';
+      r.growth = [{ date: addDays(todayISO, -330), heightCm: 163.2, sittingCm: 85.6, weightKg: 54.4 }, { date: addDays(todayISO, -20), heightCm: 165.1, sittingCm: 86.4, weightKg: 56.2 }];
+      for (const [d, sets] of [[-12, [[40, 1.05], [55, 0.86], [70, 0.66]]], [-5, [[45, 1.0], [60, 0.8], [72.5, 0.63], [80, 0.52]]]]) for (const [kg, v] of sets) r.metrics.push({ date: addDays(todayISO, d), key: 'vbt', value: v, source: 'demo', extra: { exercise: 'Back squat', loadKg: kg } });
+      r.metrics.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+    }
     for (const a of s.athletes) a.badgesSeen = ['first-workout', 'ten-workouts', 'tester', 'test-pr', 'first-pr', 'streak-7', 'checkin-7', 'perfect-week', 'form-80'];
 
     // ---------- calendar, wellness, challenges and profiles ----------
@@ -1861,6 +1949,7 @@
     enduranceRecords,
     normalizeCheckin,
     readiness,
+    LEVELS,
     readinessBand,
     normalizeGoal,
     goalProgress,

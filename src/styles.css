@@ -2056,3 +2056,52 @@ button.gauge-ring:hover span { color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) { .mic-btn.listening, .nudge-emoji { animation: none; } }
 .dialog-actions { flex-wrap: wrap; }
+
+/* =====================================================================
+   Sports science: evidence, normal ranges, performance data, age & growth, import
+   ===================================================================== */
+.ev-grade { display: inline-flex; align-items: center; padding: 0.1rem 0.5rem; border-radius: 999px; font: 700 0.68rem var(--font-mono); letter-spacing: 0.02em; border: 1px solid currentColor; white-space: nowrap; }
+.ev-A { color: var(--good); } .ev-B { color: var(--cyan); } .ev-C { color: var(--warn); }
+.ev-chip { display: inline-flex; align-items: center; gap: 0.15rem; margin-left: 0.3rem; padding: 0.05rem 0.4rem; border-radius: 999px; border: 1px solid currentColor; background: transparent; font: 700 0.66rem var(--font-mono); cursor: pointer; vertical-align: 1px; }
+.ev-chip:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.ev-refs { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.45rem; }
+.ev-refs li { padding: 0.55rem 0.7rem; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.88rem; line-height: 1.4; }
+.ev-details { margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 14px; padding: 0.2rem 0.8rem 0.6rem; background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.ev-details > summary { cursor: pointer; padding: 0.5rem 0; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; list-style: none; }
+.ev-details > summary::-webkit-details-marker { display: none; }
+.ev-details > summary::before { content: '›'; color: var(--muted); transition: transform 0.2s; }
+.ev-details[open] > summary::before { transform: rotate(90deg); }
+.ev-rule + .ev-rule { margin-top: 0.8rem; }
+.ev-block { margin: 1rem 0; }
+.sci-cta { background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(99, 102, 241, 0.06)), var(--surface); border-color: rgba(34, 211, 238, 0.25); }
+.sci-cta .main { flex: 1; min-width: 14rem; }
+
+.nr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.nr-list li { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.6rem; align-items: center; }
+.nr-main { display: flex; flex-direction: column; min-width: 0; }
+.nr-bar { grid-column: 1 / -1; position: relative; height: 8px; border-radius: 8px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.nr-bar.building { height: auto; background: none; font-size: 0.72rem; color: var(--muted); }
+.nr-band { position: absolute; left: 33.3%; width: 33.4%; top: 0; bottom: 0; border-radius: 8px; background: color-mix(in srgb, var(--good) 30%, transparent); }
+.nr-dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 10px var(--good); border: 2px solid var(--surface-solid); }
+.nr-dot.worse { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+.nr-dot.better { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+
+.pf-block + .pf-block { margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
+.pf-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
+.spark { width: 100%; height: 54px; display: block; }
+.spark-band { fill: color-mix(in srgb, var(--good) 16%, transparent); }
+.spark-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.spark-dot { fill: var(--accent); }
+.pf-table { width: 100%; font-size: 0.88rem; }
+.pf-table td { padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+.pf-table td:nth-child(2), .pf-table td:nth-child(3) { text-align: right; font-family: var(--font-mono); }
+.pf-table .bad-t { color: var(--bad); font-weight: 700; } .pf-table .warn-t { color: var(--warn); font-weight: 700; }
+.pf-vbt { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.pf-vbt li { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; padding: 0.45rem 0.6rem; border-radius: 10px; background: var(--surface-2); }
+
+.age-focus { margin: 0 0 0.75rem; padding-left: 1.1rem; display: grid; gap: 0.25rem; }
+.mat-box { padding: 0.8rem; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.mat-box.mat-circa { border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.growth-form { margin-top: 0.6rem; align-items: flex-end; gap: 0.5rem; }
+.growth-form label { flex: 1; min-width: 6.5rem; margin: 0; font-size: 0.78rem; }
+.import-card .row { gap: 0.5rem; }
