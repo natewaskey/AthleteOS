@@ -47,7 +47,18 @@ A private training operating system for athletes. Log workouts, check in each mo
   - exercise swaps around sore areas.
   Each change says why and can be undone. You can turn it off in Settings.
 - **Training partners.** Pair with a teammate to compare streaks and sessions this week and send nudges (limited to 3 a day). Partners see effort only, never health data.
-- **Goal-based onboarding.** Pick a main goal: get faster, get stronger, come back from injury, make varsity, or stay fit. It sets the program builder's default, the first suggested step, Home tips and the AI coach's context.
+- **Main goals that change how the app works.** There are 16 goals in three groups:
+  - **Performance:** faster, stronger, jump higher, endurance, agility, muscle
+  - **Health & fitness:** come back from injury, stay injury-free, move better, get leaner (18+), stay fit, build a habit
+  - **Competition:** make the team, get recruited, peak for a competition, stay sharp in-season
+
+  Each goal can carry a measurable target (for example a 40-yard dash time by a date), tracked automatically from tests, lifts, workouts or check-ins. The goal changes:
+  - **How the weekly plan progresses:** more load, extra quality sets, more conditioning volume, conservative progression, an in-season hold, or a taper before a competition date.
+  - **How sensitive injury warnings are:** up to 40% more sensitive when coming back from injury.
+  - **The program builder's starting point:** goal, focus areas and season phase.
+  - **What's tracked on Home and Progress, and the AI coach's context.**
+
+  The Goals page shows a "How this goal shapes AthleteOS" panel.
 - **10-second check-in.** Four taps: sleep, energy, body and stress, with a live readiness preview. "More detail" opens the full body map, and choosing "Pain" sends you there automatically.
 - **Simpler layout.**
   - Home shows readiness, today's session and one "what's next" card.
@@ -259,6 +270,7 @@ src/nutrition.js      food list, meal totals, targets, water, sweat rate, photo-
 src/challenges.js     challenge logic: automatic/manual counting, leaderboards, pace, completions
 src/mind.js           breathing patterns, routine, visualization, journal, streaks and trends
 src/insights.js       weekly summary, AI context snapshots, built-in coach answers
+src/goals.js          goal catalog, targets, progress, and how each goal changes the app
 src/smart.js          readiness/load "why", injury risk, voice parser, weekly adapter, partners, goals
 src/smart-ui.js       why dialogs, 10-second check-in, voice log, adapt/risk/partner cards, goal picker
 src/science.js        personal baselines, age bands, maturity offset, velocity profiles, GPS weeks

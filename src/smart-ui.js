@@ -88,7 +88,7 @@
     const body = r.factors.length
       ? factorRows(r.factors.map((f) => ({ label: f.label, detail: f.detail, tone: f.points >= 20 ? 'bad' : 'warn', value: `+${f.points}`, pct: null })))
       : '<p class="muted">No warning signs right now: load is steady, no pain, sleep and soreness look fine.</p>';
-    return dlg(whyShell({ science: ['load', 'sleep', 'cmj', 'baseline', 'maturity'], eyebrow: 'Injury early warning', title: `${r.label} risk`, big: `<span>${r.score}</span>`, bigClass: 'risk-' + r.level, summary: r.factors.length ? `${r.factors.length} warning sign${r.factors.length === 1 ? '' : 's'} adding up to ${r.score} / 100.` : '', body: body + '<p class="hint">Built from load spikes, repeat soreness on the body map, pain, sleep, readiness, personal baselines (HRV, jumps), GPS sprint load, growth spurts and active injuries. A guide, not a diagnosis.</p>', tip: r.advice }));
+    return dlg(whyShell({ science: ['load', 'sleep', 'cmj', 'baseline', 'maturity'], eyebrow: 'Injury early warning', title: `${r.label} risk`, big: `<span>${r.score}</span>`, bigClass: 'risk-' + r.level, summary: r.factors.length ? `${r.factors.length} warning sign${r.factors.length === 1 ? '' : 's'} adding up to ${r.score} / 100.` : '', body: body + '<p class="hint">Built from load spikes, repeat soreness on the body map, pain, sleep, readiness, personal baselines (HRV, jumps), GPS sprint load, growth spurts and active injuries. A guide, not a diagnosis.</p>', tip: [r.sensitivity, r.advice].filter(Boolean).join(' ') }));
   }
 
   function whyAdapt(a) {
@@ -381,24 +381,123 @@
 
   // ---------- goal ----------
 
-  function focusPicker({ compact = false } = {}) {
+  const Gl = () => root.Goals;
+  const imperial = () => ctx.units() !== 'metric';
+  let pickerOpen = false; // "change goal" expanded on the goals page
+  let targetStep = false; // onboarding: show the target step right after picking
+
+  // Canonical metric value -> display text.
+  function fmtMetric(unit, v) {
+    if (v == null || !isFinite(v)) return '—';
+    if (unit === 'time') return v >= 90 ? `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}` : `${(+v).toFixed(2)} s`;
+    if (unit === 'jump') return imperial() ? `${(v / 2.54).toFixed(1)} in` : `${Math.round(v)} cm`;
+    if (unit === 'weight') return `${Math.round(C.kgToDisplay(v, ctx.units()))} ${ctx.U().weight}`;
+    if (unit === 'minutes') return `${Math.round(v)} min`;
+    if (unit === '%') return `${Math.round(v)}%`;
+    return `${Math.round(v)} ${unit}`;
+  }
+  // Display input -> canonical value.
+  function parseMetric(unit, raw) {
+    const str = String(raw ?? '').trim();
+    if (!str) return null;
+    if (unit === 'time' && str.includes(':')) { const [m, sec] = str.split(':').map(Number); return m * 60 + (sec || 0); }
+    const v = Number(str);
+    if (!isFinite(v) || v <= 0) return null;
+    if (unit === 'jump') return imperial() ? v * 2.54 : v;
+    if (unit === 'weight') return C.displayToKg(v, ctx.units());
+    return v;
+  }
+  const inputUnit = (unit) => ({ time: 'seconds (or m:ss)', jump: imperial() ? 'inches' : 'cm', weight: ctx.U().weight, minutes: 'minutes a week', sessions: 'sessions a week', days: 'days', '%': '%', score: 'readiness score' })[unit] || unit;
+  const toInput = (unit, v) => (v == null ? '' : unit === 'jump' ? (imperial() ? (v / 2.54).toFixed(1) : Math.round(v)) : unit === 'weight' ? Math.round(C.kgToDisplay(v, ctx.units())) : unit === 'time' ? (+v).toFixed(2) : Math.round(v));
+
+  function focusPicker({ compact = false, step = true } = {}) {
     const a = ctx.me();
-    return `<section class="${compact ? 'card span-12' : 'focus-picker'}">
-      ${compact ? '<div class="card-head"><h3>🎯 What’s your main goal?</h3></div><p class="muted" style="margin-top:0">Pick one and the app shapes your plan, tips and AI coach around it.</p>' : '<div class="eyebrow">Step 1 of 2</div><h1 class="page-title">What’s your main goal?</h1><p class="muted">Pick one. Your plan, tips and AI coach are shaped around it, and you can change it any time in Settings.</p>'}
-      <div class="focus-grid">${Object.entries(S.FOCUS).map(([k, f]) => `<button class="focus-opt ${a.focus === k ? 'on' : ''}" data-smart="set-focus" data-focus="${k}"><span class="focus-icon">${f.icon}</span><strong>${esc(f.label)}</strong></button>`).join('')}</div>
+    const G = Gl();
+    const ids = G.available(a, today());
+    const groups = Object.entries(G.GROUPS).map(([gk, gl]) => [gl, ids.filter((id) => G.CATALOG[id].group === gk)]);
+    const grid = groups.map(([gl, list]) => `<h3 class="goal-group">${esc(gl)}</h3><div class="focus-grid">${list.map((id) => { const f = G.CATALOG[id]; return `<button class="focus-opt ${a.focus === id ? 'on' : ''}" data-smart="set-focus" data-focus="${id}"><span class="focus-icon">${f.icon}</span><strong>${esc(f.label)}</strong><span class="focus-desc">${esc(f.desc)}</span></button>`; }).join('')}</div>`).join('');
+    if (compact) return `<section class="card span-12"><div class="card-head"><h3>🎯 What’s your main goal?</h3></div><p class="muted" style="margin-top:0">Your goal changes how your plan progresses, what gets tracked and how cautious injury warnings are.</p>${grid}</section>`;
+    return `<section class="focus-picker">${step ? '<div class="eyebrow">Step 1 of 3</div>' : ''}<h1 class="page-title">What’s your main goal?</h1>
+      <p class="muted">Pick the one that matters most right now. It shapes how your plan progresses, what’s tracked and how cautious the app is. You can change it any time.</p>${grid}</section>`;
+  }
+
+  function targetForm(a, { onboarding = false } = {}) {
+    const G = Gl();
+    const g = G.CATALOG[a.focus];
+    if (!g) return '';
+    const cur = G.current(a, g.metric, today(), a.goalTarget);
+    const tg = a.goalTarget && a.goalTarget.goal === a.focus ? a.goalTarget : null;
+    const sug = G.suggestTarget(a.focus, a, today());
+    const val = tg ? tg.value : sug.value;
+    const date = tg ? tg.date : sug.date || '';
+    const isDate = g.metric.type === 'countdown';
+    return `<form class="goal-target" data-smart-form="target">
+      ${isDate ? '' : `<label>${esc(cur.label)} target <span class="muted small">(${esc(inputUnit(cur.unit))})</span><input name="value" inputmode="decimal" value="${esc(toInput(cur.unit, val))}" placeholder="${cur.value != null ? 'now ' + esc(fmtMetric(cur.unit, cur.value)) : ''}"></label>`}
+      <label>${isDate ? 'Competition date' : 'By <span class="muted small">(optional)</span>'}<input type="date" name="date" value="${esc(date || '')}" ${isDate ? 'required' : ''} min="${today()}"></label>
+      <div class="row" style="gap:.5rem;align-self:end"><button class="btn btn-primary" type="submit">${tg ? 'Update target' : 'Set target'}</button>${onboarding ? '<button type="button" class="btn btn-ghost" data-smart="skip-target">Skip</button>' : tg ? '<button type="button" class="btn btn-ghost" data-smart="clear-target">Remove</button>' : ''}</div>
+      ${cur.value != null && !isDate ? `<p class="hint" style="grid-column:1/-1;margin:0">Right now: <strong>${esc(fmtMetric(cur.unit, cur.value))}</strong>. ${G.ABSOLUTE.includes(g.metric.type) ? '' : 'Progress is measured from here.'}</p>` : !isDate ? `<p class="hint" style="grid-column:1/-1;margin:0">No ${esc(cur.label.toLowerCase())} recorded yet. ${g.metric.type === 'test' || g.metric.type === 'lift' ? 'Record a test in Progress to measure from.' : ''}</p>` : ''}
+    </form>`;
+  }
+
+  // Onboarding step 2: an optional measurable target.
+  function targetStepHTML() {
+    const a = ctx.me();
+    const g = Gl().CATALOG[a.focus];
+    return `<section class="focus-picker"><div class="eyebrow">Step 2 of 3 · ${g.icon} ${esc(g.label)}</div><h1 class="page-title">Set a target</h1>
+      <p class="muted">A number and a date make the goal real. AthleteOS tracks your progress against it automatically. Skip it if you’re not sure yet.</p>
+      ${targetForm(a, { onboarding: true })}</section>`;
+  }
+  const needsTargetStep = () => targetStep;
+
+  function progressRing(pr) {
+    const pct = pr.pct ?? 0;
+    return `<div class="goal-ring ${pr.status}" style="--pct:${pct}"><div><strong>${pr.pct == null ? '—' : pct + '%'}</strong><span>${pr.status === 'reached' ? 'reached' : pr.target ? 'to target' : 'no target'}</span></div></div>`;
+  }
+
+  function progressLine(pr) {
+    const m = pr.metric;
+    if (pr.def.metric.type === 'countdown') return pr.target && pr.target.date ? `${pr.daysLeft > 0 ? `${pr.daysLeft} days to go` : 'Competition day'} · ${esc(ctx.fmtDate(pr.target.date))}` : 'Set your competition date';
+    const now = fmtMetric(m.unit, m.value);
+    if (!pr.target) return `${esc(m.label)}: <strong>${now}</strong>`;
+    return `${esc(m.label)}: <strong>${now}</strong> → ${esc(fmtMetric(m.unit, pr.target.value))}${pr.target.date ? ` by ${esc(ctx.fmtDate(pr.target.date))}` : ''}`;
+  }
+
+  // Full goal card for the Goals page; compact version for Progress and the coach view.
+  function goalCard(a, { span = 'span-12', compact = false } = {}) {
+    const G = Gl();
+    const pr = G.progress(a, today());
+    const coach = ctx.role() === 'coach';
+    if (!pr) return compact ? (coach ? '' : `<section class="card ${span}"><div class="card-head"><h3>🎯 Main goal</h3></div><p class="muted" style="margin:0 0 .6rem">No main goal yet. Pick one and the app adapts to it.</p><button class="btn btn-primary" data-tab="goals">Choose a goal</button></section>`) : focusPicker({ compact: true });
+    const g = pr.def;
+    const status = { 'on-track': ['good', 'On track'], behind: ['warn', 'Behind pace'], reached: ['good', 'Target reached 🎉'], 'no-data': ['', 'Needs data'], 'no-target': ['', 'No target yet'] }[pr.status];
+    const effects = G.effects(a.focus, root.Program);
+    return `<section class="card ${span} goal-card">
+      <div class="goal-top">${progressRing(pr)}
+        <div class="goal-main"><div class="eyebrow">${coach ? 'Their main goal' : 'Main goal'} · ${esc(G.GROUPS[g.group])}</div>
+          <h2 class="goal-title">${g.icon} ${esc(g.label)}</h2>
+          <p class="goal-progress">${progressLine(pr)}</p>
+          <span class="pill ${status[0]}">${status[1]}</span></div>
+        ${compact ? `<button class="btn btn-sm ${coach ? 'btn-ghost' : ''}" data-tab="goals" style="align-self:flex-start">${coach ? 'Details' : 'Goal & target'}</button>` : `<button class="btn btn-sm btn-ghost" data-smart="toggle-picker" style="align-self:flex-start">${pickerOpen ? 'Close' : 'Change goal'}</button>`}
+      </div>
+      ${compact ? '' : `${pickerOpen ? `<div class="goal-picker-inline">${focusPicker({ compact: false, step: false }).replace('<h1 class="page-title">What’s your main goal?</h1>', '')}</div>` : ''}
+        ${coach ? '' : `<h3 class="why-sub">Target</h3>${targetForm(a)}`}
+        <h3 class="why-sub">How this goal shapes AthleteOS</h3>
+        <ul class="goal-effects">${effects.map((e) => `<li><span class="ge-icon">${e.icon}</span><div><strong>${esc(e.title)}</strong><span>${esc(e.text)}</span></div></li>`).join('')}</ul>
+        <div class="why-tip">${ctx.icon('sparkle')}<span>${esc(g.tip)}</span></div>`}
     </section>`;
   }
 
   function focusCard(a, { span = 'span-12' } = {}) {
     const f = S.FOCUS[a.focus];
     if (!f) return focusPicker({ compact: true });
-    return `<section class="card ${span} focus-card"><div class="card-head"><h3>${f.icon} ${esc(f.label)}</h3><button class="btn btn-sm btn-ghost" data-tab-link="settings">Change</button></div>
+    return `<section class="card ${span} focus-card"><div class="card-head"><h3>${f.icon} ${esc(f.label)}</h3><button class="btn btn-sm btn-ghost" data-tab="goals">Goal & target</button></div>
       <p style="margin:0 0 .75rem">${esc(f.tip)}</p><button class="btn btn-primary" ${f.next.action}>${esc(f.next.label)}</button></section>`;
   }
 
   function focusTag(a) {
-    const f = S.FOCUS[a.focus];
-    return f ? `<span class="focus-tag">${f.icon} ${esc(f.label)}</span>` : '';
+    const pr = Gl().progress(a, today());
+    if (!pr) return '';
+    return `<button class="focus-tag" data-tab="goals" title="Your main goal">${pr.def.icon} ${esc(pr.def.label)}${pr.pct != null ? ` · ${pr.pct}%` : ''}</button>`;
   }
 
   // The single "what's next" card on Home, most important first.
@@ -476,11 +575,26 @@
       }
       case 'set-focus': {
         const me = ctx.me();
+        const first = !me.focus;
         me.focus = el.dataset.focus;
+        if (me.goalTarget && me.goalTarget.goal !== me.focus) me.goalTarget = null;
+        pickerOpen = false;
+        // First pick during onboarding goes on to the target step.
+        targetStep = first && !me.workouts.length && !me.checkins.length;
         ctx.save();
         ctx.toast(`Goal set: ${S.FOCUS[me.focus].label}`);
         return ctx.render();
       }
+      case 'toggle-picker':
+        pickerOpen = !pickerOpen;
+        return ctx.render();
+      case 'skip-target':
+        targetStep = false;
+        return ctx.render();
+      case 'clear-target':
+        ctx.me().goalTarget = null;
+        ctx.save();
+        return ctx.render();
       case 'nudge': {
         const me = ctx.me();
         const p = S.partnerOf(st, me);
@@ -510,6 +624,26 @@
     }
   }
 
+  function onSubmit(e) {
+    const f = e.target.closest('[data-smart-form="target"]');
+    if (!f) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const a = ctx.me();
+    const G = Gl();
+    const g = G.CATALOG[a.focus];
+    const d = Object.fromEntries(new FormData(f));
+    const cur = G.current(a, g.metric, today());
+    const value = g.metric.type === 'countdown' ? null : parseMetric(cur.unit, d.value);
+    if (g.metric.type !== 'countdown' && value == null) return ctx.toast('Enter a target number');
+    const keep = a.goalTarget && a.goalTarget.goal === a.focus ? a.goalTarget : {};
+    a.goalTarget = G.normalizeTarget({ value, date: d.date, start: keep.start, startDate: keep.startDate }, a, a.focus, today());
+    targetStep = false;
+    ctx.save();
+    ctx.toast(a.goalTarget ? 'Target set. Progress is tracked automatically.' : 'Target cleared');
+    ctx.render();
+  }
+
   function onChange(e) {
     const sel = e.target.closest('[data-smart-partner]');
     if (sel && sel.value) {
@@ -533,7 +667,8 @@
     S = root.Smart;
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
+    document.addEventListener('submit', onSubmit, true);
   }
 
-  root.SmartUI = { init, whyReadiness, whyLoad, whyRisk, whyAdapt, quickCheckin, voiceLog, riskChip, riskCard, adaptBanner, adaptCard, partnerCard, nudgeBanner, focusPicker, focusCard, focusTag, nextCard, toWorkout };
+  root.SmartUI = { init, goalCard, targetStepHTML, needsTargetStep, fmtMetric, whyReadiness, whyLoad, whyRisk, whyAdapt, quickCheckin, voiceLog, riskChip, riskCard, adaptBanner, adaptCard, partnerCard, nudgeBanner, focusPicker, focusCard, focusTag, nextCard, toWorkout };
 })(window);

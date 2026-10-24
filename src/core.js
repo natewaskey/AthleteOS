@@ -734,7 +734,8 @@
     };
   }
 
-  const FOCUS_IDS = ['faster', 'stronger', 'comeback', 'varsity', 'fit'];
+  // Main goal ids; the catalog and behaviour live in goals.js.
+  const FOCUS_IDS = ['faster', 'stronger', 'jump', 'endurance', 'agility', 'muscle', 'comeback', 'injuryfree', 'mobility', 'leaner', 'fit', 'habit', 'varsity', 'recruited', 'peak', 'inseason'];
   const LEVELS = ['rec', 'youth-club', 'high-school', 'club', 'college', 'pro', 'masters'];
 
   function normalizeAthlete(input) {
@@ -766,6 +767,8 @@
       cueWords: String(input.cueWords || '').slice(0, 80),
       profile: normalizeProfile(input.profile),
       focus: FOCUS_IDS.includes(input.focus) ? input.focus : null, // main goal picked at onboarding
+      // Measurable target for the main goal, e.g. { goal: 'faster', value: 4.75, date: '2027-03-01', start: 4.95, startDate }.
+      goalTarget: input.goalTarget && typeof input.goalTarget === 'object' && FOCUS_IDS.includes(input.goalTarget.goal) ? { goal: input.goalTarget.goal, value: input.goalTarget.value == null || !isFinite(Number(input.goalTarget.value)) ? null : Number(input.goalTarget.value), date: /^\d{4}-\d{2}-\d{2}$/.test(input.goalTarget.date || '') ? input.goalTarget.date : null, start: input.goalTarget.start == null || !isFinite(Number(input.goalTarget.start)) ? null : Number(input.goalTarget.start), startDate: /^\d{4}-\d{2}-\d{2}$/.test(input.goalTarget.startDate || '') ? input.goalTarget.startDate : null } : null,
       sex: input.sex === 'male' || input.sex === 'female' ? input.sex : '', // optional; used for maturity estimates
       level: LEVELS.includes(input.level) ? input.level : '', // competition level
       // Height log for growth tracking (youth maturity, growth spurts).
@@ -1751,6 +1754,12 @@
     if (byId('riley') && byId('maya')) {
       byId('riley').focus = 'faster';
       byId('maya').focus = 'stronger';
+      // Riley is chasing a faster 40-yard dash before the spring season.
+      const r40 = byId('riley').tests.filter((x) => x.testId === 'dash40').sort((x, y) => (x.date < y.date ? -1 : 1));
+      if (r40.length) byId('riley').goalTarget = { goal: 'faster', value: +(r40[r40.length - 1].value - 0.12).toFixed(2), date: addDays(todayISO, 75), start: +(r40[r40.length - 1].value + 0.06).toFixed(2), startDate: addDays(todayISO, -35) };
+      if (byId('jordan')) byId('jordan').focus = 'comeback';
+      if (byId('taylor')) byId('taylor').focus = 'inseason';
+      if (byId('sam')) byId('sam').focus = 'endurance';
       byId('riley').partnerId = 'maya';
       byId('maya').partnerId = 'riley';
       s.nudges = [{ id: uid(), from: 'maya', to: 'riley', text: '🔥 Keep the streak alive!', ts: Date.now() - 40 * 60 * 1000, seen: false }];

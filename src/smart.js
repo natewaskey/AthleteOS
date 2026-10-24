@@ -16,6 +16,7 @@
   const P = node ? require('./program.js') : root.Program;
   const Cal = node ? require('./calendar.js') : root.Calendar;
   const Sci = node ? require('./science.js') : root.Science;
+  const G = node ? require('./goals.js') : root.Goals;
 
   const KM_PER_MI = 1.609344;
   const KG_PER_LB = 0.45359237;
@@ -24,13 +25,7 @@
 
   // ---------- main goal ----------
 
-  const FOCUS = {
-    faster: { label: 'Get faster', icon: '⚡', goal: 'speed', tip: 'Speed comes from quality reps when you’re fresh. Keep sprints short and rest fully.', next: { label: 'Build a speed program', action: 'data-prog-action="new"' } },
-    stronger: { label: 'Get stronger', icon: '🏋️', goal: 'strength', tip: 'Strength is built by adding a little weight week after week. Log every lift so the plan can progress you.', next: { label: 'Build a strength program', action: 'data-prog-action="new"' } },
-    comeback: { label: 'Come back from injury', icon: '🩹', goal: 'return', tip: 'Pain-free beats fast. Tell the app about sore spots every day so it can steer around them.', next: { label: 'Take a movement screen', action: 'data-screen-action="start"' } },
-    varsity: { label: 'Make varsity', icon: '🏆', goal: 'power', tip: 'Coaches notice test numbers and consistency. Test monthly and keep your recruiting profile current.', next: { label: 'Update my athlete profile', action: 'data-tab-link="profile"' } },
-    fit: { label: 'Stay fit & healthy', icon: '💚', goal: 'general', tip: 'Consistency wins. Three to four sessions a week, good sleep and easy days that are actually easy.', next: { label: 'Build a program', action: 'data-prog-action="new"' } },
-  };
+  const FOCUS = G.CATALOG;
 
   // ---------- the "why" behind numbers ----------
 
@@ -131,7 +126,11 @@
     }
 
     factors.sort((x, y) => y.points - x.points);
-    const score = Math.min(100, factors.reduce((s, f) => s + f.points, 0));
+    const raw = Math.min(100, factors.reduce((s, f) => s + f.points, 0));
+    // Goals like "come back from injury" make warnings more sensitive.
+    const scale = G.riskScale(a.focus);
+    const score = Math.min(100, Math.round(raw * scale));
+    const sensitivity = scale > 1 && FOCUS[a.focus] ? `Your goal (${FOCUS[a.focus].label.toLowerCase()}) makes warnings ${Math.round((scale - 1) * 100)}% more sensitive.` : '';
     const level = score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'low';
     const label = { high: 'High', moderate: 'Moderate', low: 'Low' }[level];
     const top = factors[0];
@@ -141,7 +140,7 @@
         : level === 'moderate'
           ? `Worth watching. ${top.label.includes('oreness') ? `Give your ${top.detail.split(' (')[0]} extra warm-up and mobility.` : top.label.includes('leep') ? 'Get to bed earlier this week.' : 'Keep hard days hard and easy days easy.'}`
           : 'No warning signs. Keep checking in daily so the app can spot trouble early.';
-    return { score, level, label, factors, advice };
+    return { score, level, label, factors, advice, sensitivity };
   }
 
   // ---------- voice logging ----------
@@ -303,19 +302,38 @@
 
     const reasons = [];
     let decision = 'maintain';
+    const style = G.styleOf(a.focus);
+    const goal = FOCUS[a.focus];
+    const careful = style === 'conservative';
     if (risk.level === 'high' || (ready != null && ready < 50) || pain.length) {
       decision = 'deload';
       if (risk.level === 'high') reasons.push(`Injury risk is high (${risk.factors.slice(0, 2).map((f) => f.label.toLowerCase()).join(', ')}).`);
       if (ready != null && ready < 50) reasons.push(`Readiness averaged ${ready} last week.`);
       if (pain.length) reasons.push(`You reported pain in your ${pain.map(areaName).join(', ')}.`);
+    } else if (careful && risk.level === 'moderate') {
+      decision = 'ease';
+      reasons.push(`Injury risk is moderate and your goal is to ${goal.label.toLowerCase()}, so this week backs off a little.`);
     } else if (past.length >= 2 && missed / past.length >= 0.5) {
       decision = 'ease';
       reasons.push(`You finished ${done} of ${past.length} sessions last week, so this week is a bit shorter to get you back on track.`);
-    } else if (past.length >= 2 && done / past.length >= 0.8 && (ready == null || ready >= 65) && risk.level === 'low' && (load.ratio == null || load.ratio <= 1.3)) {
-      decision = 'progress';
-      reasons.push(`You completed ${done} of ${past.length} sessions${ready != null ? ` with readiness averaging ${ready}` : ''}. Time to add a little load.`);
+    } else if (past.length >= 2 && done / past.length >= 0.8 && (ready == null || ready >= (careful ? 70 : 65)) && risk.level === 'low' && (load.ratio == null || load.ratio <= 1.3) && !(careful && recurring.length)) {
+      const how = { quality: 'Adding a set of quality speed and power work.', volume: 'Adding a little conditioning volume.', maintain: '', peak: 'Time to add a little load.', load: 'Time to add a little load.', conservative: 'You’re fully recovered, so it’s safe to add a little load.', steady: 'Time for a small step up.' }[style];
+      if (style === 'maintain') {
+        decision = 'maintain';
+        reasons.push(`You completed ${done} of ${past.length} sessions. In-season, the plan holds volume and keeps intensity so you stay fresh for games.`);
+      } else {
+        decision = 'progress';
+        reasons.push(`You completed ${done} of ${past.length} sessions${ready != null ? ` with readiness averaging ${ready}` : ''}. ${how}`);
+      }
     } else {
       reasons.push(past.length ? `Last week went to plan (${done} of ${past.length} done). Holding steady.` : 'Not much history yet, so the plan stays as written.');
+    }
+
+    // Peaking: the final 10 days before the competition date taper volume whatever else happened.
+    const peakLeft = G.peakDaysLeft(a, todayISO);
+    if (peakLeft != null && peakLeft >= 0 && peakLeft <= 10 && decision !== 'deload') {
+      decision = 'taper';
+      reasons.unshift(`${peakLeft === 0 ? 'Competition day' : `${peakLeft} day${peakLeft === 1 ? '' : 's'} to your competition`}: tapering. Volume comes down, intensity stays, so you arrive fresh.`);
     }
 
     const injuries = P.activeInjuries(state, a.id);
@@ -327,8 +345,11 @@
       const notes = [];
       const games = Cal ? Cal.gameContext(state, a, s.date) : {};
       const taper = !!games.tomorrow;
-      const dropSets = decision === 'deload' || decision === 'ease' || taper || (growing && s.plan.blocks.some((b) => ['plyo', 'speed'].includes(b.type))) ? 1 : 0;
-      const loadScale = decision === 'deload' ? 0.9 : decision === 'progress' && !taper ? 1.025 : 1;
+      const dropSets = decision === 'deload' || decision === 'ease' || decision === 'taper' || taper || (growing && s.plan.blocks.some((b) => ['plyo', 'speed'].includes(b.type))) ? 1 : 0;
+      const progressing = decision === 'progress' && !taper;
+      // How a good week progresses depends on the goal: load, quality sets or conditioning volume.
+      const loadScale = decision === 'deload' ? 0.9 : progressing && !['quality', 'volume'].includes(style) ? 1.025 : 1;
+      const ampScale = progressing && style === 'volume' ? 1.1 : 1;
       const swaps = [];
       for (const b of s.plan.blocks) {
         for (const i of b.items) {
@@ -341,21 +362,25 @@
       }
       const items = s.plan.blocks.flatMap((b) => b.items.map((i) => ({ i, b })));
       const setsApply = dropSets && items.some(({ i, b }) => ['strength', 'power', 'plyo', 'conditioning', 'speed'].includes(b.type) && i.sets > 1);
+      const ampApply = ampScale > 1 && items.some(({ i, b }) => b.type === 'conditioning' && ['sec', 'dist'].includes(i.measure));
       const loadApply = loadScale !== 1 && items.some(({ i }) => i.loadValue != null && (i.loadType === 'pct' || i.loadType === 'weight' || (loadScale < 1 && i.loadType === 'rpe')));
       if (taper && (setsApply || swaps.length)) notes.push(`taper before ${games.tomorrow.title}`);
       if (setsApply) notes.push('1 fewer set per exercise');
       if (loadApply && loadScale > 1) notes.push('+2.5% load');
       if (loadApply && loadScale < 1) notes.push('−10% load');
       // Progressing a session with nothing to load (speed, plyos, bodyweight): one more set on the main block.
-      const mainBlock = !loadApply && loadScale > 1 ? s.plan.blocks.find((b) => ['speed', 'power', 'plyo', 'strength'].includes(b.type) && b.items.length) : null;
-      if (mainBlock) notes.push(`+1 set on ${(C.BLOCK_TYPES[mainBlock.type] || { label: mainBlock.type }).label.toLowerCase()}`);
+      if (ampApply) notes.push('+10% conditioning volume');
+      const mainTypes = style === 'quality' ? ['speed', 'power', 'plyo'] : ['speed', 'power', 'plyo', 'strength'];
+      const mainBlock = progressing && !loadApply && !ampApply ? s.plan.blocks.find((b) => mainTypes.includes(b.type) && b.items.length) : null;
+      if (mainBlock) notes.push(`+1 ${style === 'quality' ? 'quality ' : ''}set on ${(C.BLOCK_TYPES[mainBlock.type] || { label: mainBlock.type }).label.toLowerCase()}`);
+      if (decision === 'taper' && setsApply) notes.push('competition taper');
       for (const x of swaps) notes.push(`${x.from} → ${x.to}`);
-      if (notes.length) changes.push({ id: s.id, date: s.date, name: s.plan.name, dropSets: setsApply ? dropSets : 0, loadScale: loadApply ? loadScale : 1, addSetBlock: mainBlock ? mainBlock.id : null, swaps, notes });
+      if (notes.length) changes.push({ id: s.id, date: s.date, name: s.plan.name, dropSets: setsApply ? dropSets : 0, loadScale: loadApply ? loadScale : 1, ampScale: ampApply ? ampScale : 1, addSetBlock: mainBlock ? mainBlock.id : null, swaps, notes });
     }
     const swapped = [...new Set(changes.flatMap((c) => c.swaps.map((x) => x.from)))];
     if (swapped.length) reasons.push(`Swapped ${swapped.slice(0, 3).join(', ')} to go easy on your ${[...pain, ...recurring].slice(0, 2).map(areaName).join(' and ')}.`);
     else if (recurring.length && decision !== 'deload') reasons.push(`Your ${recurring.slice(0, 2).map(areaName).join(' and ')} ${recurring.length === 1 ? 'has' : 'have'} been sore on repeat; nothing this week loads ${recurring.length === 1 ? 'it' : 'them'} heavily, but give ${recurring.length === 1 ? 'it' : 'them'} extra warm-up.`);
-    const label = { deload: 'Recovery week', ease: 'Back on track', progress: 'Level up', maintain: 'Steady week' }[decision];
+    const label = { deload: 'Recovery week', ease: careful && risk.level === 'moderate' ? 'Playing it safe' : 'Back on track', progress: 'Level up', maintain: style === 'maintain' ? 'In-season hold' : 'Steady week', taper: 'Taper week' }[decision];
     return { key: weekKey(todayISO), decision, label, reasons, review, changes };
   }
 
@@ -369,6 +394,7 @@
       for (const b of s.plan.blocks) {
         for (const i of b.items) {
           if (ch.addSetBlock && b.id === ch.addSetBlock) i.sets += 1;
+          if (ch.ampScale > 1 && b.type === 'conditioning' && ['sec', 'dist'].includes(i.measure)) i.amount = Math.round(i.amount * ch.ampScale);
           if (ch.dropSets && ['strength', 'power', 'plyo', 'conditioning', 'speed'].includes(b.type)) i.sets = Math.max(1, i.sets - ch.dropSets);
           if (i.loadValue != null && ch.loadScale !== 1 && (i.loadType === 'pct' || i.loadType === 'weight')) i.loadValue = Math.round(i.loadValue * ch.loadScale * 10) / 10;
           if (i.loadValue != null && ch.loadScale < 1 && i.loadType === 'rpe') i.loadValue = Math.max(5, i.loadValue - 1);
@@ -453,7 +479,7 @@
 
   const unseenNudges = (state, id) => (state.nudges || []).filter((n) => n.to === id && !n.seen);
 
-  const api = { FOCUS, explainReadiness, explainLoad, injuryRisk, parseSpoken, exerciseName, adaptWeek, applyAdapt, undoAdapt, autoAdapt, weekKey, NUDGES, partnerOf, setPartner, partnerSnapshot, sendNudge, unseenNudges };
+  const api = { FOCUS, GOALS: G, explainReadiness, explainLoad, injuryRisk, parseSpoken, exerciseName, adaptWeek, applyAdapt, undoAdapt, autoAdapt, weekKey, NUDGES, partnerOf, setPartner, partnerSnapshot, sendNudge, unseenNudges };
   if (node) module.exports = api;
   else root.Smart = api;
 })(typeof window !== 'undefined' ? window : globalThis);

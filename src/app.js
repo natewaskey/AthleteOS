@@ -549,7 +549,7 @@
       const t = today();
       const weeks = C.weeklySummary(a.workouts, t, 8);
       const prs = C.strengthRecords(a.workouts).length + C.enduranceRecords(a.workouts).length;
-      return Progress.athleteView(`${Assist.summaryCard(a)}
+      return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Assist.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${Sci.ageCard(a)}
@@ -612,7 +612,8 @@
       const a = me();
       return `<h1 class="page-title">Goals</h1>
         <div class="grid">
-          <section class="card span-8"><div class="card-head"><h3>Active goals</h3></div>
+          ${Smart.goalCard(a)}
+          <section class="card span-8"><div class="card-head"><h3>Weekly targets</h3></div>
             ${goalList(a, true) || '<p class="muted">No goals yet. Add one on the right.</p>'}</section>
           <section class="card span-4"><div class="card-head"><h3>New goal</h3></div>
             <form id="goal-form">
@@ -662,7 +663,7 @@
                 <label>Position / event <input name="position" value="${esc(a.position)}" maxlength="40" placeholder="e.g. Guard" /></label>
               </div>
               <div class="grid-2">
-                <label>Main goal <select name="focus"><option value="">Not set</option>${Object.entries(SM.FOCUS).map(([k, f]) => `<option value="${k}" ${a.focus === k ? 'selected' : ''}>${f.icon} ${esc(f.label)}</option>`).join('')}</select></label>
+                <label>Main goal <select name="focus"><option value="">Not set</option>${Object.entries(window.Goals.GROUPS).map(([gk, gl]) => `<optgroup label="${esc(gl)}">${window.Goals.available(a, today()).filter((k) => SM.FOCUS[k].group === gk).map((k) => `<option value="${k}" ${a.focus === k ? 'selected' : ''}>${SM.FOCUS[k].icon} ${esc(SM.FOCUS[k].label)}</option>`).join('')}</optgroup>`).join('')}</select></label>
                 <label class="check" style="align-self:end"><input type="checkbox" name="autoAdapt" ${a.autoAdapt !== false ? 'checked' : ''}/> Auto-adapt my plan each week</label>
               </div>
               <div class="grid-2">
@@ -877,10 +878,11 @@
   }
 
   function onboarding(a) {
-    if (a && !a.focus) return `<div class="card" style="max-width:760px;margin:1.5rem auto">${Smart.focusPicker()}</div>`;
+    if (a && !a.focus) return `<div class="card" style="max-width:900px;margin:1.5rem auto">${Smart.focusPicker()}</div>`;
+    if (a && Smart.needsTargetStep()) return `<div class="card" style="max-width:720px;margin:1.5rem auto">${Smart.targetStepHTML()}</div>`;
     const f = a && SM.FOCUS[a.focus];
     return `<div class="card empty" style="max-width:640px;margin:2rem auto">
-      ${f ? `<div class="eyebrow">Step 2 of 2 · ${f.icon} ${esc(f.label)}</div>
+      ${f ? `<div class="eyebrow">Step 3 of 3 · ${f.icon} ${esc(f.label)}</div>
         <h1 style="font-size:1.6rem;color:var(--text);margin:.4rem 0">Let’s get started</h1>
         <p style="margin:0 0 1rem">${esc(f.tip)}</p>
         <button class="btn btn-primary btn-glow" ${f.next.action}>${esc(f.next.label)}</button>
@@ -1132,6 +1134,7 @@
       <div class="grid">
         ${readinessCard(a, { coach: true })}
         ${loadCard(a)}
+        ${Smart.goalCard(a, { compact: true })}
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
@@ -1994,7 +1997,7 @@
     } else if (f.id === 'profile-form') {
       e.preventDefault();
       const d = data();
-      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, autoAdapt: !!d.autoAdapt, level: C.LEVELS.includes(d.level) ? d.level : '', sex: ['male', 'female'].includes(d.sex) ? d.sex : '' });
+      Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, goalTarget: me().goalTarget && me().goalTarget.goal === d.focus ? me().goalTarget : null, autoAdapt: !!d.autoAdapt, level: C.LEVELS.includes(d.level) ? d.level : '', sex: ['male', 'female'].includes(d.sex) ? d.sex : '' });
       if (!solo()) me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
     } else if (f.id === 'coach-form') {
