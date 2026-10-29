@@ -222,10 +222,28 @@
           <label class="inline-select">Exercise <select data-form-field="exercise">${Object.entries(M.EXERCISES).map(([k, x]) => `<option value="${k}" ${k === an.exercise ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>
           <label class="inline-select">Camera <select data-form-field="view">${['auto', 'side', 'front'].map((v) => `<option value="${v}" ${v === an.view ? 'selected' : ''}>${v === 'auto' ? 'Auto-detect' : v === 'side' ? 'Side-on' : 'Front-on'}</option>`).join('')}</select></label>
           ${!coach && !solo() && !an.sharedWithCoach ? '<button class="btn btn-primary" data-form-action="share">Send to coach</button>' : ''}
+          ${root.Accuracy ? '<button class="btn btn-ghost" data-form-action="export-poses" title="Download the tracked movement to grade each check, for testing the form checker’s accuracy">⬇ Pose data</button>' : ''}
           ${!coach ? '<button class="btn btn-ghost btn-danger" data-form-action="delete">Delete</button>' : ''}
         </div>
       </div>
       <div id="form-detail" data-id="${an.id}"><div class="card empty"><div class="spinner"></div>Loading analysis…</div></div>`;
+  }
+
+  // What this form check is changing in the athlete's upcoming sessions (formplan.js).
+  function programCard(an) {
+    const FP = root.FormPlan;
+    if (!FP) return '';
+    const flags = FP.describe(ctx.state(), an.athleteId, ctx.C.toISODate(new Date())).filter((f) => f.analysisId === an.id);
+    if (!flags.length) return '';
+    const coach = ctx.role() === 'coach';
+    return `<section class="card form-fix"><div class="card-head"><h3>🔧 ${coach ? 'Their' : 'Your'} program is adjusting</h3></div>
+      <ul style="margin:0;padding-left:1.1rem">${flags
+        .map((f) => `<li style="margin-bottom:.4rem"><strong>${esc(f.label)}:</strong> ${esc(f.drill)} ${f.sessions ? `added to the warm-up of ${f.sessions} upcoming session${f.sessions === 1 ? '' : 's'}` : 'will be added to the warm-up of sessions with this lift'}${f.holds.length ? `, and the weight on ${esc(f.holds.join(', '))} is held` : ''}.
+          <button class="btn btn-sm btn-ghost" data-form-action="clear-flag" data-check="${esc(f.check)}">Mark as fixed</button></li>`)
+        .join('')}</ul>
+      <p class="small muted" style="margin:.25rem 0 .5rem">These come off by themselves once a re-check of this lift passes.</p>
+      ${coach ? '' : `<button class="btn btn-sm" data-form-action="new" data-exercise="${esc(an.exercise)}">📐 Film a re-check</button>`}
+    </section>`;
   }
 
   function detailBody(an, result, data) {
@@ -240,6 +258,7 @@
     const compareRep = reps.find((r) => r.n === uiState.compareRep) || reps.find((r) => r.n === result.keyRep) || null;
     return `
       ${(result.warnings || []).map((w) => `<div class="banner warn">${esc(w)}</div>`).join('')}
+      ${programCard(an)}
       <div class="grid">
         <section class="card span-7 player-card">${playerCard(an, result)}</section>
         <section class="card span-5">
@@ -641,7 +660,7 @@
       }
       // Live angle label at the joint the chart tracks.
       const val = result.series[i];
-      const lab = { squat: 'kn', lunge: 'kn', deadlift: 'hip', running: 'kn' }[result.exercise] || 'el';
+      const lab = { squat: 'kn', lunge: 'kn', bss: 'kn', deadlift: 'hip', rdl: 'hip', running: 'kn' }[result.exercise] || 'el';
       if (val != null && J[lab] && J[lab].v >= 0.45) {
         const p = P(J[lab]);
         g.font = `600 ${Math.round(lw * 4)}px system-ui, sans-serif`;
@@ -860,6 +879,7 @@
         .map(([id, e]) => `<label class="exercise-opt"><input type="radio" name="exercise" value="${id}" ${id === exercise ? 'checked' : ''}/><span><b>${e.icon}</b>${esc(e.label)}</span></label>`)
         .join('')}</div>
       <p class="hint" id="analyze-tip"></p>
+      <p class="hint" id="analyze-setup" style="margin-top:-.25rem"></p>
       <h3>2 · Video</h3>
       <label class="file-pick"><input type="file" name="file" accept="video/*" /><span class="btn btn-sm">🎥 Record or choose a video</span><span class="muted file-name" data-file-name>No video selected</span></label>
       ${
@@ -881,6 +901,8 @@
     const syncTip = () => {
       const e = M.EXERCISES[form.exercise.value];
       $('#analyze-tip', d).textContent = '📱 ' + e.tips;
+      const live = root.LiveCoach && root.LiveCoach.LIVE_EXERCISES.includes(form.exercise.value);
+      $('#analyze-setup', d).innerHTML = live ? `<button type="button" class="btn btn-sm btn-ghost" data-form-action="setup-check" data-exercise="${form.exercise.value}">📷 Check your camera setup live first</button>` : '';
     };
     syncTip();
     form.addEventListener('change', (e) => {
@@ -1058,6 +1080,32 @@
       case 'seek':
         if (active) active.player.pause(), active.player.seek(Number(el.dataset.t));
         return;
+      case 'export-poses': {
+        if (!an || !active || active.id !== an.id) return ctx.toast('Wait for the analysis to load first.');
+        const file = root.Accuracy.toExport(an, active.data, active.result);
+        const url = URL.createObjectURL(new Blob([JSON.stringify(file)], { type: 'application/json' }));
+        const link = Object.assign(document.createElement('a'), { href: url, download: `${an.exercise}-${ctx.C.toISODate(new Date(an.createdAt))}-${an.id.slice(0, 6)}.json` });
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return ctx.toast('Downloaded. Mark each check good or bad, then run the accuracy report.');
+      }
+      case 'setup-check': {
+        const openDialog = document.querySelector('dialog[open]');
+        if (openDialog) openDialog.close();
+        return ctx.go('live', el.dataset.exercise);
+      }
+      case 'clear-flag': {
+        if (!an || !root.FormPlan) return;
+        const st = ctx.state();
+        root.FormPlan.clearFlag(st, an.id, el.dataset.check);
+        const athlete = ctx.athleteById(an.athleteId);
+        if (athlete) root.FormPlan.syncAthlete(st, athlete, ctx.C.toISODate(new Date()));
+        ctx.save();
+        ctx.toast('Marked as fixed. The drill and weight hold are off.');
+        return refreshDetail();
+      }
       case 'share':
         if (!an) return;
         an.sharedWithCoach = true;

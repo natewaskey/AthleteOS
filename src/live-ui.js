@@ -249,6 +249,11 @@
     const lastW = prog.sets.filter((s) => s.weightKg).slice(-1)[0];
     const workW = lastW ? Math.round(C.kgToDisplay(lastW.weightKg, ctx.units()) / step) * step : plannedW;
     const barbell = P.meta(i.name).equipment.includes('barbell');
+    const lib = C.libraryEntry(i.name);
+    const LC = root.LiveCoach;
+    const liveEx = lib && lib.form && LC && LC.openSet && LC.LIVE_EXERCISES.includes(lib.form) && i.measure === 'reps' && ctx.role() === 'athlete' ? lib.form : null;
+    const liveSet = Array.from({ length: i.sets }, (_, k) => k).find((k) => !prog.sets[k]?.done) ?? -1;
+    const lastLive = [...prog.sets].reverse().find((x) => x && x.live);
     el.innerHTML = `<div class="focus-top"><button class="btn btn-sm" data-live="close-focus">✕ Exit</button><span class="muted small">${idx + 1} / ${items.length} · ${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</span></div>
       <div class="focus-body">
         <h2>${i.group ? `<span class="item-num">${esc(i.group)}</span> ` : ''}${esc(i.name)}</h2>
@@ -258,6 +263,8 @@
         ${barbell && workW ? plateHTML(workW) : ''}
         <div class="focus-sets">${Array.from({ length: i.sets }, (_, k) => `<button class="focus-set" data-live="set" data-set="${k}" aria-pressed="${!!prog.sets[k]?.done}">${prog.sets[k]?.done ? '✓' : k + 1}</button>`).join('')}</div>
         <p class="small muted">${done}/${i.sets} sets done${i.restSec ? ` · rest ${Math.round(i.restSec / 60 * 10) / 10} min between sets` : ''}</p>
+        ${liveEx && liveSet >= 0 ? `<button class="btn btn-primary" data-live="coach-set" data-set="${liveSet}">🎥 Coach me live · set ${liveSet + 1}</button><p class="small muted" style="margin:.35rem 0 0">Prop your phone up. It counts your reps, cues your form out loud and logs the set.</p>` : ''}
+        ${lastLive ? `<p class="small" style="margin:.5rem 0 0">Last live set: <strong>${lastLive.reps} reps</strong>${lastLive.live.score != null ? ` · form ${lastLive.live.score}` : ''}${lastLive.live.issue ? ` · work on ${esc(lastLive.live.issue.toLowerCase())}` : ' · clean reps 💪'}</p>` : ''}
         ${i.measure === 'sec' ? `<button class="btn" data-live="intervals">⏱ Start interval timer (${i.sets} × ${i.amount}s${i.restSec ? ` / ${i.restSec}s rest` : ''})</button>` : ''}
         <div class="row" style="justify-content:center;gap:.5rem;margin-top:.5rem"><button class="btn btn-sm btn-ghost" data-live="howto">ⓘ How to</button></div>
       </div>
@@ -309,6 +316,27 @@
       }
       case 'intervals':
         return startIntervals({ rounds: i.sets, work: i.amount, rest: i.restSec, label: i.name });
+      case 'coach-set': {
+        const lib = C.libraryEntry(i.name);
+        const k = +el.dataset.set;
+        const a = focus.assignment, athlete = focus.athlete, item = i;
+        return root.LiveCoach.openSet({
+          exercise: lib.form,
+          title: `${i.name} · set ${k + 1} of ${i.sets}`,
+          onDone: (res) => {
+            if (!focus || focus.assignment !== a) return;
+            if (!res.reps) return ctx.toast('No full reps were counted, so the set wasn’t logged.');
+            if (!a.startedAt) a.startedAt = Date.now();
+            const p = (a.progress[item.id] = a.progress[item.id] || { sets: [], note: '' });
+            const prev = p.sets[k] || {};
+            p.sets[k] = { ...prev, reps: res.reps, weightKg: prev.weightKg ?? C.resolveLoadKg(item, athlete), done: true, live: { score: res.avgScore, good: res.good, issue: res.topIssue ? res.topIssue.label : null, analysisId: res.analysis ? res.analysis.id : null } };
+            ctx.save();
+            ctx.toast(`Logged ${res.reps} reps${res.avgScore != null ? ` · form ${res.avgScore}` : ''}`);
+            if (item.restSec && k < item.sets - 1 && root.PlanUI.startRest) root.PlanUI.startRest(item.restSec, item.name);
+            drawFocus();
+          },
+        });
+      }
       case 'howto':
         return openHowTo(i.name);
     }

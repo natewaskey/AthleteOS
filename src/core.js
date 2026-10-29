@@ -884,7 +884,7 @@
 
   // ---------- form analyses ----------
 
-  const FORM_EXERCISES = ['squat', 'deadlift', 'lunge', 'bench', 'pushup', 'ohp', 'landing', 'running'];
+  const FORM_EXERCISES = ['squat', 'deadlift', 'rdl', 'lunge', 'bss', 'bench', 'pushup', 'ohp', 'landing', 'running'];
 
   function normalizeFormComment(input) {
     return {
@@ -930,6 +930,7 @@
       seenByCoach: !!input.seenByCoach,
       seenByAthlete: input.seenByAthlete == null ? true : !!input.seenByAthlete,
       demo: input.demo && typeof input.demo === 'object' ? { opts: { ...(input.demo.opts || {}) } } : null,
+      flagsCleared: Array.isArray(input.flagsCleared) ? input.flagsCleared.map(String).slice(0, 20) : [],
     };
   }
 
@@ -976,6 +977,15 @@
     ['Glute bridge', 'warmup', { s: 2, a: 10 }],
     ['Band pull-apart', 'warmup', { s: 2, a: 15 }],
     ['Jumping jacks', 'warmup', { s: 1, m: 'sec', a: 45 }],
+    // corrective drills (form checks add these to warm-ups)
+    ['Mini-band squat', 'warmup', { s: 2, a: 10 }],
+    ['Lateral band walk', 'warmup', { s: 2, a: 10, e: 1 }],
+    ['Tempo goblet squat', 'warmup', { s: 2, a: 5, l: 'weight', v: 9 }],
+    ['Wall hip hinge', 'warmup', { s: 2, a: 8 }],
+    ['Dowel hip hinge', 'warmup', { s: 2, a: 8 }],
+    ['Split squat hold', 'warmup', { s: 2, m: 'sec', a: 20, e: 1 }],
+    ['Scapular push-up', 'warmup', { s: 2, a: 10 }],
+    ['Wall slide', 'warmup', { s: 2, a: 10 }],
     ['Ankle rocks (knee to wall)', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
     ['Couch stretch', 'mobility', { s: 2, a: 45, e: 1 }],
     ['Deep squat hold', 'mobility', { s: 2, a: 45 }],
@@ -1034,7 +1044,7 @@
     ['Goblet squat', 'strength', { s: 3, a: 10, r: 90, l: 'weight', v: 22.7 }, 'squat'],
     ['Deadlift', 'strength', { s: 3, a: 5, r: 180, l: 'pct', v: 75 }, 'deadlift'],
     ['Trap bar deadlift', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'deadlift'],
-    ['Romanian deadlift', 'strength', { s: 3, a: 8, r: 120, l: 'rpe', v: 7 }, 'deadlift'],
+    ['Romanian deadlift', 'strength', { s: 3, a: 8, r: 120, l: 'rpe', v: 7 }, 'rdl'],
     ['Bench press', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'bench'],
     ['Incline dumbbell press', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
     ['Overhead press', 'strength', { s: 4, a: 6, r: 120, l: 'pct', v: 70 }, 'ohp'],
@@ -1044,7 +1054,7 @@
     ['Dumbbell row', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8, e: 1 }],
     ['Lat pulldown', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8 }],
     ['Split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
-    ['Bulgarian split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 8, e: 1 }, 'lunge'],
+    ['Bulgarian split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 8, e: 1 }, 'bss'],
     ['Walking lunge', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
     ['Step-up', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
     ['Hip thrust', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
@@ -1111,6 +1121,8 @@
       tempo: String(input.tempo || '').trim().slice(0, 12),
       eachSide: input.eachSide == null ? d.eachSide : !!input.eachSide,
       notes: String(input.notes || '').trim().slice(0, 300),
+      // Set by formplan.js: a corrective drill or a held weight from a form check.
+      ...(input.formFix && typeof input.formFix === 'object' ? { formFix: JSON.parse(JSON.stringify(input.formFix)) } : {}),
     };
   }
 
@@ -1121,6 +1133,7 @@
       type,
       title: String(input.title || '').trim().slice(0, 60),
       items: Array.isArray(input.items) ? input.items.map((i) => normalizePlanItem(i, type)) : [],
+      ...(input.formFix ? { formFix: true } : {}), // a warm-up block added for form-check drills
     };
   }
 
@@ -1147,7 +1160,10 @@
   }
 
   function normalizeSetResult(s) {
-    return { reps: s.reps === '' || s.reps == null ? null : Math.max(0, Number(s.reps) || 0), weightKg: s.weightKg === '' || s.weightKg == null ? null : Math.max(0, Number(s.weightKg) || 0), done: !!s.done };
+    const out = { reps: s.reps === '' || s.reps == null ? null : Math.max(0, Number(s.reps) || 0), weightKg: s.weightKg === '' || s.weightKg == null ? null : Math.max(0, Number(s.weightKg) || 0), done: !!s.done };
+    // A set coached live by the camera keeps its form summary.
+    if (s.live && typeof s.live === 'object') out.live = { score: s.live.score == null ? null : Math.round(Number(s.live.score)) || 0, good: Math.max(0, Math.round(Number(s.live.good) || 0)), issue: s.live.issue ? String(s.live.issue).slice(0, 60) : null, analysisId: s.live.analysisId ? String(s.live.analysisId) : null };
+    return out;
   }
 
   function normalizeAssignment(input) {

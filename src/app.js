@@ -1388,6 +1388,8 @@
       else if (ui.id) markThreadRead(ui.id);
     }
     if (role() === 'athlete' && SM.autoAdapt(state, me(), today())) save();
+    // Form-check faults add drills and hold weights on upcoming sessions (and undo them once fixed).
+    if (window.FormPlan && state.athletes.reduce((ch, a) => window.FormPlan.syncAthlete(state, a, today()) || ch, false)) save();
     renderChrome();
     $('#view').innerHTML = views[ui.tab]();
     hydrateVideos($('#view'));
@@ -2210,7 +2212,7 @@
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
 
   Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, units, U, sportOptions, fmtDate });
-  Live.init({ C, state: () => state, save, render, esc, units, U });
+  Live.init({ C, state: () => state, save, render, esc, units, U, role, toast, me });
 
   Plan.init({
     C,

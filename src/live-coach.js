@@ -11,7 +11,8 @@
   const node = typeof module !== 'undefined' && module.exports;
   const M = node ? require('./movement.js') : root.Movement;
 
-  const LIVE_EXERCISES = ['squat', 'lunge', 'pushup', 'deadlift', 'ohp', 'landing'];
+  const LIVE_EXERCISES = ['squat', 'lunge', 'bss', 'pushup', 'deadlift', 'rdl', 'ohp', 'landing'];
+  const SETUP_EVERY = 0.5; // seconds between camera setup checks
   const BUFFER_SECONDS = 24;
   const ANALYZE_EVERY = 0.3; // seconds between re-analyses
 
@@ -27,6 +28,7 @@
    * createEngine({ exercise, aspect }) -> { push(frame) -> events[], reps, summary() }
    * frame: { t: seconds, lm: [[x,y,z,visibility] × 33] | null }
    * events: { type: 'rep', n, score, status, cue, check } | { type: 'lost' } | { type: 'found' } | { type: 'hint', text }
+   *         | { type: 'setup', ok, id, text } when the camera setup check changes (feet cut off, too far, wrong angle…)
    */
   function createEngine({ exercise = 'squat', aspect = 16 / 9 } = {}) {
     if (!M.EXERCISES[exercise]) throw new Error('Unknown exercise: ' + exercise);
@@ -37,11 +39,30 @@
     let lastSeen = null;
     let lost = true;
     let hinted = false;
+    let lastSetup = -Infinity;
+    let setup = null;
+
+    function checkSetup(frame) {
+      let res = M.framing(frame.lm, aspect, { exercise });
+      if (res.ok) {
+        const recent = frames.filter((f) => f.t >= frame.t - 1.5);
+        const angle = recent.length >= 8 ? M.angleAdvice(recent, aspect, exercise) : null;
+        if (angle) res = { ok: false, ...angle };
+      }
+      if (setup && setup.id === res.id) return null;
+      setup = res;
+      return { type: 'setup', ...res };
+    }
 
     function push(frame) {
       const events = [];
       const t = frame.t;
       const has = frame.lm && frame.lm.length >= 33;
+      if (t - lastSetup >= SETUP_EVERY) {
+        lastSetup = t;
+        const ev = checkSetup(frame);
+        if (ev) events.push(ev);
+      }
       if (has) {
         frames.push(frame);
         if (lost) (lost = false), events.push({ type: 'found' });
@@ -96,7 +117,7 @@
       };
     }
 
-    return { push, summary, get reps() { return reps.slice(); }, get frames() { return frames.slice(); } };
+    return { push, summary, get reps() { return reps.slice(); }, get frames() { return frames.slice(); }, get setup() { return setup; } };
   }
 
   const LiveCoach = { LIVE_EXERCISES, createEngine, shortCue };
@@ -106,6 +127,8 @@
     const LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [27, 31], [27, 29], [24, 26], [26, 28], [28, 32], [28, 30]];
     let ctx = null;
     let run = null; // active session
+    let scope = document; // where the camera stage lives: the Live coach page, or the in-workout overlay
+    const byId = (id) => scope.querySelector('#' + id);
 
     function voiceOn() {
       try {
@@ -134,11 +157,7 @@
         <p class="muted" style="margin-top:0">Set your phone down, step back so your whole body is in frame, and start moving. It counts your reps and coaches each one out loud. Everything runs on this device; no video is recorded.</p>
         <div class="exercise-strip">${LIVE_EXERCISES.map((k) => `<button class="exercise-chip" data-live-ex="${k}" aria-pressed="${k === ex}"><span>${E[k].icon}</span>${esc(E[k].label)}</button>`).join('')}</div>
         <section class="card live-card">
-          <div class="live-stage" id="live-stage">
-            <video id="live-video" playsinline muted></video>
-            <canvas id="live-overlay"></canvas>
-            <div class="live-hud"><div class="live-reps"><span id="live-count">0</span><small>reps</small></div><div class="live-cue" id="live-cue">Tap Start, then step into frame</div></div>
-          </div>
+          ${stageHTML('Tap Start, then step into frame')}
           <div class="row" style="margin-top:.75rem">
             <button class="btn btn-primary" data-live-action="start" id="live-start">▶ Start camera</button>
             <button class="btn" data-live-action="flip" id="live-flip" hidden>🔄 Flip camera</button>
@@ -150,8 +169,16 @@
         <div id="live-summary"></div>`;
     }
 
+    function stageHTML(cue) {
+      return `<div class="live-stage" id="live-stage">
+            <video id="live-video" playsinline muted></video>
+            <canvas id="live-overlay"></canvas>
+            <div class="live-hud"><div class="live-reps"><span id="live-count">0</span><small>reps</small></div><div class="live-cue" id="live-cue">${ctx.esc(cue)}</div></div>
+          </div>`;
+    }
+
     function setText(id, text) {
-      const el = document.getElementById(id);
+      const el = byId(id);
       if (el) el.textContent = text;
     }
 
@@ -188,7 +215,12 @@
 
     function handle(events) {
       for (const e of events) {
-        if (e.type === 'found') setText('live-cue', 'Got you. Start your reps');
+        if (e.type === 'found' && (!run.engine.setup || run.engine.setup.ok)) setText('live-cue', 'Got you. Start your reps');
+        if (e.type === 'setup') {
+          run.setupOk = e.ok;
+          setText('live-cue', e.ok ? (run.engine.reps.length ? 'Camera setup looks good' : 'Camera setup looks good. Start your reps') : '📷 ' + e.text);
+          if (!e.ok && e.id !== 'none' && run.spokenSetup !== e.id) (run.spokenSetup = e.id), say(e.text);
+        }
         if (e.type === 'lost') setText('live-cue', 'Step back into frame');
         if (e.type === 'hint') setText('live-status', e.text);
         if (e.type === 'rep') {
@@ -196,16 +228,17 @@
           setText('live-count', String(e.n));
           setText('live-cue', e.status === 'good' ? `✓ Rep ${e.n}: good` : `Rep ${e.n}: ${e.cue}`);
           say(e.status === 'good' ? `${e.n}` : `${e.n}. ${e.spoken}`);
-          const log = document.getElementById('live-log');
+          const log = byId('live-log');
           if (log) log.insertAdjacentHTML('afterbegin', `<li class="${e.status}"><strong>Rep ${e.n}</strong> ${e.score != null ? `· ${e.score}` : ''} · ${ctx.esc(e.status === 'good' ? 'Good rep' : e.label + ': ' + e.cue)}</li>`);
         }
       }
     }
 
     async function start(exercise, facing = 'user') {
+      const keep = run && run.set; // flipping the camera keeps the in-workout set going
       stop(true);
-      const video = document.getElementById('live-video');
-      const canvas = document.getElementById('live-overlay');
+      const video = byId('live-video');
+      const canvas = byId('live-overlay');
       if (!video) return;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return setText('live-cue', 'This browser can’t use the camera. Try Chrome or Safari on your phone.');
       // Embedded previews usually don't allow the camera; say so instead of triggering a browser error.
@@ -223,10 +256,9 @@
       video.classList.toggle('mirror', facing === 'user');
       await video.play().catch(() => {});
       const aspect = (video.videoWidth || 16) / (video.videoHeight || 9);
-      run = { exercise, facing, stream, engine: createEngine({ exercise, aspect }), t0: performance.now(), raf: 0, lastStatus: 'good', lm: null, poseErr: null };
-      document.getElementById('live-start').hidden = true;
-      document.getElementById('live-stop').hidden = false;
-      document.getElementById('live-flip').hidden = false;
+      run = { exercise, facing, stream, engine: createEngine({ exercise, aspect }), t0: performance.now(), raf: 0, lastStatus: 'good', lm: null, poseErr: null, aspect, set: keep || null };
+      ['live-start'].forEach((id) => byId(id) && (byId(id).hidden = true));
+      ['live-stop', 'live-flip'].forEach((id) => byId(id) && (byId(id).hidden = false));
       setText('live-cue', 'Loading the pose model…');
       let lmk = null;
       try {
@@ -274,13 +306,13 @@
       run = null;
       cancelAnimationFrame(r.raf);
       if (r.stream) r.stream.getTracks().forEach((tr) => tr.stop());
-      const v = document.getElementById('live-video');
+      const v = byId('live-video');
       if (v) v.srcObject = null;
-      if (silent) return;
+      if (silent) return r;
       const sum = r.engine.summary();
-      const el = document.getElementById('live-summary');
-      ['live-start'].forEach((id) => document.getElementById(id) && (document.getElementById(id).hidden = false));
-      ['live-stop', 'live-flip'].forEach((id) => document.getElementById(id) && (document.getElementById(id).hidden = true));
+      const el = byId('live-summary');
+      ['live-start'].forEach((id) => byId(id) && (byId(id).hidden = false));
+      ['live-stop', 'live-flip'].forEach((id) => byId(id) && (byId(id).hidden = true));
       if (el) {
         el.innerHTML = `<section class="card"><div class="card-head"><h3>Set summary</h3></div>
           ${sum.reps ? `<p style="margin-top:0"><strong>${sum.reps} reps</strong>${sum.avgScore != null ? ` · average score ${sum.avgScore}` : ''} · ${sum.good} clean</p>
@@ -292,23 +324,94 @@
     }
     let lastRun = null;
 
-    function save() {
-      if (!lastRun) return;
-      const frames = lastRun.engine.frames;
-      if (frames.length < 8) return;
+    // Store a live set as a form check, with its summary filled in so it can shape the program.
+    function storeRun(r, extra = {}) {
+      const frames = r.engine.frames;
+      if (frames.length < 8) return null;
       const me = ctx.me();
-      const an = ctx.C.normalizeAnalysis({ athleteId: me.id, exercise: lastRun.exercise, aspect: 16 / 9, duration: frames[frames.length - 1].t - frames[0].t, seenByAthlete: true, athleteNote: 'Recorded with Live coach', sharedWithCoach: !!(me.privacy && me.privacy.autoShareForm) });
+      const aspect = r.aspect || 16 / 9;
       const t0 = frames[0].t;
       const fr = frames.map((f) => ({ t: +(f.t - t0).toFixed(3), lm: f.lm.map((p) => p.map((v) => +(+v).toFixed(4))) }));
-      ctx.Media.putPoses(an.id, { frames: fr, aspect: 16 / 9 }).catch(() => {});
+      const res = M.analyze(fr, { exercise: r.exercise, aspect });
+      const an = ctx.C.normalizeAnalysis({
+        athleteId: me.id, exercise: r.exercise, aspect, duration: fr[fr.length - 1].t, seenByAthlete: true, athleteNote: 'Recorded with Live coach',
+        sharedWithCoach: !!(me.privacy && me.privacy.autoShareForm),
+        score: res.error ? null : res.score, reps: (res.reps || []).length,
+        checks: (res.checks || []).filter((c) => !c.info).map((c) => ({ id: c.id, label: c.label, status: c.status, display: c.display })),
+        ...extra,
+      });
+      ctx.Media.putPoses(an.id, { frames: fr, aspect }).catch(() => {});
       ctx.state().analyses.push(an);
+      return an;
+    }
+
+    function save() {
+      if (!lastRun) return;
+      const an = storeRun(lastRun);
+      if (!an) return;
       ctx.save();
       lastRun = null;
       ctx.toast('Saved. Open it in Form for the full breakdown.');
       ctx.go('form', an.id);
     }
 
+    // ---------- in-workout set coaching ----------
+
+    /*
+     * openSet({ exercise, title, onDone(result) }): a full-screen camera over Live workout mode.
+     * "Finish set" stops the camera and calls onDone({ reps, avgScore, good, topIssue, analysis }).
+     */
+    function openSet({ exercise, title, onDone }) {
+      closeSet();
+      const ex = M.EXERCISES[exercise];
+      if (!ex) return;
+      const el = document.createElement('div');
+      el.id = 'live-set';
+      el.setAttribute('role', 'dialog');
+      el.setAttribute('aria-label', 'Live coach for this set');
+      el.innerHTML = `<div class="focus-top"><button class="btn btn-sm" data-live-set="cancel">✕ Cancel</button><span class="muted small">🎥 ${ctx.esc(title || ex.label)}</span>
+          <label class="check" style="margin:0"><input type="checkbox" data-live-voice ${voiceOn() ? 'checked' : ''}/> Voice</label></div>
+        ${stageHTML('Starting camera…')}
+        <p class="small muted" style="text-align:center;margin:.5rem 0">${ctx.esc(ex.tips)}</p>
+        <div class="row" style="justify-content:center;gap:.5rem">
+          <button class="btn" data-live-set="flip">🔄 Flip</button>
+          <button class="btn btn-primary" data-live-set="finish">✓ Finish set</button>
+        </div>
+        <ol class="live-log small" id="live-log"></ol>`;
+      document.body.append(el);
+      scope = el;
+      start(exercise, 'user').then(() => {
+        if (run) run.set = { onDone, title };
+      });
+    }
+
+    function closeSet() {
+      const el = document.getElementById('live-set');
+      if (scope !== document) stop(true);
+      scope = document;
+      if (el) el.remove();
+    }
+
+    function finishSet() {
+      const r = run;
+      if (!r || !r.set) return closeSet();
+      stop(true);
+      const sum = r.engine.summary();
+      const an = sum.reps >= 2 ? storeRun(r, { athleteNote: `Live coach during ${r.set.title || 'a workout'}` }) : null;
+      closeSet();
+      if (sum.reps) say(`Set done. ${sum.reps} reps.`);
+      r.set.onDone({ ...sum, analysis: an });
+    }
+
     function onClick(e) {
+      const set = e.target.closest('[data-live-set]');
+      if (set) {
+        const act = set.dataset.liveSet;
+        if (act === 'cancel') return closeSet();
+        if (act === 'finish') return finishSet();
+        if (act === 'flip' && run) return start(run.exercise, run.facing === 'user' ? 'environment' : 'user');
+        return;
+      }
       const ex = e.target.closest('[data-live-ex]');
       if (ex) {
         stop(true);
@@ -336,11 +439,12 @@
       document.addEventListener('click', onClick);
       document.addEventListener('change', onChange);
       window.addEventListener('hashchange', () => {
+        if (scope !== document) return closeSet();
         if (!location.hash.startsWith('#live')) stop(true);
       });
     }
 
-    Object.assign(LiveCoach, { init, view, start, stop, feed, isRunning: () => !!run });
+    Object.assign(LiveCoach, { init, view, start, stop, feed, openSet, closeSet, isRunning: () => !!run });
   }
 
   if (node) module.exports = LiveCoach;

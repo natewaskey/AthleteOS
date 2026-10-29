@@ -600,6 +600,7 @@
         <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>${root.ScienceUI ? ' ' + root.ScienceUI.evidenceChip(i.name) : ''}
           <div class="small">${esc(prescription(i, athlete))}</div>
           ${i.notes ? `<div class="muted small">${esc(i.notes)}</div>` : ''}
+          ${i.formFix && i.formFix.kind === 'hold' ? `<div class="small"><span class="pill hold" title="Comes off when a re-check passes">🔒 Weight held: work on ${esc(i.formFix.labels.join(', ').toLowerCase())}</span></div>` : ''}
           ${flag ? `<div class="small flag-note">${flag.level === 'bad' ? '⛔' : '⚠️'} ${esc(flag.reason)}</div>` : ''}
           ${actual}</div>
         <div class="item-tools">

@@ -101,7 +101,9 @@ In team mode, the **Athlete / Coach** switch in the top bar shows both sides of 
 
 ### Live camera coaching
 - Set the phone down and move. The app tracks your body on the device, counts reps as they happen, grades each rep with the same rules as video analysis, and speaks a short cue ("Sit deeper") or the rep count.
-- Works for squat, lunge, push-up, deadlift, overhead press and the jump-landing screen.
+- Works for squat, lunge, Bulgarian split squat, push-up, deadlift, Romanian deadlift, overhead press and the jump-landing screen.
+- **Camera setup check:** before and during the set it tells you what to fix, out loud: feet or head cut off, too far away, off to the side, too dark, or filming from the wrong angle for the lift.
+- **Inside the workout:** in Live workout mode, lifts with a form check get a **🎥 Coach me live** button. The camera counts the set's reps, cues each one, then logs the reps to that set with a form score and saves the set as a form check.
 - A set summary shows the main thing to fix, and the set can be saved as a form check.
 - No video is recorded. The camera needs the app open in its own tab: embedded previews block camera access.
 
@@ -190,18 +192,23 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 ### Form analysis (movement tracking)
 Record a set on your phone and AthleteOS analyses it **on-device**. The video never leaves the phone.
 
-- **Exercises:** squat, deadlift, lunge, bench press, push-up, overhead press, **jump-landing screen** (knee valgus, soft landing, symmetry), and running form.
+- **Exercises:** squat, deadlift, Romanian deadlift, lunge, Bulgarian split squat, bench press, push-up, overhead press, **jump-landing screen** (knee valgus, soft landing, symmetry), and running form.
 - **How it works:** [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) tracks 33 body points in every frame. `src/movement.js` turns those into joint angles and positions, counts reps, and scores each rep's key moment (bottom of a squat, start of a deadlift, lockout of a press, foot strike for running) against form rules.
 - **What it checks:**
   - **Squat:** depth, torso angle, heels, knee tracking and hip shift (front view), tempo
   - **Deadlift:** back angle, bar over mid-foot, shoulders over bar, hips rising with the chest, lockout
+  - **Romanian deadlift:** soft fixed knees (not squatting it), hinge depth, bar close to the legs, lockout, lowering tempo
   - **Lunge:** front and back knee depth, torso, knee travel, knee tracking
+  - **Bulgarian split squat:** depth, torso, front foot distance from the bench (shin angle), knee tracking (front view)
   - **Bench:** bar to chest, wrists over elbows, touch point, lockout, glutes staying down
   - **Push-up:** depth, body line (sag or pike), lockout
   - **Overhead press:** lockout, bar over mid-foot, back lean
   - **Running:** cadence, overstriding, knee bend at landing, forward lean, vertical bounce, foot strike, arm carriage
 - **You vs target:** a target figure (green dashed) is built from *your own limb lengths*, anchored at your feet, in the ideal key position. It is drawn over your actual position as an overlay or side by side, with numbered markers on the joints that need work. The same target ghost appears on the video at each rep's key moment.
 - **Video player** with a live skeleton overlay (colour-coded problem areas, live joint angle, rep counter), 0.25×/0.5×/1× speed, and an angle-over-time chart with a rep strip (tap to jump).
+- **Recording quality:** each analysis warns when the body was out of frame for much of the clip (and says what to change) or when the camera moved. The Analyze dialog links to a live setup check before you film.
+- **Form check shapes the program:** a failed check (for example knees caving on squats) adds the matching corrective drill to the warm-up of upcoming sessions that include that lift, and holds the weight on it at the last load you trained. Both come off automatically once a re-check of the lift passes, or when the athlete or coach taps **Mark as fixed**. Sessions already under way are never changed, and faults older than 6 weeks stop counting. Logic in `src/formplan.js`.
+- **Accuracy testing:** `npm run accuracy` scores the checker against simulated reps with known faults, clean and with tracking noise. **⬇ Pose data** on any form check downloads the tracked movement with blank labels; a coach marks each check good or bad and `node tools/accuracy.js <folder>` reports accuracy, faults caught and false alarms per check on real footage.
 - **Suggestions:** a coaching cue and a drill for every issue, ordered by severity. Coaches can add their own cues, which appear first and also go to the athlete's messages.
 - **Input:** athletes log the weight, reps and how it felt, and anyone can post comments pinned to a moment in the video. You can re-run the analysis as a different exercise or camera angle, then send it to the coach.
 - **Rep speed:** bars show how fast each rep came up, and a large slowdown is flagged (a sign of a grinding set).
@@ -240,6 +247,7 @@ To deploy, publish the repo root to any static host (GitHub Pages, Netlify, Clou
 
 ```sh
 npm test           # node --test, no install needed (Node 18+)
+npm run accuracy   # form checker accuracy on simulated reps (or: node tools/accuracy.js <labelled pose files>)
 ```
 
 ## Project layout
@@ -250,7 +258,9 @@ src/dialogs.js        in-app confirm/prompt/copy dialogs (native ones are blocke
 src/core.js           pure logic: sports catalog, load, ACWR, readiness, body areas, coach flags, demo team
 src/body.js           clickable front/back body map (inline SVG)
 src/media.js          video storage (IndexedDB)
-src/movement.js       form analysis engine: angles, rep detection, exercise rules, target poses, simulator
+src/movement.js       form analysis engine: angles, rep detection, exercise rules, target poses, camera setup, simulator
+src/accuracy.js       form checker accuracy: labelled cases, noise, per-check report, pose-data export format
+src/formplan.js       form-check faults -> corrective warm-up drills and held weights on upcoming sessions
 src/pose.js           on-device pose detection (MediaPipe) over a video
 src/form-ui.js        form analysis screens: player + overlay, comparison, chart, suggestions, comments
 src/plan-ui.js        training plans: workout builder, library, assigning, week calendar, workout screen
@@ -277,7 +287,7 @@ src/science.js        personal baselines, age bands, maturity offset, velocity p
 src/importer.js       CSV import for HRV, jumps, GPS and bar velocity
 src/evidence.js       research grades and citations for exercises and scoring rules
 src/science-ui.js     normal ranges, performance data, age & growth, import, evidence library
-src/live-coach.js     real-time rep counting and cues (engine + camera screen)
+src/live-coach.js     real-time rep counting, cues and camera setup check (engine + camera screen + in-workout set)
 src/assistant-ui.js   AI coach chat and weekly recap screens
 src/calendar-ui.js    calendar screens, event dialog, attendance
 src/wellness-ui.js    Fuel, Mind and Health screens
@@ -290,6 +300,7 @@ src/styles.css        design tokens, light/dark themes, responsive layout
 sw.js                 offline cache
 manifest.webmanifest  PWA manifest
 test/*.test.js        unit tests: core, movement, programming, platform, screen, demos and the new features
+tools/accuracy.js     command-line form checker accuracy report
 ```
 
 ## How the numbers work

@@ -151,3 +151,48 @@ test('rep speed loss flags grinding sets', () => {
   assert.equal(v.series.length, 6);
   assert.ok(v.series[0] > v.series[5]);
 });
+
+test('Romanian deadlift: soft knees, hinge depth and bar path', () => {
+  const good = run('rdl');
+  assert.equal(good.reps.length, 5);
+  assert.ok(good.score >= 90, `good score ${good.score}`);
+  assert.equal(status(run('rdl', { squat: true }), 'knees'), 'bad');
+  assert.equal(status(run('rdl', { torso: 30 }), 'hinge'), 'bad');
+  assert.equal(status(run('rdl', { barDrift: 0.12 }), 'barpath'), 'bad');
+});
+
+test('Bulgarian split squat: depth, torso, front foot and knee tracking', () => {
+  const good = run('bss');
+  assert.equal(good.reps.length, 5);
+  assert.ok(good.score >= 90, `good score ${good.score}`);
+  assert.equal(status(run('bss', { depth: 0 }), 'frontknee'), 'bad');
+  assert.equal(status(run('bss', { lean: 42 }), 'lean'), 'bad');
+  assert.match(run('bss', { stance: 0.3 }).suggestions.find((s) => s.id === 'shin').cue, /front foot/);
+  assert.equal(status(run('bss', { view: 'front', valgus: 0.3 }), 'valgus'), 'bad');
+});
+
+test('camera setup: whole body in frame, close enough, right angle', () => {
+  const sim = M.simulate('squat', {});
+  const lm = sim.frames[0].lm;
+  assert.equal(M.framing(lm, sim.aspect, { exercise: 'squat' }).ok, true);
+  assert.equal(M.framing(null, sim.aspect).id, 'none');
+  const shift = (dy) => lm.map((p) => [p[0], p[1] + dy, p[2], p[3]]);
+  assert.equal(M.framing(shift(0.15), sim.aspect).id, 'feet');
+  assert.equal(M.framing(shift(-0.15), sim.aspect).id, 'head');
+  const small = lm.map((p) => [0.5 + (p[0] - 0.5) * 0.4, 0.5 + (p[1] - 0.5) * 0.4, p[2], p[3]]);
+  assert.equal(M.framing(small, sim.aspect).id, 'far');
+  const dim = lm.map((p) => [p[0], p[1], p[2], 0.5]);
+  assert.equal(M.framing(dim, sim.aspect).id, 'light');
+  assert.equal(M.angleAdvice(M.simulate('squat', { view: 'front' }).frames, sim.aspect, 'deadlift').id, 'angle');
+  assert.equal(M.angleAdvice(sim.frames, sim.aspect, 'squat'), null);
+});
+
+test('recording quality warns about cut-off bodies and a moving camera', () => {
+  for (const ex of Object.keys(M.EXERCISES)) assert.deepEqual(run(ex).quality.issues, [], ex);
+  const sim = M.simulate('squat', {});
+  const cut = sim.frames.map((f) => ({ t: f.t, lm: f.lm.map((p) => [p[0], p[1] + 0.15, p[2], p[3]]) }));
+  const r = M.analyze(cut, { exercise: 'squat', aspect: sim.aspect });
+  assert.ok(r.warnings.some((w) => /feet are cut off/.test(w)));
+  const shaky = sim.frames.map((f, i) => ({ t: f.t, lm: f.lm.map((p) => [p[0] + 0.06 * Math.sin(i / 3), p[1], p[2], p[3]]) }));
+  assert.equal(M.recordingQuality(shaky, sim.aspect, 'squat').shaky, true);
+});

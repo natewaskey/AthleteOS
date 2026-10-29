@@ -62,7 +62,7 @@
   // [pattern, equipment...] per library exercise. Unlisted warm-up / mobility / cool-down items are
   // bodyweight mobility.
   const META = {
-    'Band pull-apart': ['mobility', 'band'], 'Jumping jacks': ['drill'], 'Foam roll': ['recovery', 'foam-roller'], 'Easy jog': ['run', 'field'],
+    'Band pull-apart': ['mobility', 'band'], 'Mini-band squat': ['mobility', 'band'], 'Lateral band walk': ['mobility', 'band'], 'Tempo goblet squat': ['mobility', 'dumbbell'], 'Jumping jacks': ['drill'], 'Foam roll': ['recovery', 'foam-roller'], 'Easy jog': ['run', 'field'],
     'A-skips': ['drill', 'field'], 'B-skips': ['drill', 'field'], 'High knees': ['drill', 'field'], Carioca: ['cod', 'field'],
     'Acceleration sprint': ['sprint', 'field'], 'Flying sprint': ['sprint', 'field'], 'Pro agility (5-10-5)': ['cod', 'cones'], '3-cone drill (L-drill)': ['cod', 'cones'],
     'T-drill': ['cod', 'cones'], 'Agility ladder: in-in-out-out': ['cod', 'cones'], 'Agility ladder: Icky shuffle': ['cod', 'cones'], 'Lateral shuffle': ['cod', 'field'],
@@ -120,6 +120,15 @@
     'Nordic hamstring curl': ['Kneel with ankles anchored', 'Lower as slowly as you can with hips extended', 'Catch yourself, push back up'],
     'Copenhagen plank': ['Top leg on the bench, body straight', 'Lift hips and hold', 'Keep hips stacked'],
     'Split squat': ['Long stance, torso tall', 'Drop the back knee straight down', 'Drive through the front heel'],
+    'Bulgarian split squat': ['Rear foot laces-down on the bench', 'Sink straight down, slight forward lean', 'Drive through the whole front foot'],
+    'Mini-band squat': ['Band just above the knees', 'Push your knees out against the band', 'Slow down, quick up'],
+    'Lateral band walk': ['Band around the ankles or knees, quarter squat', 'Step wide, toes forward', 'Don’t let the knees cave'],
+    'Tempo goblet squat': ['3 seconds down, pause at the bottom', 'Chest tall, elbows inside the knees', 'Light weight, perfect position'],
+    'Wall hip hinge': ['Stand a foot from a wall, soft knees', 'Reach your hips back to touch the wall', 'Shins stay vertical'],
+    'Dowel hip hinge': ['Stick touches head, upper back and tailbone', 'Hinge until you feel the hamstrings', 'Keep all three contacts'],
+    'Split squat hold': ['Hold the bottom, back knee just off the floor', 'Front knee over the toes', 'Torso tall, breathe'],
+    'Scapular push-up': ['Arms straight in a plank', 'Let the shoulder blades pinch, then push apart', 'Body stays rigid'],
+    'Wall slide': ['Back, head and arms against the wall', 'Slide arms up without arching', 'Ribs stay down'],
   };
   const PATTERN_CUES = {
     squat: ['Brace your core', 'Knees track over toes', 'Drive through mid-foot'], hinge: ['Hips back, flat back', 'Load the hamstrings', 'Squeeze glutes to finish'],
