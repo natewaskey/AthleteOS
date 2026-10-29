@@ -6,9 +6,9 @@ A private training operating system for athletes. Log workouts, check in each mo
 
 ### Look & navigation
 - Dark-first "glass and glow" design: glass cards, orange-to-pink gradient accents, glowing readiness rings. Light theme is in Settings.
-- Desktop has a sidebar with a handful of sections (Home, Train, AI Coach, Progress, Wellness, Messages, Profile). Related pages sit under pill tabs inside each section.
-- Phones get a floating bottom tab bar with a center AI Coach orb. Everything else is under **More**.
-- Home is one hero card (greeting, readiness gauge, today's session and one-tap actions: check in, voice log, Ask AI, Live coach, Breathe) plus one "what's next" card.
+- Desktop has a sidebar with a handful of sections (Home, Train, Progress, Wellness, Messages, Profile, Help & FAQ). Related pages sit under pill tabs inside each section.
+- Phones get a floating bottom tab bar with the first four sections. Everything else is under **More**.
+- Home is one hero card (greeting, readiness gauge, today's session and one-tap actions: check in, voice log, Help & FAQ, Live coach, Breathe) plus one "what's next" card.
 
 ### Sports science (built for elite and club athletes)
 - **Personal baselines.** Every marker (readiness, sleep, HRV, resting HR, soreness, stress, mood, jump height) is compared with the athlete's own last 28 days (mean ± 1 SD), shown as a "normal range" bar. Resting HR and HRV affect readiness only when they leave the athlete's own normal range.
@@ -56,7 +56,7 @@ A private training operating system for athletes. Log workouts, check in each mo
   - **How the weekly plan progresses:** more load, extra quality sets, more conditioning volume, conservative progression, an in-season hold, or a taper before a competition date.
   - **How sensitive injury warnings are:** up to 40% more sensitive when coming back from injury.
   - **The program builder's starting point:** goal, focus areas and season phase.
-  - **What's tracked on Home and Progress, and the AI coach's context.**
+  - **What's tracked on Home and Progress.**
 
   The Goals page shows a "How this goal shapes AthleteOS" panel.
 - **10-second check-in.** Four taps: sleep, energy, body and stress, with a live readiness preview. "More detail" opens the full body map, and choosing "Pain" sends you there automatically.
@@ -80,11 +80,11 @@ In team mode, the **Athlete / Coach** switch in the top bar shows both sides of 
 - They're optional and don't lock anything: every coach on the staff has full access. Roles (head, assistant, S&C, trainer) are labels.
 - Certifications are self-reported in this version.
 
-### ✨ AI coach chat
-- **For athletes:** ask anything, e.g. "Why is my readiness low?", "What should I eat before my game?", "My knee is sore, what should I do?" It answers from your own check-ins, training load, injuries, movement screen, calendar, food log and goals.
-- **For coaches:** ask about the team, e.g. "Who needs attention today?", "Who missed sessions?" or "Plan a practice before Friday's game."
-- **With a Claude API key** (Settings), replies stream from Claude. **Without one**, a built-in coach answers common questions from the same data.
-- Safety rules are built in: pain, head injuries and anything medical get sent to a professional.
+### Help & FAQ
+- About 35 fixed, reviewed answers in eight topics: getting started, readiness, training and load, soreness and injuries, food/water/sleep, nerves, coaching and privacy.
+- Search as you type (e.g. "sore knee", "ACWR"), or filter by topic. Each answer links to the page that helps.
+- Athletes and coaches see their own questions. Athletes on a team can jump to messaging their coach when nothing matches.
+- Pain, head injuries and anything medical point to a professional. Content lives in `src/faq.js`.
 
 ### Team calendar
 - A month grid plus an upcoming list covering games, meets and races, practices, lifts, film sessions and travel.
@@ -269,7 +269,7 @@ src/calendar.js       calendar logic: events, who they're for, game-day context,
 src/nutrition.js      food list, meal totals, targets, water, sweat rate, photo-estimate schema
 src/challenges.js     challenge logic: automatic/manual counting, leaderboards, pace, completions
 src/mind.js           breathing patterns, routine, visualization, journal, streaks and trends
-src/insights.js       weekly summary, AI context snapshots, built-in coach answers
+src/insights.js       weekly summary and the data snapshot for Claude's recap note
 src/goals.js          goal catalog, targets, progress, and how each goal changes the app
 src/smart.js          readiness/load "why", injury risk, voice parser, weekly adapter, partners, goals
 src/smart-ui.js       why dialogs, 10-second check-in, voice log, adapt/risk/partner cards, goal picker
@@ -278,7 +278,9 @@ src/importer.js       CSV import for HRV, jumps, GPS and bar velocity
 src/evidence.js       research grades and citations for exercises and scoring rules
 src/science-ui.js     normal ranges, performance data, age & growth, import, evidence library
 src/live-coach.js     real-time rep counting and cues (engine + camera screen)
-src/assistant-ui.js   AI coach chat and weekly recap screens
+src/summary-ui.js     weekly summary card and recap page
+src/faq.js            Help & FAQ content and search
+src/faq-ui.js         Help & FAQ screen
 src/calendar-ui.js    calendar screens, event dialog, attendance
 src/wellness-ui.js    Fuel, Mind and Health screens
 src/challenges-ui.js  challenge screens

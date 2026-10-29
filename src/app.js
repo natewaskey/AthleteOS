@@ -14,21 +14,21 @@
   const ATHLETE_SECTIONS = [
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'form', 'live', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['form', 'Form check'], ['history', 'History']] },
-    { id: 'ai', label: 'AI Coach', icon: 'sparkle', routes: ['coachai'], accent: true },
     { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
     { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
+    { id: 'help', label: 'Help & FAQ', icon: 'help', routes: ['help'] },
   ];
   const COACH_SECTIONS = [
     { id: 'team', label: 'Team', icon: 'users', routes: ['team'] },
     { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar']] },
-    { id: 'ai', label: 'AI Coach', icon: 'sparkle', routes: ['coachai'], accent: true },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'] },
     { id: 'settings', label: 'Settings', icon: 'gear', routes: ['settings'] },
+    { id: 'help', label: 'Help & FAQ', icon: 'help', routes: ['help'] },
   ];
   // Routes reachable from buttons but not listed in a section.
   const HIDDEN_ROUTES = ['records'];
@@ -36,6 +36,7 @@
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>',
     sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15.5l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><path d="M12 17h.01"/>',
     chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
     heart: '<path d="M19.5 13.5c1.3-1.4 2.5-3 2.5-5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .6-4.5 2-1.5-1.4-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2 1.2 3.6 2.5 5L12 21z"/><path d="M3.5 12h4l2-3 3 6 2-3h6"/>',
     chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.5A8 8 0 1 1 21 12z"/>',
@@ -64,7 +65,8 @@
   const Well = window.WellnessUI;
   const Chal = window.ChallengesUI;
   const Prof = window.ProfileUI;
-  const Assist = window.AssistantUI;
+  const Summary = window.SummaryUI;
+  const Help = window.FAQUI;
   const Smart = window.SmartUI;
   const SM = window.Smart;
   const Sci = window.ScienceUI;
@@ -483,7 +485,7 @@
             <div class="quick-actions">
               ${qa('data-action="open-checkin"', 'check', checkin ? 'Edit check-in' : 'Check in')}
               ${qa('data-smart="voice"', 'mic', 'Voice log')}
-              ${qa('data-tab="coachai"', 'sparkle', 'Ask AI')}
+              ${qa('data-tab="help"', 'help', 'Help & FAQ')}
               ${qa('data-tab-link="live"', 'video', 'Live coach')}
               ${qa('data-well-tab="mind"', 'wind', 'Breathe')}
             </div>
@@ -549,7 +551,7 @@
       const t = today();
       const weeks = C.weeklySummary(a.workouts, t, 8);
       const prs = C.strengthRecords(a.workouts).length + C.enduranceRecords(a.workouts).length;
-      return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Assist.summaryCard(a)}
+      return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Summary.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${Sci.ageCard(a)}
@@ -579,8 +581,8 @@
       return Well.view(ui.id);
     },
 
-    coachai() {
-      return Assist.chatView();
+    help() {
+      return Help.view();
     },
 
     challenges() {
@@ -588,7 +590,7 @@
     },
 
     summary() {
-      return Assist.summaryView(ui.id);
+      return Summary.summaryView(ui.id);
     },
 
     profile() {
@@ -970,8 +972,8 @@
       return Cal.view();
     },
 
-    coachai() {
-      return Assist.chatView();
+    help() {
+      return Help.view();
     },
 
     challenges() {
@@ -979,7 +981,7 @@
     },
 
     summary() {
-      return Assist.summaryView(ui.id);
+      return Summary.summaryView(ui.id);
     },
 
     profile() {
@@ -1192,7 +1194,7 @@
         ${Screens.card(a)}
         ${a.trackCycle && a.privacy.shareCycle && window.Program.cycleInfo(a, t) ? `<section class="card span-6"><div class="card-head"><h3>🌸 Cycle (shared by athlete)</h3></div><p>Day ${window.Program.cycleInfo(a, t).day} · ${esc(window.Program.cycleInfo(a, t).phase)}</p><p class="muted small">${esc(window.Program.cycleInfo(a, t).note)}</p></section>` : ''}
         ${Form.athleteCard(a)}
-        ${Assist.summaryCard(a, { span: 'span-6', compact: true })}
+        ${Summary.summaryCard(a, { span: 'span-6', compact: true })}
         <section class="card span-6"><div class="card-head"><h3>🎓 Recruiting profile</h3></div><p class="muted" style="margin-top:0">${a.profile.bio ? esc(a.profile.bio.slice(0, 140)) + (a.profile.bio.length > 140 ? '…' : '') : 'Not filled in yet.'}</p><button class="btn btn-sm" data-profile-go="${a.id}">View profile</button></section>
         <section class="card span-6"><div class="card-head"><h3>Endurance records</h3></div>${endHTML}</section>
         <section class="card span-6"><div class="card-head"><h3>Strength records</h3></div>${strHTML}</section>
@@ -1339,7 +1341,7 @@
     $('#tabs').innerHTML = secs
       .map((x) => {
         const n = badgeFor(x, unread);
-        return `<button class="nav-item ${x.accent ? 'accent' : ''}" data-tab="${x.routes[0]}" aria-current="${active === x ? 'page' : 'false'}">${icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+        return `<button class="nav-item" data-tab="${x.routes[0]}" aria-current="${active === x ? 'page' : 'false'}">${icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
       })
       .join('');
     // Role controls live in the sidebar on desktop and the top bar on phones (rendered once to keep ids unique).
@@ -1354,7 +1356,7 @@
     $('#bottombar').innerHTML =
       primary.map((x) => {
         const n = badgeFor(x, unread);
-        return `<button class="tab-item ${x.accent ? 'accent' : ''}" data-tab="${x.routes[0]}" aria-current="${active === x ? 'page' : 'false'}">${x.accent ? `<span class="ai-orb-btn">${icon(x.icon)}</span>` : icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+        return `<button class="tab-item" data-tab="${x.routes[0]}" aria-current="${active === x ? 'page' : 'false'}">${icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
       }).join('') +
       `<button class="tab-item" data-action="open-more" aria-current="${restActive ? 'page' : 'false'}">${icon('grid')}<span>More</span>${restBadge ? `<span class="badge">${restBadge}</span>` : ''}</button>`;
     // Sub-pages of the current section
@@ -1394,7 +1396,6 @@
     Form.mount($('#view'));
     Plan.mount();
     Screens.mount();
-    Assist.mount();
     const th = $('#thread');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -1758,11 +1759,6 @@
 
     const pg = e.target.closest('[data-profile-go]');
     if (pg) return go('profile', pg.dataset.profileGo);
-    const aiGo = e.target.closest('[data-ai-go]');
-    if (aiGo) {
-      go('coachai');
-      return Assist.ask(aiGo.dataset.aiGo);
-    }
     const openAth = e.target.closest('[data-open-athlete]');
     if (openAth) return go('team', openAth.dataset.openAthlete);
     const openThread = e.target.closest('[data-open-thread]');
@@ -2203,7 +2199,8 @@
   Well.init(shared);
   Chal.init(shared);
   Prof.init(shared);
-  Assist.init(shared);
+  Summary.init(shared);
+  Help.init(shared);
   LiveCam.init(shared);
   Screens.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, fmtDate, units, openAnalyze: (o) => Form.openAnalyze(o) });
 

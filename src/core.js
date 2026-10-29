@@ -778,7 +778,6 @@
       partnerId: input.partnerId ? String(input.partnerId) : null, // training partner (another athlete id)
       autoAdapt: input.autoAdapt !== false, // let the weekly adapter adjust upcoming sessions
       adapt: input.adapt && typeof input.adapt === 'object' ? JSON.parse(JSON.stringify(input.adapt)) : null,
-      chat: objList(input.chat, 200).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 8000), ts: Number(m.ts) || 0, source: m.source === 'claude' ? 'claude' : m.source === 'builtin' ? 'builtin' : undefined })),
       summarySeen: String(input.summarySeen || ''),
       // Movement screens; scoring lives in screen.js, this only keeps the raw answers tidy.
       screens: Array.isArray(input.screens)
@@ -1299,7 +1298,6 @@
       events: [],
       challenges: [],
       nudges: [],
-      coachChat: [],
     };
   }
 
@@ -1389,7 +1387,6 @@
       events: objList(raw.events, 3000),
       challenges: objList(raw.challenges, 300),
       nudges: objList(raw.nudges, 500).map((n) => ({ id: String(n.id || uid()), from: String(n.from || ''), to: String(n.to || ''), text: String(n.text || '').slice(0, 140), ts: Number(n.ts) || 0, seen: !!n.seen })),
-      coachChat: objList(raw.coachChat, 200).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.text || '').slice(0, 8000), ts: Number(m.ts) || 0, source: m.source })),
     };
   }
 
