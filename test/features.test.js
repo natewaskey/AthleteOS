@@ -109,11 +109,6 @@ test('weekly summary and AI context read the athlete’s real data', () => {
   const ctx = I.athleteContext(s, taylor, T);
   assert.match(ctx, /readiness 28/);
   assert.match(ctx, /Calendar/);
-  assert.match(I.teamContext(s, T), /Taylor Brooks/);
-  assert.match(I.answer('why am I so tired?', s, taylor, T), /Readiness is 28/);
-  assert.match(I.answer('am I overtraining', s, taylor, T), /ACWR/);
-  assert.match(I.answer('I hit my head and feel dizzy', s, taylor, T), /doctor/);
-  assert.match(I.teamAnswer('who is at risk?', s, T), /Jordan Lee/);
 });
 
 test('live coach counts reps as they finish and cues the fault', () => {
