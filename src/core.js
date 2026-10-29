@@ -1178,6 +1178,8 @@
       programId: input.programId || null,
       assignedBy: input.assignedBy === 'athlete' ? 'athlete' : 'coach',
       week: input.week ? Math.max(1, Math.round(Number(input.week))) : null,
+      prescribedBy: input.prescribedBy && typeof input.prescribedBy === 'object' ? { staffId: String(input.prescribedBy.staffId || ''), name: String(input.prescribedBy.name || '').slice(0, 60), role: String(input.prescribedBy.role || ''), creds: String(input.prescribedBy.creds || '').slice(0, 120), certified: !!input.prescribedBy.certified } : null,
+      approvedBy: input.approvedBy && typeof input.approvedBy === 'object' ? { name: String(input.approvedBy.name || '').slice(0, 60), creds: String(input.approvedBy.creds || '').slice(0, 120) } : null,
       adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [] } : null,
     };
   }
@@ -1290,7 +1292,9 @@
       programs: [],
       injuries: [],
       shoutouts: [],
-      staff: [{ id: 'coach-1', name: '', role: 'head' }],
+      staff: [{ id: 'coach-1', name: '', role: 'head', certs: [], canPrescribe: null, pinHash: '' }],
+      policy: normalizePolicy(),
+      approvals: [],
       activeStaffId: 'coach-1',
       team: { name: '', onboarded: false },
       ai: { enabled: false, fallbacks: true },
@@ -1301,7 +1305,18 @@
     };
   }
 
-  const STAFF_ROLES = { head: 'Head coach', assistant: 'Assistant / position coach', strength: 'Strength & conditioning', trainer: 'Athletic trainer' };
+  const STAFF_ROLES = {
+    head: 'Head coach',
+    assistant: 'Assistant / position coach',
+    strength: 'Strength & conditioning',
+    trainer: 'Athletic trainer',
+    physio: 'Physio / physical therapist',
+    dietitian: 'Dietitian',
+    scientist: 'Sports scientist',
+    intern: 'Intern / graduate assistant',
+  };
+  // Who may give an athlete a program: always (head coach), with a verified current prescribing certification, or never (drafts only).
+  const ROLE_PRESCRIBE = { head: 'always', assistant: 'certified', strength: 'certified', trainer: 'certified', physio: 'certified', dietitian: 'never', scientist: 'never', intern: 'never' };
 
   // Coaching and sports-medicine credentials a staff member can list. Prescribing needs at least one current one.
   const CERTIFICATIONS = {
@@ -1328,6 +1343,9 @@
       name: type === 'other' ? String(x.name || '').trim().slice(0, 80) : '',
       number: String(x.number || '').trim().slice(0, 40),
       expires: /^\d{4}-\d{2}-\d{2}$/.test(x.expires || '') ? x.expires : '',
+      verified: x.verified && typeof x.verified === 'object' ? { by: String(x.verified.by || '').slice(0, 60), at: Number(x.verified.at) || Date.now() } : null,
+      proofId: x.proofId ? String(x.proofId) : null,
+      proofName: String(x.proofName || '').slice(0, 120),
     };
   }
 
@@ -1338,10 +1356,138 @@
   function normalizeStaff(list, coach) {
     const out = (Array.isArray(list) ? list : [])
       .filter((x) => x && typeof x === 'object')
-      .map((x) => ({ id: String(x.id || uid()), name: String(x.name || '').trim().slice(0, 60), role: STAFF_ROLES[x.role] ? x.role : 'assistant', certs: Array.isArray(x.certs) ? x.certs.filter((c) => c && typeof c === 'object').map(normalizeCert).slice(0, 12) : [] }));
-    if (!out.length) out.push({ id: 'coach-1', name: String(coach?.name || ''), role: 'head', certs: [] });
+      .map((x) => ({
+        id: String(x.id || uid()),
+        name: String(x.name || '').trim().slice(0, 60),
+        role: STAFF_ROLES[x.role] ? x.role : 'assistant',
+        certs: Array.isArray(x.certs) ? x.certs.filter((c) => c && typeof c === 'object').map(normalizeCert).slice(0, 12) : [],
+        // Head coach override: null = role default, false = drafts only. True never skips the certification check.
+        canPrescribe: x.canPrescribe === false ? false : x.canPrescribe === true ? true : null,
+        pinHash: x.pinHash ? String(x.pinHash) : '',
+      }));
+    if (!out.length) out.push({ id: 'coach-1', name: String(coach?.name || ''), role: 'head', certs: [], canPrescribe: null, pinHash: '' });
     return out;
   }
+
+  // ---------- prescribing: certifications, approvals ----------
+
+  // Certifications that unlock prescribing unless the head coach changes the team policy.
+  const DEFAULT_PRESCRIBING_CERTS = ['cscs', 'scccoach', 'usaw', 'nsca-cpt', 'acsm-ep', 'usatf', 'atc', 'pt'];
+  const ATHLETE_PROGRAMMING = { allowed: 'Athletes can add their own workouts and programs', approval: 'A coach approves athletes’ own workouts and programs', off: 'Only coaches add workouts and programs' };
+  const CERT_REMINDER_DAYS = [60, 30, 7];
+
+  function normalizePolicy(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const certs = Array.isArray(r.prescribingCerts) ? r.prescribingCerts.filter((k) => CERTIFICATIONS[k]) : DEFAULT_PRESCRIBING_CERTS.slice();
+    return { prescribingCerts: [...new Set(certs)], athletePrograms: ATHLETE_PROGRAMMING[r.athletePrograms] ? r.athletePrograms : 'allowed' };
+  }
+
+  // 'expired' | 'verified' | 'self' (self-reported), plus days until expiry (null if none).
+  function certStatus(c, todayISO) {
+    const daysLeft = c.expires ? daysBetween(todayISO, c.expires) : null;
+    const state = c.expires && c.expires < todayISO ? 'expired' : c.verified ? 'verified' : 'self';
+    return { state, daysLeft };
+  }
+
+  const prescribeRule = (staff) => (staff.canPrescribe === false ? 'never' : ROLE_PRESCRIBE[staff.role] || 'never');
+
+  // { ok, reason, cert }. reason: 'role' (drafts only) | 'none' | 'unverified' | 'expired' | null.
+  function canPrescribe(staff, policy, todayISO) {
+    if (!staff) return { ok: false, reason: 'role', cert: null };
+    const rule = prescribeRule(staff);
+    const counts = (staff.certs || []).filter((c) => (policy || normalizePolicy()).prescribingCerts.includes(c.type));
+    const good = counts.find((c) => certStatus(c, todayISO).state === 'verified');
+    if (rule === 'always') return { ok: true, reason: null, cert: good || null };
+    if (rule === 'never') return { ok: false, reason: 'role', cert: null };
+    if (good) return { ok: true, reason: null, cert: good };
+    if (!counts.length) return { ok: false, reason: 'none', cert: null };
+    return { ok: false, reason: counts.some((c) => certStatus(c, todayISO).state === 'self') ? 'unverified' : 'expired', cert: null };
+  }
+
+  function whyCantPrescribe(reason) {
+    return {
+      role: 'Your role builds drafts. A head coach or certified coach approves them before athletes get them.',
+      none: 'Add a prescribing certification in Settings. Until then your programs go to a head coach or certified coach for approval.',
+      unverified: 'Your certification is waiting for the head coach to verify it. Until then your programs go for approval.',
+      expired: 'Your certification has expired. Renew it in Settings. Programs already assigned keep running.',
+    }[reason] || '';
+  }
+
+  // What athletes see on a program: who prescribed it and their credentials.
+  function prescriberStamp(staff, policy, todayISO) {
+    if (!staff) return null;
+    const ok = canPrescribe(staff, policy, todayISO);
+    const verified = (staff.certs || []).filter((c) => certStatus(c, todayISO).state === 'verified').map(certLabel);
+    return { staffId: staff.id, name: staff.name || 'Coach', role: staff.role, creds: verified.join(' · '), certified: ok.ok && !!ok.cert };
+  }
+
+  // Certifications that expire within 60 days (or already have), soonest first.
+  function certReminders(staffList, todayISO) {
+    const out = [];
+    for (const st of staffList || []) for (const c of st.certs || []) {
+      const { daysLeft } = certStatus(c, todayISO);
+      if (daysLeft != null && daysLeft <= CERT_REMINDER_DAYS[0]) out.push({ staff: st, cert: c, daysLeft, level: daysLeft < 0 ? 'bad' : daysLeft <= CERT_REMINDER_DAYS[2] ? 'bad' : 'warn' });
+    }
+    return out.sort((a, b) => a.daysLeft - b.daysLeft);
+  }
+
+  // A program, workout or session edit waiting for a head coach or certified coach.
+  function normalizeApproval(x) {
+    const r = x && typeof x === 'object' ? x : {};
+    const who = r.from && typeof r.from === 'object' ? r.from : {};
+    return {
+      id: String(r.id || uid()),
+      kind: ['assign', 'edit'].includes(r.kind) ? r.kind : 'assign',
+      title: String(r.title || 'Workout').slice(0, 120),
+      source: ['coach', 'athlete', 'ai'].includes(r.source) ? r.source : 'coach',
+      from: { type: who.type === 'athlete' ? 'athlete' : 'staff', id: String(who.id || ''), name: String(who.name || '').slice(0, 60), role: String(who.role || '') },
+      createdAt: Number(r.createdAt) || Date.now(),
+      assignments: Array.isArray(r.assignments) ? r.assignments.map(normalizeAssignment) : [],
+      messages: Array.isArray(r.messages) ? r.messages.map(normalizeMessage) : [],
+      assignmentId: r.assignmentId ? String(r.assignmentId) : null,
+      plan: r.plan ? normalizePlan(r.plan) : null,
+      date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '',
+      status: ['pending', 'approved', 'returned'].includes(r.status) ? r.status : 'pending',
+      note: String(r.note || '').slice(0, 500),
+      decidedBy: r.decidedBy && typeof r.decidedBy === 'object' ? { name: String(r.decidedBy.name || '').slice(0, 60), creds: String(r.decidedBy.creds || '').slice(0, 120) } : null,
+      decidedAt: Number(r.decidedAt) || null,
+    };
+  }
+
+  // Approve: the sessions land on athletes' plans stamped with who built and who approved them.
+  function approve(state, approvalId, approverStamp, now = Date.now()) {
+    const ap = (state.approvals || []).find((x) => x.id === approvalId && x.status === 'pending');
+    if (!ap) return null;
+    const approvedBy = { name: approverStamp.name, creds: approverStamp.creds || '' };
+    if (ap.kind === 'edit') {
+      const a = state.assignments.find((x) => x.id === ap.assignmentId);
+      if (a && a.status === 'assigned') {
+        a.plan = normalizePlan({ ...ap.plan, id: a.plan.id });
+        if (ap.date) a.date = ap.date;
+        a.approvedBy = approvedBy;
+      }
+    } else {
+      for (const a of ap.assignments) state.assignments.push({ ...a, approvedBy, assignedAt: now });
+    }
+    for (const m of ap.messages) state.messages.push({ ...m, ts: now });
+    Object.assign(ap, { status: 'approved', decidedBy: approvedBy, decidedAt: now, messages: [] });
+    return ap;
+  }
+
+  function sendBack(state, approvalId, approverStamp, note, now = Date.now()) {
+    const ap = (state.approvals || []).find((x) => x.id === approvalId && x.status === 'pending');
+    if (!ap) return null;
+    Object.assign(ap, { status: 'returned', note: String(note || '').slice(0, 500), decidedBy: { name: approverStamp.name, creds: approverStamp.creds || '' }, decidedAt: now });
+    return ap;
+  }
+
+  // Not a lock: a quick check so nobody casually switches to another coach on a shared device.
+  function hashPin(pin) {
+    let h = 2166136261;
+    for (const ch of `athleteos:${pin}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+    return h.toString(36);
+  }
+  const pinOk = (staff, pin) => !staff || !staff.pinHash || hashPin(String(pin || '')) === staff.pinHash;
 
   function migrate(raw) {
     const base = emptyState();
@@ -1379,6 +1525,8 @@
       injuries: (Array.isArray(raw.injuries) ? raw.injuries.filter((x) => x && typeof x === 'object') : []).filter((x) => ids.has(x.athleteId)),
       shoutouts: (Array.isArray(raw.shoutouts) ? raw.shoutouts.filter((x) => x && typeof x === 'object') : []).filter((x) => ids.has(x.athleteId)),
       staff: normalizeStaff(raw.staff, raw.coach),
+      policy: normalizePolicy(raw.policy),
+      approvals: (Array.isArray(raw.approvals) ? raw.approvals.map(normalizeApproval) : []).slice(-300),
       activeStaffId: String(raw.activeStaffId || 'coach-1'),
       team: { name: String(raw.team?.name || '').slice(0, 80), onboarded: raw.team?.onboarded !== false },
       ai: { enabled: !!raw.ai?.enabled, fallbacks: raw.ai?.fallbacks !== false },
@@ -1595,8 +1743,8 @@
     s.coach = { name: 'Coach Rivera' };
     s.mode = 'team';
     s.staff = normalizeStaff([
-      { id: 'coach-1', name: 'Coach Rivera', role: 'head', certs: [{ type: 'cscs', number: '2019-44817', expires: addDays(todayISO, 400) }, { type: 'nfhs' }] },
-      { id: 'coach-2', name: 'Dana Kim, ATC', role: 'trainer', certs: [{ type: 'atc', number: 'BOC 2000123', expires: addDays(todayISO, 250) }] },
+      { id: 'coach-1', name: 'Coach Rivera', role: 'head', certs: [{ type: 'cscs', number: '2019-44817', expires: addDays(todayISO, 400), verified: { by: 'Coach Rivera', at: hoursAgo(24 * 90) } }, { type: 'nfhs' }] },
+      { id: 'coach-2', name: 'Dana Kim, ATC', role: 'trainer', certs: [{ type: 'atc', number: 'BOC 2000123', expires: addDays(todayISO, 45), verified: { by: 'Coach Rivera', at: hoursAgo(24 * 60) } }] },
       { id: 'coach-3', name: 'Marcus Lee', role: 'strength', certs: [{ type: 'usaw', number: 'USAW-L1-88231' }] },
       { id: 'coach-4', name: 'Sam Ortiz (volunteer)', role: 'assistant', certs: [] },
     ]);
@@ -1704,7 +1852,7 @@
       const athlete = s.athletes.find((x) => x.id === athleteId);
       for (const [off, tid, status] of list) {
         const plan = normalizePlan(JSON.parse(JSON.stringify(tpl[tid])));
-        const a = normalizeAssignment({ athleteId, templateId: tid, date: addDays(todayISO, off), plan, status, coachNote: off === 0 ? notes[tid] || '' : '', assignedAt: hoursAgo(170) });
+        const a = normalizeAssignment({ athleteId, templateId: tid, date: addDays(todayISO, off), plan, status, coachNote: off === 0 ? notes[tid] || '' : '', assignedAt: hoursAgo(170), prescribedBy: { staffId: 'coach-1', name: 'Coach Rivera', role: 'head', creds: 'CSCS', certified: true } });
         if (status === 'completed') {
           for (const b of plan.blocks) {
             for (const i of b.items) {
@@ -1719,6 +1867,14 @@
         s.assignments.push(a);
       }
     }
+    // Marcus's USAW certificate isn't verified yet, so his speed block waits for approval.
+    s.approvals = [
+      normalizeApproval({
+        title: 'Speed & agility for Riley and Maya', source: 'coach', createdAt: hoursAgo(5),
+        from: { type: 'staff', id: 'coach-3', name: 'Marcus Lee', role: 'strength' },
+        assignments: ['riley', 'maya'].flatMap((athleteId) => [3, 5].map((off) => ({ athleteId, templateId: 'tpl-speed', date: addDays(todayISO, off), plan: JSON.parse(JSON.stringify(tpl['tpl-speed'])), coachNote: 'Extra speed work before the meet.', prescribedBy: { staffId: 'coach-3', name: 'Marcus Lee', role: 'strength', creds: '', certified: false } }))),
+      }),
+    ];
     s.messages.push(normalizeMessage({ athleteId: 'jordan', from: 'coach', text: 'Swapped today to Recovery & mobility because of the knee. Let’s get it looked at.', ts: hoursAgo(0.5), readByAthlete: false }));
 
     // Testing history: a preseason test and a recent retest.
@@ -1910,6 +2066,20 @@
     certLabel,
     certCurrent,
     isCertified,
+    ROLE_PRESCRIBE,
+    DEFAULT_PRESCRIBING_CERTS,
+    ATHLETE_PROGRAMMING,
+    normalizePolicy,
+    certStatus,
+    canPrescribe,
+    whyCantPrescribe,
+    prescriberStamp,
+    certReminders,
+    normalizeApproval,
+    approve,
+    sendBack,
+    hashPin,
+    pinOk,
     normalizeProfile,
     deleteWorkout,
     FORM_EXERCISES,

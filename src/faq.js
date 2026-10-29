@@ -98,6 +98,8 @@
       a: 'Athletes without a check-in today are marked on the Team page. The printable **weekly coach report** (Performance) shows check-ins, compliance and missed sessions for the week.' },
     { id: 'coach-assign', cat: 'coach', for: 'coach', q: 'How do I assign a workout or program?', tags: 'assign program group workout', link: ['plan', 'Open Plan & library'],
       a: 'Build or generate it in **Plan & library**, then assign it to athletes or whole groups with a start date. You can edit or remove any assigned session later; athletes who skip one show as skipped.' },
+    { id: 'coach-prescribe', cat: 'coach', for: 'coach', q: 'Why does my program say “Submit for approval”?', tags: 'certification certified verify prescribe approval cscs atc head coach permission', link: ['approvals', 'Open Approvals'],
+      a: 'Only the head coach and staff with a **verified, current prescribing certification** can give athletes programs. Add your certification (and a photo of it) in **Settings → My certifications**; the head coach verifies it. Until then your programs go to **Training → Approvals** for the head coach or a certified coach to approve. Dietitians, sports scientists and interns always build drafts.' },
     { id: 'coach-testing', cat: 'coach', for: 'coach', q: 'How do I run testing day?', tags: 'testing combine leaderboard 1rm', link: ['performance', 'Open Testing'],
       a: 'Open **Performance → Testing** and enter results for the whole team. Results are marked coach-verified, feed leaderboards by group, and a tested 1RM drives %1RM loads.' },
     { id: 'coach-minors', cat: 'coach', for: 'coach', q: 'Why can’t I see some athletes?', tags: 'minor guardian consent hidden under 18',

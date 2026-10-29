@@ -246,8 +246,10 @@
     const byCoach = coach();
     const state = ctx.state();
     const plan = C.normalizePlan({ ...S.correctivePlan(s), ownerId: byCoach ? null : a.id });
+    // A coach who can't prescribe yet sends it for approval; earlier prep stays until it's approved.
+    const direct = !byCoach || !root.StaffUI || root.StaffUI.gate() === 'direct';
     // Replace any earlier movement prep that hasn't been done yet.
-    state.assignments = state.assignments.filter((x) => !(x.athleteId === a.id && x.status === 'assigned' && x.date >= today() && x.plan.name === plan.name));
+    if (direct) state.assignments = state.assignments.filter((x) => !(x.athleteId === a.id && x.status === 'assigned' && x.date >= today() && x.plan.name === plan.name));
     state.templates = state.templates.filter((t) => !(t.name === plan.name && (byCoach ? !t.ownerId : t.ownerId === a.id)));
     state.templates.push(plan);
     const monday = C.startOfWeek(today());
@@ -256,8 +258,15 @@
       const date = C.addDays(monday, w * 7 + d);
       if (date >= today() && dates.length < 12) dates.push(date);
     }
-    for (const date of dates) state.assignments.push(C.normalizeAssignment({ athleteId: a.id, templateId: plan.id, date, plan: JSON.parse(JSON.stringify(plan)), coachNote: byCoach ? 'From your movement screen. Use it as your warm-up.' : 'From my movement screen', assignedBy: byCoach ? 'coach' : 'athlete' }));
-    if (byCoach) state.messages.push(C.normalizeMessage({ athleteId: a.id, from: 'coach', text: `I’ve added a 12-minute movement prep to your plan (Mon/Wed/Fri for 4 weeks) based on your movement screen. Top focus: ${s.priorities.filter((p) => p.level !== 'pain').slice(0, 2).map((p) => p.label.toLowerCase()).join(' and ') || 'general mobility'}.` }));
+    const list = dates.map((date) => C.normalizeAssignment({ athleteId: a.id, templateId: plan.id, date, plan: JSON.parse(JSON.stringify(plan)), coachNote: byCoach ? 'From your movement screen. Use it as your warm-up.' : 'From my movement screen', assignedBy: byCoach ? 'coach' : 'athlete' }));
+    const messages = byCoach ? [C.normalizeMessage({ athleteId: a.id, from: 'coach', text: `I’ve added a 12-minute movement prep to your plan (Mon/Wed/Fri for 4 weeks) based on your movement screen. Top focus: ${s.priorities.filter((p) => p.level !== 'pain').slice(0, 2).map((p) => p.label.toLowerCase()).join(' and ') || 'general mobility'}.` })] : [];
+    // Coaches go through prescribing rules; an athlete's own warm-up from their own screen goes straight on.
+    if (byCoach && root.StaffUI) {
+      if (root.StaffUI.submit({ title: `Movement prep for ${ctx.athleteName(a)}`, assignments: list, messages }) !== 'done') return ctx.save();
+    } else {
+      state.assignments.push(...list);
+      state.messages.push(...messages);
+    }
     ctx.save();
     ctx.toast(`${dates.length} movement prep sessions added${byCoach ? ` to ${ctx.athleteName(a)}’s plan` : ' to your plan'}`);
   }

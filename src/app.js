@@ -22,7 +22,7 @@
   ];
   const COACH_SECTIONS = [
     { id: 'team', label: 'Team', icon: 'users', routes: ['team'] },
-    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar']] },
+    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
@@ -67,6 +67,7 @@
   const Prof = window.ProfileUI;
   const Summary = window.SummaryUI;
   const Help = window.FAQUI;
+  const Staff = window.StaffUI;
   const Smart = window.SmartUI;
   const SM = window.Smart;
   const Sci = window.ScienceUI;
@@ -108,10 +109,11 @@
   const me = () => athleteById(state.session.athleteId) || state.athletes[0];
   const activeStaff = () => (state.staff || []).find((x) => x.id === state.activeStaffId) || (state.staff || [])[0] || null;
   const coachName = () => (role() === 'coach' && activeStaff() && activeStaff().name) || state.coach.name || 'Coach';
-  // Credentials athletes see next to their coach (head coach, or the first certified staff member).
+  // Verified credentials athletes see next to their coach (head coach, or the first staff member with one).
+  const verifiedCerts = (st) => (st.certs || []).filter((c) => C.certStatus(c, today()).state === 'verified');
   const coachCreds = () => {
-    const st = state.staff.find((x) => x.role === 'head' && (x.certs || []).length) || state.staff.find((x) => (x.certs || []).length);
-    return st ? st.certs.filter((c) => C.certCurrent(c, today())).map(C.certLabel).join(' · ') : '';
+    const st = state.staff.find((x) => x.role === 'head' && verifiedCerts(x).length) || state.staff.find((x) => verifiedCerts(x).length);
+    return st ? verifiedCerts(st).map(C.certLabel).join(' · ') + ' ✓' : '';
   };
   const roleLabel = (st) => C.STAFF_ROLES[st.role] || st.role;
   const athleteName = (a) => a.name || 'Athlete';
@@ -794,38 +796,8 @@
       <p class="hint">Switching keeps all your data.</p></section>`;
   }
 
-  function certList(st, { editable = false } = {}) {
-    const t = today();
-    return (st.certs || []).length
-      ? `<div class="chips">${st.certs.map((c) => `<span class="chip ${C.certCurrent(c, t) ? 'cert' : 'cert expired'}" title="${esc(c.type === 'other' ? c.name : C.CERTIFICATIONS[c.type])}${c.number ? ' · #' + esc(c.number) : ''}${c.expires ? ' · expires ' + esc(c.expires) : ''}">🎓 ${esc(C.certLabel(c))}${C.certCurrent(c, t) ? '' : ' (expired)'}${editable ? ` <button type="button" class="chip-x" data-action="remove-cert" data-id="${c.id}" aria-label="Remove ${esc(C.certLabel(c))}">✕</button>` : ''}</span>`).join('')}</div>`
-      : '<span class="muted small">No certifications listed</span>';
-  }
-
-  function certFields({ required = false } = {}) {
-    return `<div class="grid-3">
-      <label>Certification <select name="certType" ${required ? 'required' : ''}><option value="">Choose…</option>${Object.entries(C.CERTIFICATIONS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
-      <label>Certificate / licence # <input name="certNumber" maxlength="40" placeholder="optional"/></label>
-      <label>Expires <input type="date" name="certExpires"/></label>
-    </div>
-    <label data-cert-other hidden>Name of certification <input name="certName" maxlength="80" placeholder="e.g. UEFA B Licence"/></label>`;
-  }
-
-  function certsCard() {
-    const st = activeStaff();
-    if (!st) return '';
-    return `<section class="card span-6"><div class="card-head"><h3>🎓 My certifications</h3></div>
-      <p class="muted" style="margin-top:0">Optional. Your athletes see these next to your name.</p>
-      ${certList(st, { editable: true })}
-      <form id="cert-form" style="margin-top:.75rem">${certFields({ required: true })}<button class="btn" type="submit">+ Add certification</button></form>
-      <p class="hint" style="margin-top:.6rem">Self-reported in this version. A production version would verify each one with the issuing body.</p>
-    </section>`;
-  }
-
-  function readCert(d) {
-    if (!d.certType) return null;
-    const c = C.normalizeCert({ type: d.certType, name: d.certName, number: d.certNumber, expires: d.certExpires });
-    return c.type === 'other' && !c.name ? null : c;
-  }
+  const certsCard = () => Staff.certsCard();
+  const staffCard = () => Staff.staffCard();
 
   function coachWizard() {
     const st = activeStaff() || { name: '', role: 'head' };
@@ -841,8 +813,8 @@
           <label>Team name <input name="team" value="${esc(state.team.name)}" maxlength="80" placeholder="e.g. Westview Varsity Soccer" /></label>
         </fieldset>
         <fieldset><legend>Your certification (optional)</legend>
-          <p class="hint" style="margin-top:0">Shown to your athletes next to your name. Add more later in Settings.</p>
-          ${certFields()}
+          <p class="hint" style="margin-top:0">Shown to your athletes next to your name once verified. As head coach you can verify it yourself in Settings.</p>
+          ${Staff.certFields()}
         </fieldset>
         <fieldset><legend>2 · Athletes</legend>
           <div class="grid-2">
@@ -853,30 +825,11 @@
         </fieldset>
         <fieldset><legend>3 · Staff (optional)</legend>
           <label>Other coaches, one per line as “Name, role” <textarea name="staff" rows="3" placeholder="Dana Kim, trainer&#10;Marcus Lee, strength"></textarea></label>
-          <p class="hint">Roles: head, assistant, strength, trainer. Every coach has full access.</p>
+          <p class="hint">Roles: head, assistant, strength, trainer, physio, dietitian, scientist, intern. Only the head coach and staff with a verified certification can assign programs; the others’ programs go to Training › Approvals.</p>
         </fieldset>
         <div class="row"><button class="btn btn-primary" type="submit">Finish setup</button><button class="btn btn-ghost" type="button" data-action="skip-wizard">Skip for now</button><div class="spacer"></div><button class="btn btn-ghost" type="button" data-action="load-sample">Explore the demo team</button></div>
       </form>
     </div>`;
-  }
-
-  function staffCard() {
-    return `<section class="card span-6"><div class="card-head"><h3>Coaching staff</h3>${state.team.name ? `<span class="muted small">${esc(state.team.name)}</span>` : ''}</div>
-      <ul class="list">${state.staff
-        .map(
-          (x) => `<li><div class="avatar coach">${esc(initials(x.name || 'Coach'))}</div>
-          <div class="main"><strong>${esc(x.name || 'Unnamed')}</strong>${x.id === (activeStaff() || {}).id ? ' <span class="pill info">you</span>' : ''}
-            ${certList(x)}
-            <select data-staff-role="${x.id}" aria-label="Role for ${esc(x.name)}">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === x.role ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-          ${state.staff.length > 1 && x.id !== (activeStaff() || {}).id ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-staff" data-id="${x.id}">Remove</button>` : ''}</li>`
-        )
-        .join('')}</ul>
-      <form id="add-staff-form" class="row" style="margin-top:.75rem;align-items:flex-end">
-          <label style="flex:1;margin:0">Name <input name="name" required maxlength="60" /></label>
-          <label style="margin:0">Role <select name="role">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === 'assistant' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-          <button class="btn" type="submit">+ Add</button></form>
-      <p class="hint">Every coach on the staff has full access. Roles are labels for your athletes.</p>
-    </section>`;
   }
 
   function onboarding(a) {
@@ -976,6 +929,10 @@
       return Help.view();
     },
 
+    approvals() {
+      return Staff.approvalsView();
+    },
+
     challenges() {
       return Chal.view(ui.id);
     },
@@ -1063,6 +1020,7 @@
           ${Sci.importCard({ team: true })}
           ${certsCard()}
           ${staffCard()}
+          ${Staff.policyCard()}
           ${modeCard()}
           ${advanced(aiCard() + dataCard())}
         </div>`;
@@ -1308,6 +1266,7 @@
     if (sec.routes.includes('messages')) n += unread;
     if (sec.routes.includes('form')) n += Form.unseenCount();
     if (sec.routes.includes('plan') && role() !== 'coach') n += Plan.dueCount();
+    if (sec.routes.includes('approvals') && role() === 'coach') n += Staff.pendingCount();
     return n;
   }
 
@@ -1417,8 +1376,9 @@
     }
   }
 
-  function setRole(r) {
+  async function setRole(r) {
     if (solo()) return;
+    if (r === 'coach' && state.session.role !== 'coach' && !(await Staff.checkPin(activeStaff()))) return render();
     state.session.role = r === 'coach' ? 'coach' : 'athlete';
     save();
     go(firstTab());
@@ -1852,14 +1812,6 @@
         else toast(m === 'solo' ? 'Switched to training on your own' : m === 'coach' ? 'Switched to coach view' : 'Switched to team athlete');
         return go(firstTab());
       }
-      case 'remove-cert': {
-        const st = activeStaff();
-        const c = st && st.certs.find((x) => x.id === id);
-        if (!c || !(await Dialogs.confirm(`Remove ${C.certLabel(c)} from your certifications?`, { title: 'Remove certification?', ok: 'Remove', danger: true }))) return;
-        st.certs = st.certs.filter((x) => x.id !== id);
-        save();
-        return render();
-      }
       case 'skip-wizard':
         state.team.onboarded = true;
         save();
@@ -1935,22 +1887,15 @@
       save();
       render();
     } else if (t.id === 'staff-switch') {
-      state.activeStaffId = t.value;
-      save();
-      toast(`Signed in as ${coachName()}`);
-      render();
-    } else if (t.dataset && t.dataset.staffRole) {
-      const st = state.staff.find((x) => x.id === t.dataset.staffRole);
-      if (st && C.STAFF_ROLES[t.value]) {
-        if (st.role === 'head' && t.value !== 'head' && state.staff.filter((x) => x.role === 'head').length === 1) {
-          toast('The team needs at least one head coach');
-          return render();
+      const next = state.staff.find((x) => x.id === t.value);
+      Staff.checkPin(next).then((ok) => {
+        if (ok) {
+          state.activeStaffId = t.value;
+          save();
+          toast(`Signed in as ${coachName()}`);
         }
-        st.role = t.value;
-        save();
-        toast('Role updated');
         render();
-      }
+      });
     } else if (t.name === 'certType') {
       const other = t.closest('form').querySelector('[data-cert-other]');
       if (other) other.hidden = t.value !== 'other';
@@ -2013,29 +1958,13 @@
       save();
       toast(!was && d.consent ? 'Consent recorded. Your coaches can now see your data.' : was && !d.consent ? 'Consent withdrawn' : 'Saved');
       render();
-    } else if (f.id === 'cert-form') {
-      e.preventDefault();
-      const c = readCert(data());
-      if (!c) return toast('Pick a certification (and name it if you chose Other)');
-      const st = activeStaff();
-      st.certs = [...(st.certs || []), c];
-      save();
-      toast(`${C.certLabel(c)} added`);
-      render();
-    } else if (f.id === 'add-staff-form') {
-      e.preventDefault();
-      const d = data();
-      state.staff.push(C.normalizeStaff([{ name: d.name, role: d.role }])[0]);
-      save();
-      toast('Staff member added');
-      render();
     } else if (f.id === 'wizard-form') {
       e.preventDefault();
       const d = data();
       const st = activeStaff();
       st.name = d.coach.trim();
       st.role = C.STAFF_ROLES[d.role] ? d.role : 'head';
-      const cert = readCert(d);
+      const cert = Staff.readCert(d);
       if (cert) st.certs = [...(st.certs || []), cert];
       state.coach.name = st.name;
       state.team.name = d.team.trim();
@@ -2201,6 +2130,7 @@
   Prof.init(shared);
   Summary.init(shared);
   Help.init(shared);
+  Staff.init({ ...shared, activeStaff });
   LiveCam.init(shared);
   Screens.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, fmtDate, units, openAnalyze: (o) => Form.openAnalyze(o) });
 

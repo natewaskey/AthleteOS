@@ -69,16 +69,28 @@ A private training operating system for athletes. Log workouts, check in each mo
 The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
 - **On my own:** the full athlete experience without any coach or team features. You get check-ins, logging, programs (built-in or AI), your own workout builder and scheduling, form analysis, the movement screen, progress, goals and a Health tab where you log your own injuries. There are no messages, sharing or team wall.
 - **Athlete on a team:** everything above, plus workouts, programs, messages and feedback from your coaching staff.
-- **Coach:** set up the team roster and prescribe. Every coach has full access. You can list certifications (below).
+- **Coach:** set up the team roster and prescribe. Only the head coach and staff with a verified certification can give athletes programs (below).
 
 In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
 
-### Coach certifications
-- Coaches can list certifications: CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS or state licence, sport governing-body licences, or "Other" with a name. Each can have a number and an expiry date.
-- Add them in the setup wizard (optional) or in **Settings → My certifications**.
-- Athletes see their coach's credentials next to the coach's name.
-- They're optional and don't lock anything: every coach on the staff has full access. Roles (head, assistant, S&C, trainer) are labels.
-- Certifications are self-reported in this version.
+### Staff certifications and who can prescribe
+- **The rule:** only the head coach, or a staff member with a current certification the head coach has verified, can give athletes workouts and programs. Everyone else can still build them; theirs go to **Training › Approvals** instead of straight to athletes.
+- **What counts as prescribing:** assigning a workout or program, applying an AI-built program, editing an assigned session, and coach-assigned movement prep. Messages, form cues, test results and calendar events are open to all staff.
+- **Roles:**
+
+  | Role | Assigns programs |
+  |---|---|
+  | Head coach | Always |
+  | Strength & conditioning, assistant / position coach, athletic trainer, physio | With a verified prescribing certification |
+  | Dietitian, sports scientist, intern / graduate assistant | Never: drafts for approval |
+
+  The head coach can also set any certified-role staff member to "Drafts only".
+- **Certifications:** CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS or state licence, sport governing-body licences, or "Other". Each can have a number, an expiry date and a photo or PDF of the certificate (stored on the device).
+- **Status:** self-reported → verified (the head coach checks it with the issuing body and taps Verify) → expiring (reminders from 60 days out) → expired (back to drafts only; programs already assigned keep running).
+- **Team policy** (Settings, head coach): which certifications unlock prescribing (default CSCS, SCCC, USAW, NSCA-CPT, ACSM-EP, USATF, ATC, PT/DPT) and whether athletes on the team can add their own workouts and programs freely, only with coach approval, or not at all. People training solo aren't affected.
+- **Approvals:** the head coach or any certified coach reviews what's in it, approves it or sends it back with a note. AI-built programs are labelled. Athletes see their own pending items on My plan.
+- **Prescribed by:** every session shows who prescribed it and who approved it, with their verified credentials.
+- **Staff PIN:** each coach can set a 4-digit PIN that's needed to switch to them on a shared device. It's a speed bump, not security: real enforcement needs accounts and server-side checks.
 
 ### Help & FAQ
 - About 35 fixed, reviewed answers in eight topics: getting started, readiness, training and load, soreness and injuries, food/water/sleep, nerves, coaching and privacy.
@@ -180,7 +192,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **Cycle tracking** (optional, private by default): phase-aware tips, shared with the coach only if the athlete opts in.
 
 ### Platform
-- **Coaching staff:** head coach, assistant, strength & conditioning, athletic trainer. Every coach has full access. Switch staff from the top bar.
+- **Coaching staff:** head coach, assistant, strength & conditioning, athletic trainer, physio, dietitian, sports scientist, intern. Prescribing follows the certification rules above. Switch staff from the top bar (with an optional PIN).
 - **Coach setup wizard:** team name, roster (paste names), groups and staff in one screen.
 - **Guardian consent:** athletes under 18 stay hidden from staff until a parent or guardian approves in the athlete's Settings.
 - **Privacy controls:** share check-in notes, auto-share form checks, cycle sharing. **Download my data** / **Delete my data** per athlete.
@@ -281,6 +293,7 @@ src/live-coach.js     real-time rep counting and cues (engine + camera screen)
 src/summary-ui.js     weekly summary card and recap page
 src/faq.js            Help & FAQ content and search
 src/faq-ui.js         Help & FAQ screen
+src/staff-ui.js       staff certifications, verification, approvals queue, team policy, PINs, "Prescribed by"
 src/calendar-ui.js    calendar screens, event dialog, attendance
 src/wellness-ui.js    Fuel, Mind and Health screens
 src/challenges-ui.js  challenge screens

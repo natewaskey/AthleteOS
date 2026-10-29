@@ -220,6 +220,8 @@
 
   // ---------- assign ----------
 
+  const isAI = (p) => p.source === 'claude';
+
   let dialog = null;
   async function openAssign(p) {
     if (ctx.role() === 'athlete') {
@@ -227,9 +229,10 @@
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
-      ctx.state().assignments.push(...list);
+      const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'athlete', assignments: list });
+      if (res === 'blocked') return;
       ctx.save();
-      ctx.toast(`${list.length} sessions added to your plan`);
+      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan`);
       return ctx.go('plan');
     }
     if (!dialog) {
@@ -250,7 +253,7 @@
       <label style="margin-top:.75rem">Start date <input type="date" name="start" value="${C.addDays(C.startOfWeek(today()), 7)}" required/></label>
       <label>Note to athletes <input name="note" maxlength="300" placeholder="e.g. Summer strength block"/></label>
       <label class="check"><input type="checkbox" name="notify" checked/> Message athletes about it</label>
-      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Assign program</button></div>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${root.StaffUI.assignLabel('Assign program')}</button></div>
     </form>`;
     const f = $('#program-assign-form', dialog);
     f.addEventListener('click', (e) => {
@@ -264,10 +267,11 @@
       if (!ids.length) return ctx.toast('Pick at least one athlete');
       const saved = savePreview();
       const list = P.expandProgram(saved, f.start.value, ids, { coachNote: f.note.value.trim() });
-      ctx.state().assignments.push(...list);
-      if (f.notify.checked) for (const id of ids) ctx.state().messages.push(C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` }));
+      const messages = f.notify.checked ? ids.map((id) => C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` })) : [];
+      const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'coach', assignments: list, messages });
       ctx.save();
       dialog.close();
+      if (res === 'pending') return ctx.go('approvals');
       ctx.toast(`Assigned ${list.length} sessions`);
       ctx.go('plan');
     });

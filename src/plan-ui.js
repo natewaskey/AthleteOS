@@ -23,6 +23,7 @@
   // Coaches see the team library; athletes (and people training solo) see only workouts they built.
   const myTemplates = () => templates().filter((t) => (athleteMode() ? t.ownerId === ctx.me().id : !t.ownerId));
   const assignments = () => ctx.state().assignments;
+  const Staff = () => root.StaffUI;
 
   // ---------- formatting ----------
 
@@ -194,6 +195,7 @@
       <p class="muted" style="margin-top:0">${solo ? 'Workouts and programs you’ve built.' : `Workouts from ${esc(ctx.coachName())} and ones you’ve built.`}${c.due ? ` This week: ${c.done}/${c.due} done.` : ''}</p>
       <div class="grid">
         ${todayCard(me) ? todayCard(me) : ''}
+        ${Staff().athletePendingHTML()}
         <section class="card span-6"><div class="card-head"><h3>Coming up</h3></div>
           ${upcoming.length ? `<ul class="list">${upcoming.map((a) => assignmentRow(a)).join('')}</ul>` : '<p class="muted">Nothing scheduled yet.</p>'}</section>
         <section class="card span-6"><div class="card-head"><h3>Recent</h3></div>
@@ -204,9 +206,9 @@
   }
 
   function coachHome() {
-    return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
+    return `${Staff().banner()}<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
         <button class="btn" data-plan-action="new-template">+ New workout</button>
-        <button class="btn btn-primary" data-plan-action="assign">Assign workout</button></div>
+        <button class="btn btn-primary" data-plan-action="assign">${Staff().assignLabel('Assign workout')}</button></div>
       <div class="segmented" role="tablist" style="margin-bottom:1rem">
         <button data-plan-action="coach-tab" data-tab-id="calendar" aria-pressed="${coachTab === 'calendar'}">Week calendar</button>
         <button data-plan-action="coach-tab" data-tab-id="library" aria-pressed="${coachTab === 'library'}">Workout library (${myTemplates().length})</button>
@@ -448,12 +450,14 @@
       const a = assignments().find((x) => x.id === draft._editing.slice(5));
       if (!a) return null;
       for (const b of draft.blocks) b.items = b.items.filter((i) => i.name.trim());
-      a.plan = C.normalizePlan({ ...draft, id: a.plan.id });
-      if (/^\d{4}-\d{2}-\d{2}$/.test(draft._date || '')) a.date = draft._date;
-      ctx.state().messages.push(C.normalizeMessage({ athleteId: a.athleteId, from: 'coach', text: `I updated your session “${a.plan.name}” (${ctx.relDate(a.date).toLowerCase()}).` }));
+      const plan = C.normalizePlan({ ...draft, id: a.plan.id });
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(draft._date || '') ? draft._date : a.date;
+      const msg = C.normalizeMessage({ athleteId: a.athleteId, from: 'coach', text: `I updated your session “${plan.name}” (${ctx.relDate(date).toLowerCase()}).` });
+      const res = Staff().submit({ kind: 'edit', title: `Edit: ${plan.name}`, assignmentId: a.id, plan, date, messages: [msg] });
+      if (res === 'blocked') return null;
       ctx.save();
       draft = null;
-      return { assignment: a };
+      return { assignment: a, pending: res === 'pending' };
     }
     const name = (draft.name || '').trim();
     if (!name) {
@@ -515,7 +519,7 @@
       <div class="row" style="margin-bottom:.75rem">
         <div class="sport-dot lg" aria-hidden="true">${C.sportInfo(a.plan.logAs).icon}</div>
         <div><h1 class="page-title" style="margin:0">${esc(a.plan.name)}</h1>
-          <div class="muted">${coach && athlete ? esc(ctx.athleteName(athlete)) + ' · ' : ''}${esc(ctx.fmtDate(a.date, { weekday: 'long', month: 'short', day: 'numeric' }))} · ≈ ${C.estimateMinutes(a.plan)} min</div></div>
+          <div class="muted">${coach && athlete ? esc(ctx.athleteName(athlete)) + ' · ' : ''}${esc(ctx.fmtDate(a.date, { weekday: 'long', month: 'short', day: 'numeric' }))} · ≈ ${C.estimateMinutes(a.plan)} min</div>${ctx.solo && ctx.solo() ? '' : Staff().prescribedLine(a)}</div>
         <span class="pill ${s.cls}">${s.label}</span>
         <div class="spacer"></div>
         ${doing ? `<span class="muted small" id="session-clock">${a.startedAt ? '' : 'Not started'}</span><button class="btn btn-primary" data-plan-action="focus" data-id="${a.id}">▶ Focus mode</button>${a.assignedBy === 'athlete' ? '' : `<button class="btn btn-ghost" data-plan-action="skip" data-id="${a.id}">Skip</button>`}` : ''}
@@ -705,7 +709,7 @@
       ${self ? '<input type="hidden" name="note" value=""/><input type="checkbox" name="notify" hidden/>' : `<label>Note to athletes (optional) <input name="note" maxlength="500" placeholder="e.g. Film your last squat set for a form check" /></label>
       <label class="check"><input type="checkbox" name="notify" checked /> Message athletes about it</label>`}
       <p class="muted small" id="assign-summary"></p>
-      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${self ? 'Schedule' : 'Assign'}</button></div>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${Staff().assignLabel(self ? 'Schedule' : 'Assign')}</button></div>
     </form>`;
     const form = $('#assign-form', dialog);
     const sync = () => {
@@ -753,18 +757,22 @@
     if (!tpl || !ids.length) return ctx.toast('Pick a workout and at least one athlete');
     const dates = assignDates(form);
     const note = form.note.value.trim();
-    const state = ctx.state();
+    const list = [];
+    const messages = [];
     for (const athleteId of ids) {
       for (const date of dates) {
-        state.assignments.push(C.normalizeAssignment({ athleteId, templateId: tpl.id, date, plan: JSON.parse(JSON.stringify(tpl)), coachNote: note, assignedBy: self ? 'athlete' : 'coach' }));
+        list.push(C.normalizeAssignment({ athleteId, templateId: tpl.id, date, plan: JSON.parse(JSON.stringify(tpl)), coachNote: note, assignedBy: self ? 'athlete' : 'coach' }));
       }
       if (!self && form.notify.checked) {
         const when = dates.length === 1 ? ctx.relDate(dates[0]).toLowerCase() : `${dates.length} sessions starting ${ctx.relDate(dates[0]).toLowerCase()}`;
-        state.messages.push(C.normalizeMessage({ athleteId, from: 'coach', text: `New workout assigned: ${tpl.name} (${when}).${note ? ' ' + note : ''} Open the Plan tab to start.` }));
+        messages.push(C.normalizeMessage({ athleteId, from: 'coach', text: `New workout assigned: ${tpl.name} (${when}).${note ? ' ' + note : ''} Open the Plan tab to start.` }));
       }
     }
+    const res = Staff().submit({ title: tpl.name, assignments: list, messages });
+    if (res === 'blocked') return;
     ctx.save();
     dialog.close();
+    if (res === 'pending') return ctx.go(self ? 'plan' : 'approvals');
     ctx.toast(`${self ? 'Scheduled' : 'Assigned'} ${ids.length * dates.length} session${ids.length * dates.length === 1 ? '' : 's'}`);
     if (!self) {
       coachTab = 'calendar';
@@ -856,6 +864,7 @@
         const plan = saveDraft();
         if (!plan) return;
         if (plan.assignment) {
+          if (plan.pending) return ctx.go('approvals');
           ctx.toast('Session updated');
           return ctx.go('plan', 'a:' + plan.assignment.id);
         }

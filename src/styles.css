@@ -1837,7 +1837,7 @@ select option { background: var(--surface-solid); color: var(--text); }
 table th { color: var(--muted); font-weight: 600; }
 .sport-dot { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
 .avatar { background: var(--grad-cool); color: #fff; border: 0; font-family: var(--font-display); }
-.avatar.coach { background: var(--grad); }
+.avatar.coach { background: var(--grad); color: #fff; }
 .banner { border-radius: 14px; backdrop-filter: blur(10px); }
 #toast { background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.6); }
 @media (max-width: 860px) { #toast { bottom: calc(96px + env(safe-area-inset-bottom)); } }
@@ -2135,3 +2135,17 @@ button.focus-tag:hover { border-color: var(--accent); }
   .goal-target { grid-template-columns: 1fr; }
   .focus-picker .focus-grid, .card .focus-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Staff certifications & approvals */
+.chip.cert.self { background: color-mix(in srgb, var(--info) 12%, transparent); border-color: color-mix(in srgb, var(--info) 35%, transparent); border-style: dashed; }
+.chip.cert.expiring { background: color-mix(in srgb, var(--warn) 14%, transparent); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.chip-btn { font: inherit; font-size: 0.75rem; padding: 0.05rem 0.45rem; border-radius: 999px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+.chip-btn:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.banner.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent); }
+.prescribed-by { margin-top: 0.15rem; }
+.prescribed-by .verified, .muted .verified { color: var(--good); font-weight: 700; }
+.approval.approved, .approval.returned { opacity: 0.8; }
+.approval details summary { cursor: pointer; }
+.staff-ctl select, .staff-ctl .btn { width: auto; margin: 0; }
+.chip.cert { flex-wrap: wrap; row-gap: 0.15rem; }
+.chip.cert .small { white-space: nowrap; }
