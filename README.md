@@ -281,6 +281,8 @@ You can also open `index.html` directly in a browser. Everything works except of
 
 To deploy, publish the repo root to any static host (GitHub Pages, Netlify, Cloudflare Pages).
 
+Accounts, team sync and Claude through the team's server use Supabase. One-time setup is in [docs/CLOUD_SETUP.md](docs/CLOUD_SETUP.md). Clear `url` in `src/cloud-config.js` to run fully offline.
+
 ## Test
 
 ```sh
