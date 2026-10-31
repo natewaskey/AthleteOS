@@ -446,6 +446,7 @@
       if (canvas.width !== Math.round(W * dpr)) (canvas.width = Math.round(W * dpr)), (canvas.height = Math.round(H * dpr));
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
       const colors = { bg: css('--surface-2', '#eef0f3'), fg: css('--text', '#111'), muted: css('--muted', '#777'), good: css('--good', '#1f9d55'), bad: css('--bad', '#d63a3a'), accent: css('--accent', '#ff5a1f'), prop: css('--border', '#c9ced6') };
+      g.clearRect(0, 0, W, H);
       g.fillStyle = colors.bg;
       g.fillRect(0, 0, W, H);
       const hud = big ? (f.hud && f.hud.checks && f.hud.checks.length > 1 && W < 520 ? 92 : 56) : 0;

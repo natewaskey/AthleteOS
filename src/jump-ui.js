@@ -149,6 +149,7 @@
       `<div class="eyebrow">Jump test${coach() ? ` · ${esc(ctx.athleteName(a))}` : ''}</div><h2 id="app-dialog-title">Test with camera</h2>
       <label>Test <select data-jump-test>${opts}</select></label>
       <p class="muted small" data-jump-how style="margin:.4rem 0">${esc(J.TESTS.cmj.how)}</p>
+      ${root.ExerciseDemo && root.ExerciseDemo.button ? `<div data-jump-demo>${root.ExerciseDemo.button('test', 'cmj')}</div>` : ''}
       <ul class="hint jump-tips"><li>Phone on a stand or held very still, side-on, about 3 m away at hip height.</li><li>Whole body in frame, feet included, for every jump.</li><li>Slow motion (120 or 240 fps) gives the most precise times. Normal video works too.</li></ul>
       <label>Video <input type="file" accept="video/*" capture="environment" data-jump-file></label>
       <div data-jump-progress hidden><div class="progress"><i style="width:0%"></i></div><p class="muted small" data-status></p></div>
@@ -163,6 +164,8 @@
     const d = Dialogs.el();
     $('[data-jump-test]', d).addEventListener('change', (e) => {
       $('[data-jump-how]', d).textContent = J.TESTS[e.target.value].how;
+      const demo = $('[data-jump-demo]', d);
+      if (demo) demo.innerHTML = root.ExerciseDemo.button('test', e.target.value);
       $('[data-jump-result]', d).innerHTML = '';
       $('[data-jump="save"]', d).hidden = true;
     });
