@@ -162,14 +162,14 @@
         <button type="button" class="btn-link small auth-forgot" data-cloud="forgot">Forgot password?</button>
         <button class="btn btn-primary btn-block btn-lg" type="submit" ${busy ? 'disabled' : ''}>${busy ? 'Signing in…' : 'Sign in'}</button>
         ${err}
-        <p class="auth-switch">New to AthleteOS? <button type="button" class="btn-link" data-cloud="auth-view" data-view="up">Create an account</button></p>
+        <p class="auth-switch">New to Motiq? <button type="button" class="btn-link" data-cloud="auth-view" data-view="up">Create an account</button></p>
       </form>`;
   }
 
   function loginScreen() {
     return `<div class="auth-wrap">
       <section class="auth-hero">
-        <div class="auth-brand">${LOGO}<span>Athlete<strong>OS</strong></span></div>
+        <div class="auth-brand">${LOGO}<span>Mot<strong>iq</strong></span></div>
         <h1 class="auth-title">Train smarter.<br/><span>Together.</span></h1>
         <p class="auth-lead">Programs built around you, form checks from your phone camera, and your whole team in one place.</p>
         <ul class="auth-points">
@@ -210,7 +210,7 @@
     const first = (st.name || '').split(' ')[0];
     return `<div class="welcome">
       <h1 class="page-title">${first ? `Welcome, ${esc(first)}` : 'You’re signed in'}</h1>
-      <p class="muted">${children && children.length ? 'Manage sharing for your athletes below.' : 'How will you use AthleteOS?'} · ${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
+      <p class="muted">${children && children.length ? 'Manage sharing for your athletes below.' : 'How will you use Motiq?'} · ${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
       ${parentSection()}
       ${teams.length > 1 ? `<div class="row" style="justify-content:center;margin:1rem 0">${teams.map((m, k) => `<button class="btn btn-primary" data-cloud="resume" data-k="${k}">Open ${esc((m.teams && m.teams.name) || (m.teams && m.teams.solo ? 'my training' : 'team'))} (${m.role})</button>`).join('')}</div>` : ''}
       <div class="mode-grid">
@@ -390,7 +390,7 @@
     return `<div class="welcome" style="max-width:560px">
       <p class="eyebrow">Parent approval</p>
       <h1 class="page-title">Approve sharing for ${esc(name)}</h1>
-      <p class="muted">${esc(name)} is on <strong>${esc(review.team_name || 'a team')}</strong> in AthleteOS. With your OK, their coaching staff can see:</p>
+      <p class="muted">${esc(name)} is on <strong>${esc(review.team_name || 'a team')}</strong> in Motiq. With your OK, their coaching staff can see:</p>
       <ul class="card" style="text-align:left;line-height:1.7;padding-left:2.2rem">
         <li>Morning check-ins: sleep, energy, soreness and stress</li>
         <li>Workouts they log and their training load</li>
@@ -502,9 +502,9 @@
         return ctx.render();
       case 'share-parent': {
         const url = location.origin + location.pathname;
-        const text = `Please approve my AthleteOS sharing with my coaches. Open ${url}, create an account, tap "I'm a parent" and enter my code: ${parentCode}`;
+        const text = `Please approve my Motiq sharing with my coaches. Open ${url}, create an account, tap "I'm a parent" and enter my code: ${parentCode}`;
         try {
-          if (navigator.share) await navigator.share({ title: 'AthleteOS parent approval', text });
+          if (navigator.share) await navigator.share({ title: 'Motiq parent approval', text });
           else {
             await navigator.clipboard.writeText(text);
             ctx.toast('Copied. Paste it in a message to your parent.');

@@ -60,7 +60,7 @@
   function openLibrary() {
     const rules = Object.keys(E.RULES).map((k) => ({ k, ...E.forRule(k) }));
     const ex = Object.entries(E.EXERCISES).sort((a, b) => a[1].grade.localeCompare(b[1].grade) || a[0].localeCompare(b[0]));
-    return dlg(`<div class="eyebrow">Evidence library</div><h2 id="app-dialog-title">The science behind AthleteOS</h2>
+    return dlg(`<div class="eyebrow">Evidence library</div><h2 id="app-dialog-title">The science behind Motiq</h2>
       <p class="muted" style="margin-top:.2rem">Where the scores, warnings and exercise choices come from. Grades: ${['A', 'B', 'C'].map(gradeChip).join(' ')}</p>
       <h3 class="why-sub">Scores & rules</h3>
       ${rules.map((r) => `<details class="ev-details"><summary>${esc(r.label)} ${gradeChip(r.grade)}</summary>${refsList(r.refs)}</details>`).join('')}

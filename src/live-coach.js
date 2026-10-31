@@ -264,14 +264,14 @@
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return setText('live-cue', 'This browser can’t use the camera. Try Chrome or Safari on your phone.');
       // Embedded previews usually don't allow the camera; say so instead of triggering a browser error.
       const policy = document.permissionsPolicy || document.featurePolicy;
-      if (policy && policy.allowsFeature && !policy.allowsFeature('camera')) return setText('live-cue', 'The camera isn’t available inside this preview. Open AthleteOS in its own browser tab to use Live coach.');
+      if (policy && policy.allowsFeature && !policy.allowsFeature('camera')) return setText('live-cue', 'The camera isn’t available inside this preview. Open Motiq in its own browser tab to use Live coach.');
       setText('live-cue', 'Starting camera…');
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
       } catch (err) {
         const embedded = window.self !== window.top;
-        return setText('live-cue', embedded ? 'The camera isn’t available inside this preview. Open AthleteOS in its own browser tab to use Live coach.' : err && err.name === 'NotAllowedError' ? 'Camera access was blocked. Allow it in your browser settings.' : 'Couldn’t open the camera.');
+        return setText('live-cue', embedded ? 'The camera isn’t available inside this preview. Open Motiq in its own browser tab to use Live coach.' : err && err.name === 'NotAllowedError' ? 'Camera access was blocked. Allow it in your browser settings.' : 'Couldn’t open the camera.');
       }
       video.srcObject = stream;
       video.classList.toggle('mirror', facing === 'user');

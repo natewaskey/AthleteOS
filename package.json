@@ -1,5 +1,5 @@
 {
-  "name": "athleteos",
+  "name": "motiq",
   "version": "0.1.0",
   "private": true,
   "description": "Training log, load management and readiness tracking for athletes. Zero dependencies.",

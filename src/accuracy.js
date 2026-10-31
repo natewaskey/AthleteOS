@@ -72,7 +72,7 @@
 
   // A labelled pose file -> input. Labels are 'good' or 'bad'; anything else (unlabelled) is skipped.
   function fromExport(json, name = '') {
-    if (!json || json.format !== FORMAT || !Array.isArray(json.frames)) throw new Error(`${name || 'File'} is not an AthleteOS pose export.`);
+    if (!json || json.format !== FORMAT || !Array.isArray(json.frames)) throw new Error(`${name || 'File'} is not an Motiq pose export.`);
     const labels = {};
     for (const [k, v] of Object.entries(json.labels || {})) if (v === 'good' || v === 'bad') labels[k] = v;
     return { name: name || json.exercise, exercise: json.exercise, view: json.view || 'auto', aspect: Number(json.aspect) || 16 / 9, frames: json.frames, labels };

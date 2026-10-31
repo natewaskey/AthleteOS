@@ -1,5 +1,5 @@
 /*
- * AthleteOS movement analysis: pure functions over pose landmark frames.
+ * Motiq movement analysis: pure functions over pose landmark frames.
  *
  * A frame is { t: seconds, lm: [[x, y, z, visibility] x 33] } using MediaPipe BlazePose
  * indices, with x/y normalised to the video (0..1, y pointing down). Internally we work in

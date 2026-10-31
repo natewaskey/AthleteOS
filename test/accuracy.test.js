@@ -25,7 +25,7 @@ test('labelled exports round-trip into the accuracy check', () => {
   assert.deepEqual(inp.labels, { depth: 'bad', lean: 'good' });
   const r = A.evaluate([inp]);
   assert.equal(r.overall.correct, 2);
-  assert.throws(() => A.fromExport({ frames: [] }), /not an AthleteOS pose export/);
+  assert.throws(() => A.fromExport({ frames: [] }), /not an Motiq pose export/);
 });
 
 test('noise is repeatable', () => {

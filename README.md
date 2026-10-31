@@ -1,4 +1,4 @@
-# AthleteOS
+# Motiq
 
 A private training operating system for athletes. Log workouts, check in each morning, and get a readiness score, training-load guidance, personal records and goal tracking. It runs entirely in your browser, with no account, no server and no install. It works for individuals training on their own, and for teams: certified coaches get a team dashboard, program builder (including an AI generator), testing day, injury management and video form review.
 
@@ -58,7 +58,7 @@ A private training operating system for athletes. Log workouts, check in each mo
   - **The program builder's starting point:** goal, focus areas and season phase.
   - **What's tracked on Home and Progress.**
 
-  The Goals page shows a "How this goal shapes AthleteOS" panel.
+  The Goals page shows a "How this goal shapes Motiq" panel.
 - **10-second check-in.** Four taps: sleep, energy, body and stress, with a live readiness preview. "More detail" opens the full body map, and choosing "Pain" sends you there automatically.
 - **Simpler layout.**
   - Home shows readiness, today's session and one "what's next" card.
@@ -66,7 +66,7 @@ A private training operating system for athletes. Log workouts, check in each mo
   - Rarely used settings (data export, erase, API key, demo team) sit under **Advanced**.
 
 ### Three ways to use it (no coach needed)
-The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
+The first screen asks how you'll use Motiq. You can change it any time in Settings, and switching keeps your data.
 - **On my own:** the full athlete experience without any coach or team features. You get check-ins, logging, programs (built-in or AI), your own workout builder and scheduling, form analysis, the movement screen, progress, goals and a Health tab where you log your own injuries. There are no messages, sharing or team wall.
 - **Athlete on a team:** everything above, plus workouts, programs, messages and feedback from your coaching staff.
 - **Coach:** set up the team roster and prescribe. Only the head coach and staff with a verified certification can give athletes programs (below).
@@ -109,7 +109,7 @@ One place that looks at the body as a whole over months and years, built to keep
 - Each criterion is checked against the athlete's own data since the injury where the app has it. Any coach signs criteria off (overriding one that the data doesn't support needs a confirmation and is marked). When all are signed off, **Clear to return** clears the injury and messages the athlete.
 
 ### Pro mode (elite teams)
-- One switch (Settings › Team policy for the head coach; Settings › Preferences when training solo) turns AthleteOS into a data-first tool: no badges, streaks, confetti, challenges, team wall, training partners or recruiting profile, and denser screens. PRs show as a short note instead of a celebration.
+- One switch (Settings › Team policy for the head coach; Settings › Preferences when training solo) turns Motiq into a data-first tool: no badges, streaks, confetti, challenges, team wall, training partners or recruiting profile, and denser screens. PRs show as a short note instead of a celebration.
 - Turning it on for a team also makes athletes' own workouts and programs need coach approval (the head coach can change that back).
 
 ### Supplements & anti-doping
@@ -251,7 +251,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **Accessibility:** skip link, keyboard focus styles, labelled controls, focus moves to new content, reduced-motion support.
 
 ### Form analysis (movement tracking)
-Record a set on your phone and AthleteOS analyses it **on-device**. The video never leaves the phone.
+Record a set on your phone and Motiq analyses it **on-device**. The video never leaves the phone.
 
 - **Exercises:** squat, deadlift, Romanian deadlift, lunge, Bulgarian split squat, bench press, push-up, overhead press, bent-over row, pull-up, hip thrust, power clean, **jump-landing screen** (knee valgus, soft landing, symmetry), **cutting** (knee and trunk on the plant), **sprint start** (drive angle, shin angle, rising too early, arm drive) and running form.
 - **How it works:** [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) tracks 33 body points in every frame. `src/movement.js` turns those into joint angles and positions, counts reps, and scores each rep's key moment (bottom of a squat, start of a deadlift, lockout of a press, foot strike for running) against form rules.

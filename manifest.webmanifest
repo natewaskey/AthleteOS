@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "AthleteOS",
-  "short_name": "AthleteOS",
+  "name": "Motiq",
+  "short_name": "Motiq",
   "description": "Log training, track load and readiness, and chase your goals.",
   "start_url": "./",
   "scope": "./",

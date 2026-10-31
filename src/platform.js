@@ -1,5 +1,5 @@
 /*
- * AthleteOS platform helpers:
+ * Motiq platform helpers:
  *   - GPX / TCX activity import (pure parser, works in Node for tests)
  *   - per-athlete data export / deletion
  * UI pieces attach to window.PlatformUI when running in a browser.
@@ -151,7 +151,7 @@
     const mine = (list) => (list || []).filter((x) => x.athleteId === athleteId);
     return {
       exportedAt: new Date().toISOString(),
-      app: 'AthleteOS',
+      app: 'Motiq',
       athlete: a,
       messages: mine(state.messages),
       analyses: mine(state.analyses),

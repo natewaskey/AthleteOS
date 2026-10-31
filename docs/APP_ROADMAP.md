@@ -1,4 +1,4 @@
-# AthleteOS: from prototype to app
+# Motiq: from prototype to app
 
 Launch market: **club sports teams**. Then **college**, then **professional** teams.
 

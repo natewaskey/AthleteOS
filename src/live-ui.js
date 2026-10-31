@@ -1,5 +1,5 @@
 /*
- * AthleteOS in-session tools: focus mode (one exercise at a time), plate calculator,
+ * Motiq in-session tools: focus mode (one exercise at a time), plate calculator,
  * interval timer, "how to" sheets with demo animations, and the exercise swap picker.
  * app.js calls LiveUI.init(ctx); plan-ui.js opens these via LiveUI.*.
  */

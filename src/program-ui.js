@@ -1,5 +1,5 @@
 /*
- * AthleteOS programs: generator form (built-in rules engine or Claude), week-by-week preview
+ * Motiq programs: generator form (built-in rules engine or Claude), week-by-week preview
  * with progression, saving to the program library, and assigning (coach) or starting (athlete).
  * Routes live under the Plan tab: #plan/program:new, #plan/program:<id>. app.js calls ProgramUI.init(ctx).
  */

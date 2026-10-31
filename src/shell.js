@@ -1,5 +1,5 @@
 /*
- * App-shell helpers that make AthleteOS feel like an installed app:
+ * App-shell helpers that make Motiq feel like an installed app:
  * install button, "new version ready" banner, sync status pill, copy-a-link buttons,
  * reminders (calendar file + in-app notifications) and the friendly error bar.
  * The pure helpers (ics, syncLabel, installMode, reminderDue) also run under node for tests.
@@ -27,7 +27,7 @@
    * checkin: 'HH:MM' adds a daily check-in reminder; stamp: 'YYYYMMDDTHHMMSSZ'.
    */
   function ics({ items = [], checkin = '', start = '', stamp = '20260101T000000Z', alarmMin = 60 } = {}) {
-    const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//AthleteOS//Reminders//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:AthleteOS'];
+    const out = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Motiq//Reminders//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Motiq'];
     for (const it of items) {
       out.push('BEGIN:VEVENT', `UID:${it.uid}@athleteos`, `DTSTAMP:${stamp}`);
       if (it.time) out.push(`DTSTART:${icsTime(it.date, it.time)}`, `DTEND:${icsTime(it.date, addMin(it.time, it.minutes || 60))}`);
@@ -39,7 +39,7 @@
       out.push('BEGIN:VALARM', 'ACTION:DISPLAY', fold(`DESCRIPTION:${icsEsc(it.title)}`), `TRIGGER:${it.time ? `-PT${alarmMin}M` : 'PT8H'}`, 'END:VALARM', 'END:VEVENT');
     }
     if (/^\d{2}:\d{2}$/.test(checkin) && start) {
-      out.push('BEGIN:VEVENT', 'UID:daily-checkin@athleteos', `DTSTAMP:${stamp}`, `DTSTART:${icsTime(start, checkin)}`, `DTEND:${icsTime(start, addMin(checkin, 5))}`, 'RRULE:FREQ=DAILY', 'SUMMARY:AthleteOS check-in', 'DESCRIPTION:30 seconds: sleep\\, soreness\\, mood. Keeps your plan matched to how you feel.', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Time for your AthleteOS check-in', 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
+      out.push('BEGIN:VEVENT', 'UID:daily-checkin@athleteos', `DTSTAMP:${stamp}`, `DTSTART:${icsTime(start, checkin)}`, `DTEND:${icsTime(start, addMin(checkin, 5))}`, 'RRULE:FREQ=DAILY', 'SUMMARY:Motiq check-in', 'DESCRIPTION:30 seconds: sleep\\, soreness\\, mood. Keeps your plan matched to how you feel.', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Time for your Motiq check-in', 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
     }
     out.push('END:VCALENDAR');
     return out.join('\r\n') + '\r\n';
@@ -125,14 +125,14 @@
     deferredPrompt = null;
     store.set(INSTALL_SEEN, 'done');
     hideBanner('install-banner');
-    if (ctx) ctx.toast('AthleteOS is on your home screen');
+    if (ctx) ctx.toast('Motiq is on your home screen');
     refreshInstall();
   });
 
   const STEPS = {
     ios: '<ol class="install-steps"><li>Open this page in <strong>Safari</strong>.</li><li>Tap <strong>Share</strong> <span aria-hidden="true">⬆︎</span> at the bottom.</li><li>Tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li></ol>',
     android: '<ol class="install-steps"><li>Open this page in <strong>Chrome</strong>.</li><li>Tap the <strong>⋮</strong> menu.</li><li>Tap <strong>Install app</strong> (or <strong>Add to Home screen</strong>).</li></ol>',
-    desktop: '<ol class="install-steps"><li>Click the install icon at the right end of the address bar.</li><li>Or open the browser menu and choose <strong>Install AthleteOS</strong>.</li></ol>',
+    desktop: '<ol class="install-steps"><li>Click the install icon at the right end of the address bar.</li><li>Or open the browser menu and choose <strong>Install Motiq</strong>.</li></ol>',
     unknown: '<p class="small muted" style="margin:0">Open this page in Safari (iPhone) or Chrome (Android, computer) and use the browser menu’s <strong>Add to Home Screen</strong> or <strong>Install</strong>.</p>',
   };
 
@@ -140,8 +140,8 @@
     const m = mode();
     if (m === 'installed') return '<p class="muted" style="margin:0">You’re using the installed app. 👍</p>';
     const link = location.origin + location.pathname.replace(/index\.html$/, '');
-    return `<p class="muted" style="margin-top:0">Put AthleteOS on your home screen. It opens full screen like any app, keeps you signed in and works offline.</p>
-      ${m === 'prompt' ? '<button class="btn btn-primary" data-shell="install">📲 Install AthleteOS</button>' : STEPS[m]}
+    return `<p class="muted" style="margin-top:0">Put Motiq on your home screen. It opens full screen like any app, keeps you signed in and works offline.</p>
+      ${m === 'prompt' ? '<button class="btn btn-primary" data-shell="install">📲 Install Motiq</button>' : STEPS[m]}
       <p class="hint" style="margin:.6rem 0 0">Your link: <a href="${esc(link)}">${esc(link)}</a> <button class="btn-link small" data-shell="copy-link" data-hash="">Copy</button></p>`;
   }
 
@@ -174,7 +174,7 @@
     if (m === 'installed' || store.get(INSTALL_SEEN) || $('#install-banner') || $('#update-banner')) return;
     const phone = root.matchMedia && root.matchMedia('(max-width: 860px)').matches;
     if (!(m === 'prompt' || (phone && (m === 'ios' || m === 'android')))) return;
-    showBanner('install-banner', `<span>📲 Add AthleteOS to your home screen for one-tap access.</span>
+    showBanner('install-banner', `<span>📲 Add Motiq to your home screen for one-tap access.</span>
       <button class="btn btn-sm btn-primary" data-shell="${m === 'prompt' ? 'install' : 'install-how'}">${m === 'prompt' ? 'Install' : 'How'}</button>
       <button class="btn btn-sm btn-ghost" data-shell="dismiss-install" aria-label="Not now">✕</button>`);
   }
@@ -208,7 +208,7 @@
       if (!hadController || shown) return;
       shown = true;
       hideBanner('install-banner');
-      showBanner('update-banner', '<span>✨ A new version of AthleteOS is ready.</span><button class="btn btn-sm btn-primary" data-shell="reload">Update</button><button class="btn btn-sm btn-ghost" data-shell="dismiss-update" aria-label="Later">Later</button>');
+      showBanner('update-banner', '<span>✨ A new version of Motiq is ready.</span><button class="btn btn-sm btn-primary" data-shell="reload">Update</button><button class="btn btn-sm btn-ghost" data-shell="dismiss-update" aria-label="Later">Later</button>');
     });
     const check = () => reg.update().catch(() => {});
     document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check());
@@ -269,8 +269,8 @@
       <div class="row" style="margin-top:.5rem"><button class="btn btn-primary" data-shell="ics">📅 Add to calendar</button></div>
       <p class="hint" style="margin:.4rem 0 0">Re-add after your coach changes the plan to pick up new sessions.</p>
       <h4 style="margin:1rem 0 .25rem">2. Notifications from the app</h4>
-      ${perm === 'unsupported' ? '<p class="small muted" style="margin:0">This browser doesn’t do notifications. On iPhone, add AthleteOS to your home screen first (iOS 16.4 or later).</p>'
-        : `<p class="small muted" style="margin:0 0 .5rem">Shows the check-in and session reminders at the times above whenever AthleteOS is open or running in the background.</p>
+      ${perm === 'unsupported' ? '<p class="small muted" style="margin:0">This browser doesn’t do notifications. On iPhone, add Motiq to your home screen first (iOS 16.4 or later).</p>'
+        : `<p class="small muted" style="margin:0 0 .5rem">Shows the check-in and session reminders at the times above whenever Motiq is open or running in the background.</p>
       <label class="check"><input type="checkbox" data-shell="notify" ${perm === 'granted' && r.on ? 'checked' : ''} ${perm === 'denied' ? 'disabled' : ''}/> Remind me with notifications</label>
       ${perm === 'denied' ? '<p class="hint" style="margin:.3rem 0 0">Notifications are blocked for this site. Allow them in your browser or phone settings.</p>' : ''}`}
     </section>`;
@@ -297,7 +297,7 @@
     const items = [];
     for (const x of s.assignments || []) {
       if (x.athleteId !== a.id || x.status !== 'assigned' || x.date < t || x.date > end) continue;
-      items.push({ uid: 'a-' + x.id, date: x.date, time: sessionTime, minutes: 60, title: `🏋️ ${x.plan.name || 'Training session'}`, notes: `Open AthleteOS: ${appLink('plan/a:' + x.id)}` });
+      items.push({ uid: 'a-' + x.id, date: x.date, time: sessionTime, minutes: 60, title: `🏋️ ${x.plan.name || 'Training session'}`, notes: `Open Motiq: ${appLink('plan/a:' + x.id)}` });
     }
     if (root.Calendar) {
       for (const e of root.Calendar.eventsFor(s, a, t, end)) {
@@ -311,14 +311,14 @@
       const blob = new Blob([text], { type: 'text/calendar' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = 'athleteos-reminders.ics';
+      link.download = 'motiq-reminders.ics';
       document.body.append(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(link.href), 4000);
       ctx.toast(`${items.length} session${items.length === 1 ? '' : 's'}${r.checkin ? ' + daily check-in' : ''}: open the file to add them to your calendar`);
     } catch {
-      root.Dialogs.showText(text, { title: 'Calendar file', intro: 'Save this as athleteos.ics and open it.', rows: 8 });
+      root.Dialogs.showText(text, { title: 'Calendar file', intro: 'Save this as motiq.ics and open it.', rows: 8 });
     }
   }
 
@@ -401,7 +401,7 @@
       case 'install-how':
         hideBanner('install-banner');
         store.set(INSTALL_SEEN, 'seen');
-        return root.Dialogs.html(`<div class="app-dialog"><h2 id="app-dialog-title">Add AthleteOS to your home screen</h2>${STEPS[mode()] || STEPS.unknown}<div class="dialog-actions"><button class="btn btn-primary" data-dlg-value="ok">Got it</button></div></div>`);
+        return root.Dialogs.html(`<div class="app-dialog"><h2 id="app-dialog-title">Add Motiq to your home screen</h2>${STEPS[mode()] || STEPS.unknown}<div class="dialog-actions"><button class="btn btn-primary" data-dlg-value="ok">Got it</button></div></div>`);
       case 'dismiss-install':
         store.set(INSTALL_SEEN, 'dismissed');
         return hideBanner('install-banner');
@@ -413,7 +413,7 @@
         errShown = false;
         return hideBanner('error-banner');
       case 'error-details':
-        return root.Dialogs.showText(root.__lastError || '', { title: 'What went wrong', intro: 'Copy this and send it to whoever looks after AthleteOS. Reloading usually fixes it.', rows: 6 });
+        return root.Dialogs.showText(root.__lastError || '', { title: 'What went wrong', intro: 'Copy this and send it to whoever looks after Motiq. Reloading usually fixes it.', rows: 6 });
       case 'sync':
         if (root.Cloud) root.Cloud.syncNow();
         return updateSync();
