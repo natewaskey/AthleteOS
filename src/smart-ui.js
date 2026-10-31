@@ -515,8 +515,10 @@
         <p style="margin:0 0 .3rem"><strong>${esc(soon.title)}</strong>${soon.time ? ` · ${esc(soon.time)}` : ''}${soon.location ? ` · ${esc(soon.location)}` : ''}</p>
         <p class="muted" style="margin:0">${soon.date === t ? 'Warm up well, fuel 3 hours out and run your breathing routine before kickoff.' : 'Your sessions taper automatically the day before. Sleep and hydration matter most now.'}</p></section>`;
     }
-    if (!ctx.solo() && !S.partnerOf(st, a)) return partnerCard(a, { span: 'span-12' });
-    if (S.partnerOf(st, a)) return partnerCard(a, { span: 'span-12' });
+    if (!st.settings.proMode) {
+      if (!ctx.solo() && !S.partnerOf(st, a)) return partnerCard(a, { span: 'span-12' });
+      if (S.partnerOf(st, a)) return partnerCard(a, { span: 'span-12' });
+    }
     return focusCard(a);
   }
 

@@ -239,11 +239,10 @@
       { icon: '📈', title: 'What we track', text: `${current({ checkins: [], workouts: [], tests: [], metrics: [], profile: {} }, g.metric, '2026-01-01').label || 'Your progress'} is shown on Home and Progress, against your target.` },
     ];
     if (g.riskScale && g.riskScale > 1) list.push({ icon: '🛡️', title: 'Injury warnings', text: `Warnings trigger earlier (${Math.round((g.riskScale - 1) * 100)}% more sensitive) to protect you.` });
-    list.push({ icon: '✨', title: 'AI coach', text: 'Answers are tied back to this goal and your target.' });
     return list;
   }
 
-  // One line for the AI coach's context.
+  // One line for the weekly recap note's context.
   function context(a, t) {
     const pr = progress(a, t);
     if (!pr) return '';

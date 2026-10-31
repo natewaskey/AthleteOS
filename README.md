@@ -6,9 +6,9 @@ A private training operating system for athletes. Log workouts, check in each mo
 
 ### Look & navigation
 - Dark-first "glass and glow" design: glass cards, orange-to-pink gradient accents, glowing readiness rings. Light theme is in Settings.
-- Desktop has a sidebar with a handful of sections (Home, Train, AI Coach, Progress, Wellness, Messages, Profile). Related pages sit under pill tabs inside each section.
-- Phones get a floating bottom tab bar with a center AI Coach orb. Everything else is under **More**.
-- Home is one hero card (greeting, readiness gauge, today's session and one-tap actions: check in, voice log, Ask AI, Live coach, Breathe) plus one "what's next" card.
+- Desktop has a sidebar with a handful of sections (Home, Train, Progress, Wellness, Messages, Profile, Help & FAQ). Related pages sit under pill tabs inside each section.
+- Phones get a floating bottom tab bar with the first four sections. Everything else is under **More**.
+- Home is one hero card (greeting, readiness gauge, today's session and one-tap actions: check in, voice log, Help & FAQ, Live coach, Breathe) plus one "what's next" card.
 
 ### Sports science (built for elite and club athletes)
 - **Personal baselines.** Every marker (readiness, sleep, HRV, resting HR, soreness, stress, mood, jump height) is compared with the athlete's own last 28 days (mean ± 1 SD), shown as a "normal range" bar. Resting HR and HRV affect readiness only when they leave the athlete's own normal range.
@@ -56,7 +56,7 @@ A private training operating system for athletes. Log workouts, check in each mo
   - **How the weekly plan progresses:** more load, extra quality sets, more conditioning volume, conservative progression, an in-season hold, or a taper before a competition date.
   - **How sensitive injury warnings are:** up to 40% more sensitive when coming back from injury.
   - **The program builder's starting point:** goal, focus areas and season phase.
-  - **What's tracked on Home and Progress, and the AI coach's context.**
+  - **What's tracked on Home and Progress.**
 
   The Goals page shows a "How this goal shapes AthleteOS" panel.
 - **10-second check-in.** Four taps: sleep, energy, body and stress, with a live readiness preview. "More detail" opens the full body map, and choosing "Pain" sends you there automatically.
@@ -69,22 +69,60 @@ A private training operating system for athletes. Log workouts, check in each mo
 The first screen asks how you'll use AthleteOS. You can change it any time in Settings, and switching keeps your data.
 - **On my own:** the full athlete experience without any coach or team features. You get check-ins, logging, programs (built-in or AI), your own workout builder and scheduling, form analysis, the movement screen, progress, goals and a Health tab where you log your own injuries. There are no messages, sharing or team wall.
 - **Athlete on a team:** everything above, plus workouts, programs, messages and feedback from your coaching staff.
-- **Coach:** set up the team roster and prescribe. Every coach has full access. You can list certifications (below).
+- **Coach:** set up the team roster and prescribe. Only the head coach and staff with a verified certification can give athletes programs (below).
 
 In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
 
-### Coach certifications
-- Coaches can list certifications: CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS or state licence, sport governing-body licences, or "Other" with a name. Each can have a number and an expiry date.
-- Add them in the setup wizard (optional) or in **Settings → My certifications**.
-- Athletes see their coach's credentials next to the coach's name.
-- They're optional and don't lock anything: every coach on the staff has full access. Roles (head, assistant, S&C, trainer) are labels.
-- Certifications are self-reported in this version.
+### Camera jump testing
+- Progress (or a coach's athlete page) › Jump testing › **Test with camera**: film a countermovement jump, a single-leg jump on each leg, or a drop jump on any phone. Pose tracking finds the toes, a parabola fitted to each flight gives takeoff and landing to a fraction of a frame, and height comes from flight time (g·t²/8), the same method as jump mats.
+- Drop jumps also give ground contact time and **RSI** (height ÷ contact). Slow-motion clips (×2/×4/×8) are detected from the jump arc and corrected automatically.
+- Results save as CMJ, RSI and single-leg jump metrics, next to CSV-imported force plate data, so they feed normal ranges and the readiness picture. Warnings flag bent-knee landings, missing feet and low frame rates.
 
-### ✨ AI coach chat
-- **For athletes:** ask anything, e.g. "Why is my readiness low?", "What should I eat before my game?", "My knee is sore, what should I do?" It answers from your own check-ins, training load, injuries, movement screen, calendar, food log and goals.
-- **For coaches:** ask about the team, e.g. "Who needs attention today?", "Who missed sessions?" or "Plan a practice before Friday's game."
-- **With a Claude API key** (Settings), replies stream from Claude. **Without one**, a built-in coach answers common questions from the same data.
-- Safety rules are built in: pain, head injuries and anything medical get sent to a professional.
+### Left vs right (asymmetry)
+- The **Left vs right** card pulls side-to-side numbers from single-leg hop tests (new tests in Progress), camera single-leg jumps and the two-sided movement screen tests, and shows a limb symmetry index for each (weaker ÷ stronger; 90%+ is the usual target, gaps of 10% and 15% are flagged).
+- When the legs or arms have a clear weaker side, programs steer toward it: one extra set on that side is added after each one-sided strength or power exercise when an athlete adds a program, and coaches get a "weak-side set" checkbox when assigning.
+
+### Force-velocity profile
+- Progress › **Force-velocity profile**: enter squat-jump heights at 3–5 loads (from a jump mat, force plate or the camera test). The Samozino method turns them into max force (F0), max velocity (V0), max power and the athlete's profile versus the optimal one for their power and push-off distance.
+- Under 90% of optimal is a force deficit, over 110% a velocity deficit. The program builder uses it: a force deficit makes main lifts heavier (3–4 reps at 85%+), a velocity deficit adds jump squats or ballistic work and moves main lifts lighter and fast. Athletes get it automatically; coaches pick the emphasis in the builder. Profiles older than 6 months stop steering until retested.
+
+### Criteria-based return to sport
+- Every injury (concussions keep their graduated stages) gets a return-to-sport checklist instead of a date: pain-free for 7 days, strength symmetry 90%+, single-leg hop symmetry 90%+, a clean camera landing screen, jump height back to 90% of the pre-injury normal, and full sport training without symptoms. Upper-body injuries use pain, strength and sport.
+- Each criterion is checked against the athlete's own data since the injury where the app has it. Any coach signs criteria off (overriding one that the data doesn't support needs a confirmation and is marked). When all are signed off, **Clear to return** clears the injury and messages the athlete.
+
+### Pro mode (elite teams)
+- One switch (Settings › Team policy for the head coach; Settings › Preferences when training solo) turns AthleteOS into a data-first tool: no badges, streaks, confetti, challenges, team wall, training partners or recruiting profile, and denser screens. PRs show as a short note instead of a celebration.
+- Turning it on for a team also makes athletes' own workouts and programs need coach approval (the head coach can change that back).
+
+### Supplements & anti-doping
+- Wellness › Fuel has a supplement list. Each product is marked NSF Certified for Sport, Informed Sport, not certified, or not sure, with links to check it on NSF Certified for Sport, Informed Sport and Global DRO (medications).
+- Products in high-risk categories (pre-workout, weight loss, muscle building / hormone, known banned stimulants) are flagged, and under-18s are told to check with a doctor or registered dietitian.
+- Uncertified or high-risk products show on the coach's Needs attention list.
+
+### Staff certifications and who can prescribe
+- **The rule:** only the head coach, or a staff member with a current certification the head coach has verified, can give athletes workouts and programs. Everyone else can still build them; theirs go to **Training › Approvals** instead of straight to athletes.
+- **What counts as prescribing:** assigning a workout or program, applying an AI-built program, editing an assigned session, and coach-assigned movement prep. Messages, form cues, test results and calendar events are open to all staff.
+- **Roles:**
+
+  | Role | Assigns programs |
+  |---|---|
+  | Head coach | Always |
+  | Strength & conditioning, assistant / position coach, athletic trainer, physio | With a verified prescribing certification |
+  | Dietitian, sports scientist, intern / graduate assistant | Never: drafts for approval |
+
+  The head coach can also set any certified-role staff member to "Drafts only".
+- **Certifications:** CSCS, NSCA-CPT, SCCC, NASM-CPT, ACE-CPT, ACSM, USAW, USATF, ATC, PT/DPT, NFHS or state licence, sport governing-body licences, or "Other". Each can have a number, an expiry date and a photo or PDF of the certificate (stored on the device).
+- **Status:** self-reported → verified (the head coach checks it with the issuing body and taps Verify) → expiring (reminders from 60 days out) → expired (back to drafts only; programs already assigned keep running).
+- **Team policy** (Settings, head coach): which certifications unlock prescribing (default CSCS, SCCC, USAW, NSCA-CPT, ACSM-EP, USATF, ATC, PT/DPT) and whether athletes on the team can add their own workouts and programs freely, only with coach approval, or not at all. People training solo aren't affected.
+- **Approvals:** the head coach or any certified coach reviews what's in it, approves it or sends it back with a note. AI-built programs are labelled. Athletes see their own pending items on My plan.
+- **Prescribed by:** every session shows who prescribed it and who approved it, with their verified credentials.
+- **Staff PIN:** each coach can set a 4-digit PIN that's needed to switch to them on a shared device. It's a speed bump, not security: real enforcement needs accounts and server-side checks.
+
+### Help & FAQ
+- About 35 fixed, reviewed answers in eight topics: getting started, readiness, training and load, soreness and injuries, food/water/sleep, nerves, coaching and privacy.
+- Search as you type (e.g. "sore knee", "ACWR"), or filter by topic. Each answer links to the page that helps.
+- Athletes and coaches see their own questions. Athletes on a team can jump to messaging their coach when nothing matches.
+- Pain, head injuries and anything medical point to a professional. Content lives in `src/faq.js`.
 
 ### Team calendar
 - A month grid plus an upcoming list covering games, meets and races, practices, lifts, film sessions and travel.
@@ -182,7 +220,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **Cycle tracking** (optional, private by default): phase-aware tips, shared with the coach only if the athlete opts in.
 
 ### Platform
-- **Coaching staff:** head coach, assistant, strength & conditioning, athletic trainer. Every coach has full access. Switch staff from the top bar.
+- **Coaching staff:** head coach, assistant, strength & conditioning, athletic trainer, physio, dietitian, sports scientist, intern. Prescribing follows the certification rules above. Switch staff from the top bar (with an optional PIN).
 - **Coach setup wizard:** team name, roster (paste names), groups and staff in one screen.
 - **Guardian consent:** athletes under 18 stay hidden from staff until a parent or guardian approves in the athlete's Settings.
 - **Privacy controls:** share check-in notes, auto-share form checks, cycle sharing. **Download my data** / **Delete my data** per athlete.
@@ -279,16 +317,24 @@ src/calendar.js       calendar logic: events, who they're for, game-day context,
 src/nutrition.js      food list, meal totals, targets, water, sweat rate, photo-estimate schema
 src/challenges.js     challenge logic: automatic/manual counting, leaderboards, pace, completions
 src/mind.js           breathing patterns, routine, visualization, journal, streaks and trends
-src/insights.js       weekly summary, AI context snapshots, built-in coach answers
+src/insights.js       weekly summary and the data snapshot for Claude's recap note
 src/goals.js          goal catalog, targets, progress, and how each goal changes the app
 src/smart.js          readiness/load "why", injury risk, voice parser, weekly adapter, partners, goals
 src/smart-ui.js       why dialogs, 10-second check-in, voice log, adapt/risk/partner cards, goal picker
 src/science.js        personal baselines, age bands, maturity offset, velocity profiles, GPS weeks
 src/importer.js       CSV import for HRV, jumps, GPS and bar velocity
 src/evidence.js       research grades and citations for exercises and scoring rules
+src/jump.js           camera jump testing: flight time, height, contact time, RSI, slow-motion check
+src/jump-ui.js        jump test dialog, jump testing card, left vs right card
+src/asymmetry.js      limb symmetry from hops, jumps and the screen; weak-side sets in programs
+src/fv.js             jump force-velocity profile (F0, V0, Pmax, deficit) for the program builder
+src/rts.js            criteria-based return to sport: data checks and coach sign-offs
 src/science-ui.js     normal ranges, performance data, age & growth, import, evidence library
 src/live-coach.js     real-time rep counting, cues and camera setup check (engine + camera screen + in-workout set)
-src/assistant-ui.js   AI coach chat and weekly recap screens
+src/summary-ui.js     weekly summary card and recap page
+src/faq.js            Help & FAQ content and search
+src/faq-ui.js         Help & FAQ screen
+src/staff-ui.js       staff certifications, verification, approvals queue, team policy, PINs, "Prescribed by"
 src/calendar-ui.js    calendar screens, event dialog, attendance
 src/wellness-ui.js    Fuel, Mind and Health screens
 src/challenges-ui.js  challenge screens

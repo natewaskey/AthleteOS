@@ -26,6 +26,8 @@
       ...((me && me.focus && root.Goals && root.Goals.programDefaults(me.focus)) || { goal: 'general', focus: [], phase: 'general' }),
       sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4,
       equipment: ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'cones', 'kettlebell'], avoidAreas: [], restrictions: [], request: '', engine: 'builtin',
+      // An athlete's own jump force-velocity profile steers the program unless they change it.
+      fv: (me && root.FV && root.FV.bias(me, today())) || '',
     };
   }
 
@@ -76,7 +78,9 @@
           <label>Minutes per session <select name="minutes">${[30, 45, 60, 75, 90, 120].map((n) => `<option ${n === +f.minutes ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Length <select name="weeks">${[2, 3, 4, 6, 8, 10, 12].map((n) => `<option value="${n}" ${n === +f.weeks ? 'selected' : ''}>${n} weeks</option>`).join('')}</select></label>
           <label>Season phase <select name="phase">${Object.entries(P.PHASES).map(([k, v]) => `<option value="${k}" ${k === f.phase ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+          <label>Force-velocity emphasis <select name="fv">${[['', 'Balanced'], ['force', 'Force deficit: heavier strength'], ['velocity', 'Velocity deficit: faster, lighter work']].map(([k, v]) => `<option value="${k}" ${k === (f.fv || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         </div>
+        ${fvHint()}
         <fieldset><legend>Equipment available</legend><div class="row">${Object.entries(P.EQUIPMENT).filter(([k]) => !['none', 'field'].includes(k)).map(([k, v]) => chip('equipment', k, v, f.equipment.includes(k))).join('')}</div>
           <p class="hint" style="margin:.4rem 0 0">Bodyweight and open space (a field or park) are always assumed.</p></fieldset>
         <fieldset><legend>Extra focus</legend><div class="row">${Object.entries(P.FOCUS).map(([k, v]) => chip('focus', k, v, f.focus.includes(k))).join('')}</div></fieldset>
@@ -95,11 +99,19 @@
       </form>`;
   }
 
+  // Where the emphasis came from, for athletes with a jump force-velocity profile.
+  function fvHint() {
+    if (ctx.role() !== 'athlete' || !root.FV) return '<p class="hint" style="margin:.2rem 0 .6rem">Force-velocity emphasis comes from an athlete’s loaded jump profile (Progress → Force-velocity profile). Use it when the whole group shares the same deficit.</p>';
+    const l = root.FV.latest(ctx.me(), today());
+    if (!l) return '<p class="hint" style="margin:.2rem 0 .6rem">Do a force-velocity profile (Progress → Force-velocity profile) and the builder will pick the emphasis for you.</p>';
+    return `<p class="hint" style="margin:.2rem 0 .6rem">From your force-velocity profile on ${esc(ctx.fmtDate(l.profile.date))}: ${l.result.fvImb}% of optimal${l.stale ? ' (over 6 months old, so it isn’t applied; retest)' : ''}.</p>`;
+  }
+
   function readForm(el) {
     const fd = new FormData(el);
     return {
       goal: fd.get('goal'), sport: fd.get('sport'), experience: fd.get('experience'), daysPerWeek: +fd.get('daysPerWeek'), minutes: +fd.get('minutes'), weeks: +fd.get('weeks'), phase: fd.get('phase'),
-      equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin',
+      equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin', fv: fd.get('fv') || '',
       position: ctx.role() === 'athlete' ? ctx.me().position : '',
     };
   }
@@ -220,6 +232,8 @@
 
   // ---------- assign ----------
 
+  const isAI = (p) => p.source === 'claude';
+
   let dialog = null;
   async function openAssign(p) {
     if (ctx.role() === 'athlete') {
@@ -227,9 +241,11 @@
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
-      ctx.state().assignments.push(...list);
+      const extra = root.Asymmetry ? root.Asymmetry.applyToAssignments(list, ctx.athleteById, today()) : 0;
+      const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'athlete', assignments: list });
+      if (res === 'blocked') return;
       ctx.save();
-      ctx.toast(`${list.length} sessions added to your plan`);
+      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan${extra ? ' · extra sets on your weaker side included' : ''}`);
       return ctx.go('plan');
     }
     if (!dialog) {
@@ -242,6 +258,8 @@
     }
     const athletes = ctx.state().athletes;
     const groups = [...new Set(athletes.flatMap((a) => a.groups))].sort();
+    const Asym = root.Asymmetry;
+    const asymCount = Asym ? athletes.filter((a) => { const s = Asym.summary(a, today()); return (s.lower && s.lower.weak) || (s.upper && s.upper.weak); }).length : 0;
     dialog.innerHTML = `<form id="program-assign-form" method="dialog">
       <div class="row"><h2 style="margin:0">Assign “${esc(p.name)}”</h2><div class="spacer"></div><button type="button" class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted small">${p.weeks} weeks × ${p.sessions.length} sessions, progressed automatically each week.</p>
@@ -250,7 +268,8 @@
       <label style="margin-top:.75rem">Start date <input type="date" name="start" value="${C.addDays(C.startOfWeek(today()), 7)}" required/></label>
       <label>Note to athletes <input name="note" maxlength="300" placeholder="e.g. Summer strength block"/></label>
       <label class="check"><input type="checkbox" name="notify" checked/> Message athletes about it</label>
-      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Assign program</button></div>
+      ${asymCount ? `<label class="check"><input type="checkbox" name="asym" checked/> Add a weak-side set for athletes with a left/right gap <span class="muted small">(${asymCount} on the team)</span></label>` : ''}
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${root.StaffUI.assignLabel('Assign program')}</button></div>
     </form>`;
     const f = $('#program-assign-form', dialog);
     f.addEventListener('click', (e) => {
@@ -264,10 +283,12 @@
       if (!ids.length) return ctx.toast('Pick at least one athlete');
       const saved = savePreview();
       const list = P.expandProgram(saved, f.start.value, ids, { coachNote: f.note.value.trim() });
-      ctx.state().assignments.push(...list);
-      if (f.notify.checked) for (const id of ids) ctx.state().messages.push(C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` }));
+      if (f.asym && f.asym.checked) Asym.applyToAssignments(list, ctx.athleteById, today());
+      const messages = f.notify.checked ? ids.map((id) => C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` })) : [];
+      const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'coach', assignments: list, messages });
       ctx.save();
       dialog.close();
+      if (res === 'pending') return ctx.go('approvals');
       ctx.toast(`Assigned ${list.length} sessions`);
       ctx.go('plan');
     });

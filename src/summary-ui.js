@@ -1,7 +1,6 @@
 /*
- * AI coach chat (athletes and coaches) and the weekly summary.
- * With an Anthropic API key, replies stream from Claude using a snapshot of the athlete's (or team's) data.
- * Without one, built-in answers from Insights use the same data.
+ * Weekly summary card and recap page.
+ * With an Anthropic API key, Claude can write a personal note from a snapshot of the athlete's data.
  */
 (function (root) {
   'use strict';
@@ -9,16 +8,10 @@
   let ctx = null;
   let C = null;
   let I = null;
-  let busy = null; // AbortController while a reply is streaming
   const $ = (sel, el = document) => el.querySelector(sel);
   const esc = (s) => ctx.esc(s);
   const today = () => C.toISODate(new Date());
   const coach = () => ctx.role() === 'coach';
-
-  const SUGGEST_ATHLETE = ['Why is my readiness low?', 'What should I do today?', 'What should I eat before my game?', 'My knee is sore. What should I do?', 'Am I overtraining?', 'How do I calm my nerves?'];
-  const SUGGEST_COACH = ['Who needs attention today?', 'Who hasn’t checked in?', 'Who missed sessions this week?', 'Plan a practice before Friday’s game', 'Which athletes should I rest this week?'];
-
-  const thread = () => (coach() ? ctx.state().coachChat : ctx.me().chat);
 
   // Tiny, safe markdown: escape first, then bold, italics, bullet lists and line breaks.
   function md(text) {
@@ -38,88 +31,6 @@
       }
     }
     return out + (list ? `</${list}>` : '');
-  }
-
-  function bubble(m) {
-    return `<div class="ai-msg ${m.role}"><div class="ai-bubble">${m.role === 'assistant' ? md(m.text) : esc(m.text)}</div>${m.role === 'assistant' && m.source ? `<div class="ai-src">${m.source === 'claude' ? '✨ Claude' : '⚙️ Built-in coach'}</div>` : ''}</div>`;
-  }
-
-  function chatView() {
-    const msgs = thread();
-    const hasKey = root.AI && root.AI.hasKey();
-    const who = coach() ? 'your team' : 'you';
-    const sugg = coach() ? SUGGEST_COACH : SUGGEST_ATHLETE;
-    return `<div class="row" style="margin-bottom:.25rem"><h1 class="page-title" style="margin:0">✨ AI Coach</h1><div class="spacer"></div>
-        ${msgs.length ? '<button class="btn btn-sm btn-ghost" data-ai-action="clear">Clear chat</button>' : ''}</div>
-      <p class="muted" style="margin-top:0">Ask anything about training, recovery, food, nerves or ${coach() ? 'your athletes' : 'your plan'}. It knows ${who}: check-ins, load, injuries, screens, calendar and more.
-        ${hasKey ? '<span class="pill good">Claude connected</span>' : '<span class="pill">Built-in coach</span> <button class="btn-link" data-tab-link="settings">Connect Claude for full conversations</button>'}</p>
-      <section class="card ai-chat">
-        <div class="ai-thread" id="ai-thread" aria-live="polite">
-          ${msgs.length ? msgs.map(bubble).join('') : `<div class="ai-empty"><div class="ai-orb">✨</div><p><strong>Hi${coach() ? '' : ' ' + esc((ctx.me().name || '').split(' ')[0])}! I’m your AI coach.</strong><br/>Try one of these:</p></div>`}
-        </div>
-        <div class="chips ai-suggest">${sugg.map((q) => `<button type="button" class="chip chip-btn" data-ai-ask="${esc(q)}">${esc(q)}</button>`).join('')}</div>
-        <form id="ai-chat-form" class="ai-compose">
-          <textarea name="q" rows="1" maxlength="2000" placeholder="Ask your AI coach…" aria-label="Message the AI coach" required></textarea>
-          <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>Send</button>
-        </form>
-        <p class="hint" style="margin:.5rem 0 0">Guidance, not medical advice. For pain, injuries or anything worrying, see a professional${coach() ? '' : ' and tell your coach or a parent'}.</p>
-      </section>`;
-  }
-
-  function scrollDown() {
-    const t = $('#ai-thread');
-    if (t) t.scrollTop = t.scrollHeight;
-  }
-
-  async function ask(q) {
-    q = String(q || '').trim();
-    if (!q || busy) return;
-    const list = thread();
-    list.push({ role: 'user', text: q, ts: Date.now() });
-    const reply = { role: 'assistant', text: '', ts: Date.now(), source: root.AI && root.AI.hasKey() ? 'claude' : 'builtin' };
-    list.push(reply);
-    ctx.save();
-    ctx.render();
-    const node = () => [...document.querySelectorAll('#ai-thread .ai-msg.assistant .ai-bubble')].pop();
-    if (reply.source === 'builtin') {
-      reply.text = coach() ? I.teamAnswer(q, ctx.state(), today()) : I.answer(q, ctx.state(), ctx.me(), today());
-      ctx.save();
-      ctx.render();
-      return scrollDown();
-    }
-    busy = new AbortController();
-    const n = node();
-    if (n) n.innerHTML = '<span class="ai-typing"><i></i><i></i><i></i></span>';
-    scrollDown();
-    const system = coach()
-      ? `${I.SYSTEM_COACH}\n\nTeam snapshot:\n${I.teamContext(ctx.state(), today())}`
-      : `${I.SYSTEM_ATHLETE}\n\nData snapshot:\n${I.athleteContext(ctx.state(), ctx.me(), today())}`;
-    const history = list.slice(0, -1).slice(-14).filter((m) => m.text);
-    try {
-      await root.AI.chat({
-        system,
-        messages: history,
-        signal: busy.signal,
-        fallbacks: ctx.state().ai.fallbacks !== false,
-        onText: (d) => {
-          reply.text += d;
-          const b = node();
-          if (b) b.innerHTML = md(reply.text);
-          scrollDown();
-        },
-      });
-    } catch (err) {
-      if (!(err && err.name === 'AbortError')) {
-        // Fall back to the built-in coach so the athlete still gets an answer.
-        reply.text = `${coach() ? I.teamAnswer(q, ctx.state(), today()) : I.answer(q, ctx.state(), ctx.me(), today())}\n\n*(Claude wasn’t available: ${err.message})*`;
-        reply.source = 'builtin';
-      }
-    } finally {
-      busy = null;
-      ctx.save();
-      if (location.hash.startsWith('#coachai')) ctx.render();
-      scrollDown();
-    }
   }
 
   // ---------- weekly summary ----------
@@ -209,40 +120,10 @@
   }
 
   function onClick(e) {
-    const q = e.target.closest('[data-ai-ask]');
-    if (q) return ask(q.dataset.aiAsk);
     const s = e.target.closest('[data-summary-open]');
     if (s) return ctx.go('summary', s.dataset.summaryOpen);
-    const el = e.target.closest('[data-ai-action]');
-    if (!el) return;
-    if (el.dataset.aiAction === 'clear') {
-      if (busy) busy.abort();
-      if (coach()) ctx.state().coachChat = [];
-      else ctx.me().chat = [];
-      ctx.save();
-      return ctx.render();
-    }
-    if (el.dataset.aiAction === 'recap') return recap(el.dataset.athlete, el.dataset.from, el);
-  }
-
-  function onSubmit(e) {
-    if (e.target.id !== 'ai-chat-form') return;
-    e.preventDefault();
-    const q = e.target.q.value;
-    e.target.q.value = '';
-    ask(q);
-  }
-
-  function onKey(e) {
-    // Enter sends, Shift+Enter adds a line.
-    if (e.target.matches && e.target.matches('#ai-chat-form textarea') && e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      e.target.form.requestSubmit();
-    }
-  }
-
-  function mount() {
-    scrollDown();
+    const el = e.target.closest('[data-ai-action="recap"]');
+    if (el) return recap(el.dataset.athlete, el.dataset.from, el);
   }
 
   function init(c) {
@@ -250,9 +131,7 @@
     C = c.C;
     I = root.Insights;
     document.addEventListener('click', onClick);
-    document.addEventListener('submit', onSubmit);
-    document.addEventListener('keydown', onKey);
   }
 
-  root.AssistantUI = { init, chatView, summaryCard, summaryView, mount, md, ask };
+  root.SummaryUI = { init, summaryCard, summaryView, md };
 })(window);

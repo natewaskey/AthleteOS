@@ -209,7 +209,49 @@
     required: ['items', 'note'],
   };
 
-  const Nutrition = { MEALS, FOODS, normalizeMeal, normalizeItem, mealTotals, dayTotals, targets, latestWeightKg, waterFor, addWater, searchFoods, sweatRate, proteinHitRate, PHOTO_SCHEMA };
+  // ---------- supplements & anti-doping ----------
+
+  const SUPPLEMENT_CERTS = { nsf: 'NSF Certified for Sport', informed: 'Informed Sport', none: 'Not third-party certified', unsure: 'Not sure' };
+  const CHECK_LINKS = [
+    { label: 'NSF Certified for Sport', url: 'https://www.nsfsport.com/' },
+    { label: 'Informed Sport', url: 'https://sport.wetestyoutrust.com/certified-safer-supplements' },
+    { label: 'Global DRO (medications)', url: 'https://www.globaldro.com/' },
+  ];
+  // Product types anti-doping agencies flag as most often contaminated or containing banned ingredients.
+  const HIGH_RISK = [
+    { re: /pre[\s-]?workout|energy|stim/i, label: 'pre-workout / energy' },
+    { re: /fat[\s-]?burn|weight[\s-]?loss|thermo|cutting|diet pill/i, label: 'weight loss' },
+    { re: /test(osterone)?[\s-]?boost|anabolic|muscle[\s-]?build|mass gainer|prohormone|sarm|ostarine|ligandrol|rad[\s-]?140/i, label: 'muscle building / hormone' },
+    { re: /dmaa|dmha|higenamine|ephedr|synephrine|1,3-dimethyl|clenbuterol/i, label: 'contains a commonly banned stimulant' },
+  ];
+
+  function normalizeSupplement(x) {
+    const r = x && typeof x === 'object' ? x : {};
+    return {
+      id: String(r.id || Math.random().toString(36).slice(2, 10)),
+      name: String(r.name || '').trim().slice(0, 80),
+      brand: String(r.brand || '').trim().slice(0, 80),
+      cert: SUPPLEMENT_CERTS[r.cert] ? r.cert : 'unsure',
+      addedAt: Number(r.addedAt) || Date.now(),
+    };
+  }
+
+  // { level: 'ok' | 'warn' | 'bad', reasons: [] } for one supplement.
+  function supplementRisk(s, { minor = false } = {}) {
+    const text = `${s.name} ${s.brand}`;
+    const flags = HIGH_RISK.filter((h) => h.re.test(text)).map((h) => `High-risk type: ${h.label}.`);
+    const certified = s.cert === 'nsf' || s.cert === 'informed';
+    const reasons = [];
+    if (!certified) reasons.push(s.cert === 'none' ? 'Not third-party tested for banned substances.' : 'Check whether this exact product is certified.');
+    reasons.push(...flags);
+    if (minor) reasons.push('Under 18: talk with a doctor or registered dietitian first.');
+    let level = 'ok';
+    if (!certified) level = s.cert === 'none' || flags.length ? 'bad' : 'warn';
+    else if (flags.length || minor) level = 'warn';
+    return { level, reasons, certified };
+  }
+
+  const Nutrition = { SUPPLEMENT_CERTS, CHECK_LINKS, normalizeSupplement, supplementRisk, MEALS, FOODS, normalizeMeal, normalizeItem, mealTotals, dayTotals, targets, latestWeightKg, waterFor, addWater, searchFoods, sweatRate, proteinHitRate, PHOTO_SCHEMA };
   if (node) module.exports = Nutrition;
   else root.Nutrition = Nutrition;
 })(typeof window !== 'undefined' ? window : globalThis);
