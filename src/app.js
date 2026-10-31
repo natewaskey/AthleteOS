@@ -1412,7 +1412,12 @@
     }
     const views = role() === 'coach' ? coachViews : athleteViews;
     const allowed = !!sectionOf(ui.tab) || HIDDEN_ROUTES.includes(ui.tab);
-    if (!views[ui.tab] || !allowed) ui.tab = firstTab();
+    if (!views[ui.tab] || !allowed) {
+      // A link or refresh to a page this role doesn't have opens the home page; keep the address in step.
+      ui.tab = firstTab();
+      ui.id = null;
+      if (location.hash !== '#' + ui.tab) history.replaceState(null, '', '#' + ui.tab);
+    }
     // Opening a thread marks it read before counts are drawn.
     if (ui.tab === 'messages') {
       if (role() === 'athlete') markThreadRead(me().id);
@@ -2112,6 +2117,8 @@
   window.matchMedia('(max-width: 860px)').addEventListener('change', () => state.mode != null && renderChrome());
 
   window.addEventListener('hashchange', () => {
+    // A sign-in link opened in a tab that already has the app: reload so the sign-in is picked up.
+    if (/access_token=|error_description=/.test(location.hash)) return location.reload();
     const [tab, id] = location.hash.slice(1).split('/');
     go(tab, id);
   });
@@ -2272,4 +2279,8 @@
 
   const [initialTab, initialId] = location.hash.slice(1).split('/');
   go(initialTab || '', initialId);
+  // Refreshing mid-workout keeps focus mode and the rest timer where they were.
+  if (state.mode != null && window.LiveUI) LiveUI.restoreFocus();
+  if (state.mode != null && window.PlanUI && PlanUI.restoreRest) PlanUI.restoreRest();
+  if (window.CloudUI) CloudUI.checkRecovery();
 })();

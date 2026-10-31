@@ -644,14 +644,20 @@
     return null;
   }
 
-  function startRest(sec, label) {
+  const REST_KEY = 'athleteos:rest';
+
+  // endAt: resume a timer that was running before the page was refreshed.
+  function startRest(sec, label, endAt = null) {
     stopRest();
-    if (!sec) return;
+    if (!sec && !endAt) return;
     const el = document.createElement('div');
     el.id = 'rest-timer';
     el.setAttribute('role', 'status');
     document.body.append(el);
-    const end = Date.now() + sec * 1000;
+    const end = endAt || Date.now() + sec * 1000;
+    try {
+      sessionStorage.setItem(REST_KEY, JSON.stringify({ end, label: label || '' }));
+    } catch {}
     const tick = () => {
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       el.innerHTML = `<span>⏱ Rest${label ? ` · ${esc(label)}` : ''}</span><strong>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</strong><button class="btn btn-sm" data-plan-action="stop-rest">Skip</button>`;
@@ -660,6 +666,9 @@
         el.classList.add('done');
         el.querySelector('span').textContent = '✅ Rest done, next set!';
         clearInterval(restTimer);
+        try {
+          sessionStorage.removeItem(REST_KEY);
+        } catch {}
         restTimer = setTimeout(stopRest, 4000);
       }
     };
@@ -673,6 +682,17 @@
     restTimer = null;
     const el = $('#rest-timer');
     if (el) el.remove();
+    try {
+      sessionStorage.removeItem(REST_KEY);
+    } catch {}
+  }
+
+  function restoreRest() {
+    try {
+      const r = JSON.parse(sessionStorage.getItem(REST_KEY) || 'null');
+      if (r && r.end > Date.now()) startRest(0, r.label, r.end);
+      else sessionStorage.removeItem(REST_KEY);
+    } catch {}
   }
 
   // ---------- assign dialog ----------
@@ -1056,5 +1076,5 @@
     stopRest();
   }
 
-  root.PlanUI = { init, view, todayCard, todayLine, alerts, dueCount, mount, reset, openAssign, prescription, startRest };
+  root.PlanUI = { init, view, todayCard, todayLine, alerts, dueCount, mount, reset, openAssign, prescription, startRest, restoreRest };
 })(window);

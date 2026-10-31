@@ -235,6 +235,7 @@
   const status = () => ({
     enabled: enabled(),
     signedIn: !!(mem.auth && mem.auth.access_token),
+    recovery: !!(mem.auth && mem.recovery),
     email: mem.auth ? mem.auth.email : '',
     userId: mem.auth ? mem.auth.userId || '' : '',
     name: mem.auth ? mem.auth.name || '' : '',
@@ -285,9 +286,16 @@
     saveMem();
   }
 
-  async function freshToken() {
-    if (!mem.auth || !mem.auth.refresh_token) return;
-    if (mem.auth.expires_at - Date.now() > 60000) return;
+  // One refresh at a time: Supabase rotates refresh tokens, so two refreshes racing with the same
+  // token (e.g. sync and a sign-in check right after a page refresh) can sign the person out.
+  let refreshing = null;
+  function freshToken() {
+    if (!mem.auth || !mem.auth.refresh_token) return Promise.resolve();
+    if (mem.auth.expires_at - Date.now() > 60000) return Promise.resolve();
+    if (!refreshing) refreshing = refreshToken().finally(() => (refreshing = null));
+    return refreshing;
+  }
+  async function refreshToken() {
     try {
       const a = await http('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: mem.auth.refresh_token }, auth: false });
       setAuth(a);
@@ -301,7 +309,8 @@
     }
   }
 
-  const redirectTo = () => location.origin + location.pathname;
+  // Always come back to the app's folder (not .../index.html), which is the address allowed in Supabase.
+  const redirectTo = () => location.origin + location.pathname.replace(/index\.html$/, '');
 
   async function signUp(email, password, name = '') {
     const a = await http(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo())}`, { method: 'POST', body: { email, password, data: { name } }, auth: false });
@@ -361,8 +370,21 @@
     if (!/access_token=/.test(h)) return false;
     const p = new URLSearchParams(h.slice(1));
     setAuth({ access_token: p.get('access_token'), refresh_token: p.get('refresh_token'), expires_in: Number(p.get('expires_in')) || 3600 });
+    // A "forgot password" link signs the person in; they still need to pick a new password.
+    if (p.get('type') === 'recovery') mem.recovery = true;
+    saveMem();
     history.replaceState(null, '', location.pathname + location.search);
     return true;
+  }
+
+  async function updatePassword(password) {
+    await http('/auth/v1/user', { method: 'PUT', body: { password } });
+    delete mem.recovery;
+    saveMem();
+  }
+  function skipRecovery() {
+    delete mem.recovery;
+    saveMem();
   }
 
   async function afterSignIn() {
@@ -618,5 +640,5 @@
     return { baseURL: CFG.url + '/functions/v1/claude', token: mem.auth.access_token, team: mem.team.id, key: CFG.key };
   }
 
-  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
+  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
 })(typeof window !== 'undefined' ? window : globalThis);
