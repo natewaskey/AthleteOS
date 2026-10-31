@@ -444,7 +444,7 @@
     const a = ctx.me();
     const g = Gl().CATALOG[a.focus];
     return `<section class="focus-picker"><div class="eyebrow">Step 2 of 3 · ${g.icon} ${esc(g.label)}</div><h1 class="page-title">Set a target</h1>
-      <p class="muted">A number and a date make the goal real. AthleteOS tracks your progress against it automatically. Skip it if you’re not sure yet.</p>
+      <p class="muted">A number and a date make the goal real. Motiq tracks your progress against it automatically. Skip it if you’re not sure yet.</p>
       ${targetForm(a, { onboarding: true })}</section>`;
   }
   const needsTargetStep = () => targetStep;
@@ -481,7 +481,7 @@
       </div>
       ${compact ? '' : `${pickerOpen ? `<div class="goal-picker-inline">${focusPicker({ compact: false, step: false }).replace('<h1 class="page-title">What’s your main goal?</h1>', '')}</div>` : ''}
         ${coach ? '' : `<h3 class="why-sub">Target</h3>${targetForm(a)}`}
-        <h3 class="why-sub">How this goal shapes AthleteOS</h3>
+        <h3 class="why-sub">How this goal shapes Motiq</h3>
         <ul class="goal-effects">${effects.map((e) => `<li><span class="ge-icon">${e.icon}</span><div><strong>${esc(e.title)}</strong><span>${esc(e.text)}</span></div></li>`).join('')}</ul>
         <div class="why-tip">${ctx.icon('sparkle')}<span>${esc(g.tip)}</span></div>`}
     </section>`;

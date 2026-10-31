@@ -1,5 +1,5 @@
 /*
- * AthleteOS staff & prescribing UI: who can give athletes programs, certification status and
+ * Motiq staff & prescribing UI: who can give athletes programs, certification status and
  * verification, the Approvals queue, team policy, staff PINs and "Prescribed by" lines.
  * Pure rules live in core.js (canPrescribe, approve, sendBack…). app.js calls StaffUI.init(ctx);
  * plan-ui.js and program-ui.js send every new or edited prescription through StaffUI.submit().

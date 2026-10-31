@@ -1,4 +1,4 @@
-/* AthleteOS UI controller. Depends on window.Core, BodyMap, Media, Movement, Pose and FormUI. */
+/* Motiq UI controller. Depends on window.Core, BodyMap, Media, Movement, Pose and FormUI. */
 (function () {
   'use strict';
 
@@ -804,7 +804,7 @@
     if (step === 'login') return window.CloudUI.loginScreen();
     if (step === 'start') return window.CloudUI.startScreen();
     return `<div class="welcome">
-      <h1 class="page-title">Welcome to AthleteOS</h1>
+      <h1 class="page-title">Welcome to Motiq</h1>
       <p class="muted">Train smarter on your own, or with your team. No coach needed.</p>
       <div class="mode-grid">
         <button class="mode-card primary" data-action="choose-mode" data-mode="solo">
@@ -825,7 +825,7 @@
   function modeCard() {
     const cur = solo() ? 'solo' : role() === 'coach' ? 'coach' : 'athlete';
     const opt = (k, label, desc) => `<label class="check mode-opt"><input type="radio" name="mode" value="${k}" ${cur === k ? 'checked' : ''} data-action="choose-mode" data-mode="${k}"/> <span><strong>${label}</strong><span class="muted small"> · ${desc}</span></span></label>`;
-    return `<section class="card span-6"><div class="card-head"><h3>How you use AthleteOS</h3></div>
+    return `<section class="card span-6"><div class="card-head"><h3>How you use Motiq</h3></div>
       ${opt('solo', 'On my own', 'no coach or team features')}
       ${opt('athlete', 'Athlete on a team', 'coach workouts and messages')}
       ${opt('coach', 'Certified coach', 'prescribe for your team')}
@@ -1915,7 +1915,7 @@
         return exportData();
       case 'export-mine': {
         const data = P.athleteExport(state, me().id);
-        return download(JSON.stringify(data, null, 2), `athleteos-${(me().name || 'me').toLowerCase().replace(/\W+/g, '-')}-${today()}.json`);
+        return download(JSON.stringify(data, null, 2), `motiq-${(me().name || 'me').toLowerCase().replace(/\W+/g, '-')}-${today()}.json`);
       }
       case 'delete-mine': {
         const a = me();
@@ -2197,7 +2197,7 @@
   }
 
   function exportData() {
-    download(JSON.stringify(state, null, 2), `athleteos-${today()}.json`);
+    download(JSON.stringify(state, null, 2), `motiq-${today()}.json`);
   }
 
   function importData(file) {
@@ -2216,7 +2216,7 @@
         toast('Data imported');
         go(firstTab());
       } catch {
-        toast('That file is not valid AthleteOS JSON');
+        toast('That file is not valid Motiq JSON');
       }
     };
     reader.readAsText(file);

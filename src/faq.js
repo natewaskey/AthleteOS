@@ -28,7 +28,7 @@
     // ---------- getting started ----------
     { id: 'what-first', cat: 'start', for: 'athlete', q: 'What should I do every day?', tags: 'daily routine start', link: ['today', 'Go to Home'],
       a: 'Do the **10-second check-in** each morning (sleep, energy, body, stress), then follow today’s session on Home. Log anything extra you did with **Log workout** or **Voice log**. That’s enough for readiness, training load and your weekly recap to work.' },
-    { id: 'modes', cat: 'start', for: 'all', q: 'Can I use AthleteOS without a coach?', tags: 'solo team mode own',  link: ['settings', 'Open Settings'],
+    { id: 'modes', cat: 'start', for: 'all', q: 'Can I use Motiq without a coach?', tags: 'solo team mode own',  link: ['settings', 'Open Settings'],
       a: 'Yes. Choose **On my own** for the full athlete experience without team features. You can switch between On my own, Athlete on a team and Coach any time in Settings, and your data is kept.' },
     { id: 'log-workout', cat: 'start', for: 'athlete', q: 'How do I log a workout?', tags: 'log record add session voice gpx watch import', link: ['history', 'Open History'],
       a: 'Tap **Log workout** (or the + button on phones). You can also tap **Voice log** on Home and say something like “3 sets of 5 squats at 225”. Runs and rides from a watch can be imported as GPX or TCX files.' },
@@ -61,7 +61,7 @@
     { id: 'asymmetry', cat: 'training', for: 'all', q: 'What does the left vs right card mean?', tags: 'asymmetry lsi symmetry weak side imbalance single leg hop',
       a: 'It compares your sides from single-leg hops, single-leg camera jumps and your movement screen. The number is weaker ÷ stronger: **90% or more** is the usual goal. With a clear weaker side, programs add one extra set on that side for one-sided exercises.' },
     { id: 'fv-profile', cat: 'training', for: 'all', q: 'What is a force-velocity profile?', tags: 'force velocity profile f0 v0 power deficit loaded jump samozino', link: ['progress', 'Open Progress'],
-      a: 'Jump at 3–5 loads and AthleteOS works out whether you lack **force** (strength) or **velocity** (speed) compared with the best profile for your power. The program builder then leans your training toward what is lacking: heavier lifts for a force deficit, faster lighter work for a velocity deficit.' },
+      a: 'Jump at 3–5 loads and Motiq works out whether you lack **force** (strength) or **velocity** (speed) compared with the best profile for your power. The program builder then leans your training toward what is lacking: heavier lifts for a force deficit, faster lighter work for a velocity deficit.' },
     { id: 'return-criteria', cat: 'training', for: 'all', q: 'How do I get cleared to return after an injury?', tags: 'return to sport play injury cleared criteria hop strength landing', link: ['health', 'Open Health'],
       a: 'Instead of a set date, you return when you meet the criteria: pain-free for 7 days, strength and single-leg hop at 90%+ of the other side, a clean landing on camera, and your jump back to 90% of normal. A coach signs off each one, then clears you.' },
     { id: 'acwr', cat: 'training', for: 'all', q: 'What is ACWR and what number is good?', tags: 'load acute chronic ratio overtraining',

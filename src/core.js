@@ -1,5 +1,5 @@
 /*
- * AthleteOS core: pure data + training-science logic.
+ * Motiq core: pure data + training-science logic.
  * No DOM access here, so it runs in the browser (window.Core) and in Node (tests).
  */
 (function (root) {

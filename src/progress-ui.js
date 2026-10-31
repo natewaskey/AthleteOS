@@ -1,5 +1,5 @@
 /*
- * AthleteOS progress & motivation: athlete Progress tab (badges, streaks, charts, tests, records),
+ * Motiq progress & motivation: athlete Progress tab (badges, streaks, charts, tests, records),
  * coach Performance tab (testing day entry, leaderboards, shout-outs), PR/badge celebrations,
  * and the team wall. app.js calls ProgressUI.init(ctx).
  */

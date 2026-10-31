@@ -79,7 +79,7 @@
       ${vids.length ? `<section><h3>Highlights</h3><div class="video-grid">${vids.map((v) => `<figure class="video-tile"><video data-video-id="${v.id}" preload="metadata" controls playsinline></video><figcaption><strong class="ellipsis">${esc(v.caption || v.name)}</strong></figcaption></figure>`).join('')}</div></section>` : ''}
       ${p.links ? `<section><h3>Film & links</h3><ul class="plain">${p.links.split(/\s+|\n/).filter((x) => /^https?:\/\//.test(x)).map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, '').slice(0, 60))}</a></li>`).join('')}</ul></section>` : ''}
       ${p.show.contact && (p.email || p.phone || d.coach) ? `<section class="profile-contact"><h3>Contact</h3>${p.email ? `<div>✉️ ${esc(p.email)}</div>` : ''}${p.phone ? `<div>📞 ${esc(p.phone)}</div>` : ''}${d.coach ? `<div>Coach: ${esc(d.coach)}${d.team ? ', ' + esc(d.team) : ''}</div>` : ''}</section>` : ''}
-      <footer class="muted small">Made with AthleteOS · ${esc(ctx.fmtDate(today(), { month: 'long', day: 'numeric', year: 'numeric' }))}</footer>
+      <footer class="muted small">Made with Motiq · ${esc(ctx.fmtDate(today(), { month: 'long', day: 'numeric', year: 'numeric' }))}</footer>
     </article>`;
   }
 

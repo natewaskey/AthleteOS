@@ -1,4 +1,4 @@
-// AthleteOS: Claude proxy (Supabase Edge Function named "claude").
+// Motiq: Claude proxy (Supabase Edge Function named "claude").
 // The app calls this instead of Anthropic directly, so nobody pastes an API key into the app.
 // It checks the caller is signed in and on the team, applies a daily per-team limit, then
 // streams the request to the Anthropic Messages API with the server's key.

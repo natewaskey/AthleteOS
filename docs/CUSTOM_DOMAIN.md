@@ -1,8 +1,8 @@
-# Your own address for AthleteOS (optional)
+# Your own address for Motiq (optional)
 
 Today the app lives at `https://natewaskey.github.io/AthleteOS/`. That link is permanent as long as the
 repo keeps its name, GitHub Pages stays on, and the repo stays public (a private repo needs GitHub Pro
-to keep Pages). A custom domain such as `athleteos.app` is only needed for a branded address.
+to keep Pages). A custom domain such as `motiq.ai` is only needed for a branded address.
 
 The app already works on any address: links, sign-in redirects, the 404 page and the home-screen app
 all use whatever address the app is opened from.

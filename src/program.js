@@ -1,5 +1,5 @@
 /*
- * AthleteOS programming & health logic (pure, no DOM):
+ * Motiq programming & health logic (pure, no DOM):
  *   - exercise patterns, equipment and body stress -> swaps and restrictions
  *   - multi-week programs with progression and deloads
  *   - readiness/pain/injury based auto-adjustment

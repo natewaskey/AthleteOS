@@ -139,7 +139,7 @@
 
   function exportText(state, a, { area = null, name = '' } = {}) {
     const list = events(state, a, { area });
-    const lines = [`AthleteOS body record: ${name || a.name || 'Athlete'}`, `Sport: ${C.sportInfo(a.sport).label}`, `Exported ${C.toISODate(new Date())}${area ? ` · ${regionLabel(area)} only` : ''}`, '', 'Screening and training records from AthleteOS. Not a medical record or a diagnosis.', ''];
+    const lines = [`Motiq body record: ${name || a.name || 'Athlete'}`, `Sport: ${C.sportInfo(a.sport).label}`, `Exported ${C.toISODate(new Date())}${area ? ` · ${regionLabel(area)} only` : ''}`, '', 'Screening and training records from Motiq. Not a medical record or a diagnosis.', ''];
     let year = null;
     for (const e of list) {
       const y = e.date.slice(0, 4);

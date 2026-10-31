@@ -1,5 +1,5 @@
 /*
- * AthleteOS training plans: coach workout builder + library, assigning to athletes,
+ * Motiq training plans: coach workout builder + library, assigning to athletes,
  * week calendar with compliance, athlete workout session (log sets, rest timer),
  * and prescribed-vs-actual review. app.js calls PlanUI.init(ctx).
  */
@@ -521,7 +521,7 @@
     const gameNear = schedule && (schedule.today || schedule.tomorrow || schedule.yesterday);
     if (doing && a.date <= today() && !a.adjusted) {
       if (!todayCheck && a.date === today() && !gameNear) {
-        adjustHTML = `<div class="banner info-banner">💡 Do today’s check-in first and AthleteOS will tailor this session to how you feel. <button class="btn btn-sm" data-action="open-checkin">Check in</button></div>`;
+        adjustHTML = `<div class="banner info-banner">💡 Do today’s check-in first and Motiq will tailor this session to how you feel. <button class="btn btn-sm" data-action="open-checkin">Check in</button></div>`;
       } else {
         const adj = Pg.suggestAdjustment({ plan: a.plan, readiness, checkin: todayCheck, injuries, schedule });
         if (adj.level !== 'none' || adj.flags.length) {

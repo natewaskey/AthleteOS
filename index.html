@@ -7,15 +7,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" />
-    <meta name="description" content="AthleteOS: training, readiness and communication for athletes and coaches." />
-    <title>AthleteOS</title>
+    <meta name="description" content="Motiq: training, readiness and communication for athletes and coaches." />
+    <title>Motiq</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <meta name="apple-mobile-web-app-title" content="AthleteOS" />
+    <meta name="apple-mobile-web-app-title" content="Motiq" />
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
@@ -28,7 +28,7 @@
           if (window.__booted) return;
           var v = document.getElementById('view');
           if (!v) return;
-          v.innerHTML = '<div class="welcome" style="max-width:520px"><h1 class="page-title">AthleteOS didn’t start</h1>' +
+          v.innerHTML = '<div class="welcome" style="max-width:520px"><h1 class="page-title">Motiq didn’t start</h1>' +
             '<p class="muted">Your data is still saved on this device. This is usually a bad connection or an update landing halfway.</p>' +
             '<p><button class="btn btn-primary" onclick="location.reload()">Reload</button></p>' +
             '<details><summary class="small muted">Details</summary><pre class="small" style="white-space:pre-wrap">' + (errs.join('\n') || 'Timed out while loading').replace(/</g, '&lt;') + '</pre></details></div>';
@@ -41,7 +41,7 @@
       <aside class="sidebar" aria-label="Main navigation">
         <div class="brand">
           <svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a2b"/><stop offset="1" stop-color="#ff2e7e"/></linearGradient></defs><path d="M4 22 L11 10 L16 18 L21 8 L28 22" /></svg>
-          <span>Athlete<strong>OS</strong></span>
+          <span>Mot<strong>iq</strong></span>
         </div>
         <nav class="side-nav" id="tabs"></nav>
         <div class="side-foot" id="side-foot"></div>
@@ -50,7 +50,7 @@
         <header class="topbar">
           <div class="brand">
             <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L11 10 L16 18 L21 8 L28 22" /></svg>
-            <span>Athlete<strong>OS</strong></span>
+            <span>Mot<strong>iq</strong></span>
           </div>
           <div class="topbar-controls" id="role-bar"></div>
         </header>

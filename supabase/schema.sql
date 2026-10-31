@@ -1,4 +1,4 @@
--- AthleteOS cloud: accounts, teams and sync.
+-- Motiq cloud: accounts, teams and sync.
 -- Run once in the Supabase dashboard: SQL Editor → New query → paste this file → Run.
 -- Safe to run again: it only creates what's missing and replaces the functions and policies.
 
