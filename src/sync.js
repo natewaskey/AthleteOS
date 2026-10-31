@@ -235,6 +235,7 @@
   const status = () => ({
     enabled: enabled(),
     signedIn: !!(mem.auth && mem.auth.access_token),
+    recovery: !!(mem.auth && mem.recovery),
     email: mem.auth ? mem.auth.email : '',
     userId: mem.auth ? mem.auth.userId || '' : '',
     name: mem.auth ? mem.auth.name || '' : '',
@@ -285,9 +286,16 @@
     saveMem();
   }
 
-  async function freshToken() {
-    if (!mem.auth || !mem.auth.refresh_token) return;
-    if (mem.auth.expires_at - Date.now() > 60000) return;
+  // One refresh at a time: Supabase rotates refresh tokens, so two refreshes racing with the same
+  // token (e.g. sync and a sign-in check right after a page refresh) can sign the person out.
+  let refreshing = null;
+  function freshToken() {
+    if (!mem.auth || !mem.auth.refresh_token) return Promise.resolve();
+    if (mem.auth.expires_at - Date.now() > 60000) return Promise.resolve();
+    if (!refreshing) refreshing = refreshToken().finally(() => (refreshing = null));
+    return refreshing;
+  }
+  async function refreshToken() {
     try {
       const a = await http('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: mem.auth.refresh_token }, auth: false });
       setAuth(a);
@@ -301,7 +309,8 @@
     }
   }
 
-  const redirectTo = () => location.origin + location.pathname;
+  // Always come back to the app's folder (not .../index.html), which is the address allowed in Supabase.
+  const redirectTo = () => location.origin + location.pathname.replace(/index\.html$/, '');
 
   async function signUp(email, password, name = '') {
     const a = await http(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo())}`, { method: 'POST', body: { email, password, data: { name } }, auth: false });
@@ -332,6 +341,10 @@
 
   // Google: Supabase sends the person to Google and back here with the session in the URL hash.
   function signInWithGoogle() {
+    // Remember the page so the app opens there again when Google sends the person back.
+    try {
+      if (/^#[a-z]/.test(location.hash)) sessionStorage.setItem('athleteos:return', location.hash);
+    } catch {}
     location.assign(`${CFG.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo())}`);
   }
 
@@ -361,8 +374,21 @@
     if (!/access_token=/.test(h)) return false;
     const p = new URLSearchParams(h.slice(1));
     setAuth({ access_token: p.get('access_token'), refresh_token: p.get('refresh_token'), expires_in: Number(p.get('expires_in')) || 3600 });
+    // A "forgot password" link signs the person in; they still need to pick a new password.
+    if (p.get('type') === 'recovery') mem.recovery = true;
+    saveMem();
     history.replaceState(null, '', location.pathname + location.search);
     return true;
+  }
+
+  async function updatePassword(password) {
+    await http('/auth/v1/user', { method: 'PUT', body: { password } });
+    delete mem.recovery;
+    saveMem();
+  }
+  function skipRecovery() {
+    delete mem.recovery;
+    saveMem();
   }
 
   async function afterSignIn() {
@@ -599,9 +625,25 @@
     notify();
   }
 
+  // Is the team's Claude server function deployed? null = not checked yet (assume yes).
+  let aiReady = null;
+  async function checkAI() {
+    if (!enabled() || !navigator.onLine) return;
+    const before = aiReady;
+    try {
+      const res = await fetch(CFG.url + '/functions/v1/claude/v1/messages', { method: 'OPTIONS' });
+      aiReady = res.ok;
+    } catch {
+      // Online but the request failed outright: the function isn't there (no CORS answer).
+      aiReady = navigator.onLine ? false : aiReady;
+    }
+    if (aiReady !== before && hooks.onAI) hooks.onAI(aiReady);
+  }
+
   function init(h) {
     hooks = { ...hooks, ...h };
     if (!enabled()) return;
+    checkAI();
     const back = captureRedirect();
     if (back) arriving = afterSignIn().catch((e) => ((lastError = e.message), notify()));
     loadProviders();
@@ -618,5 +660,5 @@
     return { baseURL: CFG.url + '/functions/v1/claude', token: mem.auth.access_token, team: mem.team.id, key: CFG.key };
   }
 
-  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
+  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled, aiAvailable: () => aiReady !== false, checkAI };
 })(typeof window !== 'undefined' ? window : globalThis);

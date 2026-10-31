@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>AthleteOS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <script>
+      // GitHub Pages shows this page for any address it doesn't have, e.g. /AthleteOS/plan from an
+      // old link or a typo. Send the person into the app instead, turning the path into the page hash.
+      (function () {
+        var parts = location.pathname.split('/').filter(Boolean);
+        // On natewaskey.github.io the app lives in /AthleteOS/; on a custom domain it's the root.
+        var base = /\.github\.io$/.test(location.hostname) && parts.length ? '/' + parts.shift() + '/' : '/';
+        var page = parts.filter(function (p) { return !/\.html?$/.test(p); }).join('/');
+        window.appUrl = base + (location.search || '') + (page ? '#' + page : location.hash);
+        location.replace(window.appUrl);
+      })();
+    </script>
+  </head>
+  <body style="background:#07090d;color:#e5e7eb;font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0">
+    <p>Opening AthleteOS… <a id="go" href="/" style="color:#ff7a2b">Tap here if nothing happens</a>.</p>
+    <script>document.getElementById('go').href = window.appUrl;</script>
+  </body>
+</html>
