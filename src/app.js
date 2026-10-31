@@ -472,7 +472,8 @@
       const a = me();
       const t = today();
       const consentBanner = !solo() && C.needsConsent(a, t) ? `<div class="banner warn" role="note">🔒 You’re under 18, so a parent or guardian needs to approve sharing your data with your coaches. <button class="btn btn-sm" data-tab-link="settings">Set up consent</button></div>` : '';
-      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding(a);
+      const guide = window.Guide ? Guide.athleteCard(state, a, { team: !solo(), today: t }) : '';
+      if (!a.workouts.length && !a.checkins.length && !Plan.todayCard(a)) return consentBanner + onboarding(a, guide);
       const checkin = checkinFor(a, t);
       const ready = C.readiness(checkin, a.checkins, a.workouts, t);
       const mine = (state.assignments || []).filter((x) => x.athleteId === a.id && x.status === 'assigned').sort((x, y) => (x.date < y.date ? -1 : 1));
@@ -486,6 +487,7 @@
       // Home stays to three things: readiness, today's session, and one "what's next" card.
       return `
         ${consentBanner}
+        ${guide ? `<div class="grid" style="margin-bottom:1rem">${guide}</div>` : ''}
         ${Smart.nudgeBanner(a)}
         ${Smart.adaptBanner(a)}
         <section class="hero">
@@ -710,6 +712,9 @@
   }
 
   function guardianCard(a) {
+    // On a synced team a parent approves from their own account instead.
+    const cloud = window.CloudUI ? CloudUI.guardianCard(a) : '';
+    if (cloud) return cloud;
     const age = C.ageOn(a, today());
     const g = a.guardian;
     const minor = age != null && age < 18;
@@ -849,9 +854,10 @@
     </div>`;
   }
 
-  function onboarding(a) {
-    if (a && !a.focus) return `<div class="card" style="max-width:900px;margin:1.5rem auto">${Smart.focusPicker()}</div>`;
-    if (a && Smart.needsTargetStep()) return `<div class="card" style="max-width:720px;margin:1.5rem auto">${Smart.targetStepHTML()}</div>`;
+  function onboarding(a, guide = '') {
+    const below = guide ? `<div class="grid" style="max-width:900px;margin:0 auto">${guide}</div>` : '';
+    if (a && !a.focus) return `<div class="card" style="max-width:900px;margin:1.5rem auto">${Smart.focusPicker()}</div>${below}`;
+    if (a && Smart.needsTargetStep()) return `<div class="card" style="max-width:720px;margin:1.5rem auto">${Smart.targetStepHTML()}</div>${below}`;
     const f = a && SM.FOCUS[a.focus];
     return `<div class="card empty" style="max-width:640px;margin:2rem auto">
       ${f ? `<div class="eyebrow">Step 3 of 3 · ${f.icon} ${esc(f.label)}</div>
@@ -868,7 +874,8 @@
         <button class="btn" data-action="open-checkin">Daily check-in</button>
         ${f && /prog-action/.test(f.next.action) ? '' : '<button class="btn" data-prog-action="new">✨ Build a program</button>'}
       </div>
-      <p class="muted small" style="margin-top:1rem"><button class="btn-link" data-action="load-sample">Explore with a demo team</button></p></div>`;
+      <p class="muted small" style="margin-top:1rem"><button class="btn-link" data-action="load-sample">Explore with a demo team</button></p></div>
+      ${guide ? `<div class="grid" style="max-width:640px;margin:0 auto">${guide}</div>` : ''}`;
   }
 
   // ---------- coach views ----------
@@ -898,7 +905,7 @@
         <h1 class="page-title">${esc(greet())}, ${esc(coachName())}</h1>
         <p class="muted" style="margin-top:0">${state.team.name ? esc(state.team.name) + ' · ' : ''}${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))} · ${state.athletes.length} athletes</p>
         <div class="grid">
-          ${window.CloudUI ? CloudUI.coachSteps() : ''}
+          ${window.Guide ? Guide.coachCard(state, { staff: activeStaff(), cloud: window.CloudUI ? CloudUI.teamInfo() : null }) : ''}
           <section class="card span-3"><h3>Checked in</h3><div class="stat">${checkedIn}<small>/ ${state.athletes.length}</small></div>
             <div class="muted">${state.athletes.length - checkedIn ? `${state.athletes.length - checkedIn} still to check in` : 'Everyone is in'}</div></section>
           <section class="card span-3"><h3>Team readiness</h3><div class="stat">${avgReady.length ? Math.round(avgReady.reduce((s, v) => s + v, 0) / avgReady.length) : '—'}<small>avg</small></div>
@@ -1049,7 +1056,7 @@
   };
 
   function consentLocked(a) {
-    return C.needsConsent(a, today());
+    return C.needsConsent(a, today()) || !!(window.Cloud && Cloud.awaitingParent(a.id));
   }
 
   function lockedCard(a) {
@@ -1873,6 +1880,9 @@
         window.AI.setKey('');
         toast('API key removed');
         return render();
+      case 'help-start':
+        go('help');
+        break;
       case 'load-sample':
         if (hasData() && !(await Dialogs.confirm('Replace your current data with the demo team?', { title: 'Load demo team?', ok: 'Replace' }))) return;
         state = C.sampleState(today());

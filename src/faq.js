@@ -36,6 +36,14 @@
       a: 'Open **Plan** and use the program builder. Describe what you want (weeks, days, equipment, goal, sore areas to avoid) and preview it week by week before saving or assigning it.' },
     { id: 'goal', cat: 'start', for: 'athlete', q: 'What does my main goal change?', tags: 'goal target focus', link: ['goals', 'Open Goals'],
       a: 'Your goal shapes how the weekly plan progresses, how sensitive injury warnings are, where the program builder starts and what’s tracked on Home and Progress. The Goals page shows exactly what your goal changes.' },
+    { id: 'join-team', cat: 'start', for: 'all', q: 'How do I join my team?', tags: 'join code sign in account team coach', link: ['settings', 'Open Settings'],
+      a: 'Create an account (or **Continue with Google**), tap **Join my team** and enter the code your coach gave you. Athletes use the **team code**, coaches use the **coach code**. You’re on the team straight away: athletes add their birthday, coaches pick their name on the staff list.' },
+    { id: 'first-week', cat: 'start', for: 'athlete', q: 'What should I do in my first week?', tags: 'start new first week checklist', link: ['today', 'Go to Home'],
+      a: 'Follow the **Getting started** checklist on Home: add your birthday and sport, get a parent’s OK if you’re under 18, do your first morning check-in, do and log a session, film a form check and say hi to your coach. After that, the daily routine is just check in, train, log.' },
+    { id: 'parent-approval', cat: 'start', for: 'all', q: 'Why does a parent need to approve, and how?', tags: 'parent guardian consent under 18 minor approve code', link: ['settings', 'Open Settings'],
+      a: 'Athletes under 18 need a parent or guardian’s OK before coaches can see their check-ins, workouts, videos and injuries. The athlete gets a **parent code** after joining (also in Settings). The parent opens the app, creates a free account, taps **I’m a parent**, enters the code and approves. Only the parent can withdraw it, from their own account. Until then the athlete can still train and gets their coach’s workouts and messages.' },
+    { id: 'coach-setup', cat: 'start', for: 'coach', q: 'How do I get my team set up?', tags: 'coach setup start team codes invite checklist', link: ['team', 'Open Team'],
+      a: 'Create an account, tap **I’m a coach** and finish team setup. The **Get your team going** checklist on Team then walks you through it: share the team code with athletes and the coach code with staff, add your certification, build and assign a first program with the AI program builder, check readiness each morning and review form-check videos.' },
 
     // ---------- readiness ----------
     { id: 'readiness-low', cat: 'readiness', for: 'athlete', q: 'Why is my readiness low?', tags: 'tired score recovery', link: ['today', 'See my readiness'],

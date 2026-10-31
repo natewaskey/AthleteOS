@@ -63,6 +63,20 @@
     return { ...a, checkins: (a.checkins || []).map((c) => (priv.byDate[c.date] ? { ...c, ...priv.byDate[c.date] } : c)) };
   }
 
+  // Parent approvals come from the server (a parent's own login), not from the athlete's device.
+  // consents: { athleteId: { at: ms|null, name } } for athletes with a parent code. Returns true if state changed.
+  function applyConsents(state, consents, myAthleteId) {
+    const a = myAthleteId && (state.athletes || []).find((x) => x.id === myAthleteId);
+    const c = a && consents[myAthleteId];
+    if (!c) return false;
+    const g = a.guardian || { name: '', email: '', consentAt: null };
+    const at = c.at || null;
+    const name = c.name || g.name;
+    if (g.consentAt === at && g.name === name) return false;
+    a.guardian = { ...g, consentAt: at, name };
+    return true;
+  }
+
   /*
    * snapshot(state, { stubs, solo, myAthleteId, role }) -> Map key -> { coll, id, data, athlete_id, is_private, h }
    * stubs: athlete ids that are only roster cards on this device (never pushed as athletes).
@@ -184,7 +198,7 @@
     return state;
   }
 
-  const Sync = { LOCAL_ONLY, hash, snapshot, changes, localEdits, applyRows, splitAthlete, joinAthlete, canWrite, keyOf };
+  const Sync = { LOCAL_ONLY, hash, snapshot, changes, localEdits, applyRows, splitAthlete, joinAthlete, canWrite, keyOf, applyConsents };
 
   if (node) {
     module.exports = Sync;
@@ -195,7 +209,8 @@
   // ===================== browser client =====================
 
   const CFG = root.CLOUD_CONFIG || {};
-  let arriving = null; // finishing a sign-in that came back from an email link or Google
+  let arriving = null;
+  let repull = false; // run one more sync straight after this one // finishing a sign-in that came back from an email link or Google
   const STORE = 'athleteos:cloud';
   const enabled = () => !!(CFG.url && CFG.key);
   let mem = loadMem();
@@ -376,13 +391,15 @@
     mem.stubs = placeholder ? ['me'] : [];
     mem.privates = {};
     mem.owners = {};
+    mem.consents = {};
     saveMem();
   }
 
   // Upload this device's data as a new team (coach) or a personal backup (solo athlete).
-  async function createTeam(name, { solo = false, athleteId = null } = {}) {
+  async function createTeam(name, { solo = false, athleteId = null, placeholder = false } = {}) {
     const t = await http('/rest/v1/rpc/create_team', { method: 'POST', body: { team_name: name || '', is_solo: solo, my_athlete_id: athleteId } });
-    useTeam({ team_id: t.id, role: solo ? 'athlete' : 'coach', athlete_id: athleteId, teams: t });
+    // placeholder: a new coach's roster is only the app's blank 'me' athlete, which isn't uploaded.
+    useTeam({ team_id: t.id, role: solo ? 'athlete' : 'coach', athlete_id: athleteId, teams: t }, { placeholder });
     await syncNow();
     return mem.team;
   }
@@ -500,19 +517,22 @@
             mem.base[k] = after.has(k) ? after.get(k).h : 'deleted';
           }
           // Echoes of this device's own pushes change nothing, so don't redraw for them.
-          const moved = after.size !== before.size || [...after].some(([k, r]) => !before.has(k) || before.get(k).h !== r.h);
+          // Roster cards for teammates (stubs) aren't in the snapshot, so count those separately.
+          const moved = after.size !== before.size || [...after].some(([k, r]) => !before.has(k) || before.get(k).h !== r.h) || take.some((r) => r.coll === 'roster' && c.stubs.has(r.id));
           if (moved) hooks.setState(state);
         }
         mem.cursor = cursor || mem.cursor;
-        // 2. push (held while the app says so, e.g. an under-18 athlete waiting on parent consent)
+        await refreshConsents();
+        // 2. push. While the app holds (an under-18 athlete waiting on a parent), only the roster card goes,
+        // so coaches see who joined but none of their data.
         state = hooks.getState();
-        if (hooks.holdPush && hooks.holdPush(state)) {
-          lastSync = mem.lastSync = Date.now();
-          lastError = '';
-          return;
-        }
+        const hold = !!(hooks.holdPush && hooks.holdPush(state));
         const snap = snapshot(state, c);
-        const { upserts, deletes } = changes(snap, mem.base, c);
+        let { upserts, deletes } = changes(snap, mem.base, c);
+        if (hold) {
+          upserts = upserts.filter((r) => r.coll === 'roster');
+          deletes = [];
+        }
         const sent = await push([...upserts, ...deletes.map((d) => ({ ...d, deleted: true }))]);
         for (const r of sent) {
           const k = keyOf(r.coll, r.id);
@@ -528,11 +548,48 @@
         saveMem();
         busy = null;
         notify();
+        if (repull) {
+          repull = false;
+          setTimeout(syncNow, 0);
+        }
       }
     })();
     notify();
     return busy;
   }
+
+  // ---------- parents ----------
+
+  async function refreshConsents() {
+    if (!mem.team || mem.team.solo) return;
+    const rows = await http('/rest/v1/rpc/consents', { method: 'POST', body: { t: mem.team.id } }).catch(() => null);
+    if (!Array.isArray(rows)) return;
+    const before = mem.consents || {};
+    mem.consents = Object.fromEntries(rows.map((r) => [r.athlete_id, { at: r.consent_at ? Date.parse(r.consent_at) : null, name: r.guardian_name || '' }]));
+    if (mem.team.role !== 'athlete') {
+      if (JSON.stringify(before) !== JSON.stringify(mem.consents)) hooks.setState(hooks.getState());
+      // A parent just approved: the athlete's older records were hidden from this coach, so pull everything again.
+      if (Object.entries(mem.consents).some(([id, c]) => c.at && before[id] && !before[id].at)) {
+        mem.cursor = null;
+        repull = true;
+      }
+      return;
+    }
+    const state = hooks.getState();
+    if (applyConsents(state, mem.consents, mem.team.athleteId)) hooks.setState(state);
+  }
+  // An athlete's parent code (made on first ask). Coaches can't read the athlete's data until a parent approves.
+  async function guardianCode() {
+    const c = await http('/rest/v1/rpc/guardian_code', { method: 'POST', body: { t: mem.team.id } });
+    mem.consents = { ...(mem.consents || {}), [mem.team.athleteId]: (mem.consents || {})[mem.team.athleteId] || { at: null, name: '' } };
+    saveMem();
+    return c;
+  }
+  const guardianLookup = (code) => http('/rest/v1/rpc/guardian_lookup', { method: 'POST', body: { c: code } }).then((r) => (Array.isArray(r) ? r[0] : r) || null);
+  const guardianSet = (code, agree, name = '') => http('/rest/v1/rpc/guardian_set', { method: 'POST', body: { c: code, agree, gname: name } });
+  const myChildren = () => (mem.auth ? http('/rest/v1/rpc/my_children', { method: 'POST', body: {} }) : Promise.resolve([]));
+  // Whether an athlete has a parent code that isn't approved yet (what coaches see as "waiting on a parent").
+  const awaitingParent = (athleteId) => !!(mem.consents && mem.consents[athleteId] && !mem.consents[athleteId].at);
 
   // Called after every local save: push a couple of seconds later.
   function changed() {
@@ -561,5 +618,5 @@
     return { baseURL: CFG.url + '/functions/v1/claude', token: mem.auth.access_token, team: mem.team.id, key: CFG.key };
   }
 
-  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, signOut, resetPassword, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
+  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
 })(typeof window !== 'undefined' ? window : globalThis);

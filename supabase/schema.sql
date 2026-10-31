@@ -50,6 +50,19 @@ create table if not exists public.athlete_invites (
   unique (team_id, athlete_id)
 );
 
+-- Parent / guardian approval for athletes under 18. The athlete gets a code; a parent signs in with
+-- their own account and approves. Until then coaches can't read that athlete's records.
+create table if not exists public.guardian_links (
+  team_id uuid not null references public.teams on delete cascade,
+  athlete_id text not null,
+  code text unique not null default upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 8)),
+  guardian uuid references auth.users on delete set null,
+  guardian_name text not null default '',
+  consent_at timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (team_id, athlete_id)
+);
+
 -- Claude requests per team per day (written by the claude edge function).
 create table if not exists public.ai_usage (
   team_id uuid not null references public.teams on delete cascade,
@@ -150,6 +163,64 @@ begin
   return r;
 end $$;
 
+-- ---------- parents ----------
+
+-- True while an under-18 athlete is waiting on a parent's approval.
+create or replace function public.awaiting_parent(t uuid, a text) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from guardian_links g where g.team_id = t and g.athlete_id = a and g.consent_at is null)
+$$;
+
+-- The athlete asks for their parent code (made once, then reused).
+create or replace function public.guardian_code(t uuid) returns text language plpgsql security definer set search_path = public as $$
+declare a text := my_athlete(t); c text;
+begin
+  if a is null or my_role(t) is distinct from 'athlete' then raise exception 'Join your team as an athlete first'; end if;
+  insert into guardian_links (team_id, athlete_id) values (t, a) on conflict (team_id, athlete_id) do nothing;
+  select code into c from guardian_links where team_id = t and athlete_id = a;
+  return c;
+end $$;
+
+-- What a parent sees before approving: the athlete's name and team.
+create or replace function public.guardian_lookup(c text) returns table (code text, team_name text, athlete_name text, consent_at timestamptz, mine boolean)
+language sql stable security definer set search_path = public as $$
+  select g.code, t.name, coalesce(r.data->>'name', ''), g.consent_at, g.guardian = auth.uid()
+  from guardian_links g join teams t on t.id = g.team_id
+  left join records r on r.team_id = g.team_id and r.coll = 'roster' and r.id = g.athlete_id
+  where g.code = upper(trim(c)) and auth.uid() is not null
+$$;
+
+-- A parent approves (agree = true) or withdraws (agree = false).
+create or replace function public.guardian_set(c text, agree boolean, gname text default '') returns void language plpgsql security definer set search_path = public as $$
+declare g guardian_links;
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  select * into g from guardian_links where code = upper(trim(c));
+  if not found then raise exception 'That parent code didn''t match'; end if;
+  if g.guardian is not null and g.guardian <> auth.uid() then raise exception 'Another parent already manages this athlete'; end if;
+  if g.athlete_id = my_athlete(g.team_id) then raise exception 'A parent or guardian has to approve this from their own account'; end if;
+  update guardian_links set guardian = auth.uid(), guardian_name = coalesce(nullif(trim(gname), ''), guardian_name),
+    consent_at = case when agree then now() else null end
+  where team_id = g.team_id and athlete_id = g.athlete_id;
+end $$;
+
+-- Approval status: coaches see the whole team, an athlete sees their own.
+create or replace function public.consents(t uuid) returns table (athlete_id text, consent_at timestamptz, guardian_name text)
+language sql stable security definer set search_path = public as $$
+  select g.athlete_id, g.consent_at, g.guardian_name from guardian_links g
+  where g.team_id = t and (my_role(t) = 'coach' or g.athlete_id = my_athlete(t))
+$$;
+
+-- A parent's own list.
+create or replace function public.my_children() returns table (code text, team_name text, athlete_name text, consent_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select g.code, t.name, coalesce(r.data->>'name', ''), g.consent_at
+  from guardian_links g join teams t on t.id = g.team_id
+  left join records r on r.team_id = g.team_id and r.coll = 'roster' and r.id = g.athlete_id
+  where g.guardian = auth.uid()
+$$;
+
+grant execute on function public.guardian_code(uuid), public.guardian_lookup(text), public.guardian_set(text, boolean, text), public.consents(uuid), public.my_children() to authenticated;
+
 -- ---------- row-level security ----------
 
 alter table public.teams enable row level security;
@@ -157,6 +228,7 @@ alter table public.team_members enable row level security;
 alter table public.records enable row level security;
 alter table public.ai_usage enable row level security;
 alter table public.athlete_invites enable row level security; -- only reachable through the functions above
+alter table public.guardian_links enable row level security;  -- likewise
 
 drop policy if exists teams_read on public.teams;
 create policy teams_read on public.teams for select using (public.my_role(id) is not null);
@@ -170,12 +242,13 @@ create policy members_leave on public.team_members for delete using (user_id = a
 
 -- Who can see a record:
 --   private records: only the login that wrote them
---   coaches: everything else in the team
+--   coaches: everything else in the team, except an under-18 athlete's own data (profile, check-ins,
+--            workouts, videos, injuries) until a parent approves
 --   athletes: team-wide records (no athlete_id) and their own athlete's records, never teammates'
 drop policy if exists records_read on public.records;
 create policy records_read on public.records for select using (
   case when is_private then owner = auth.uid()
-       else public.my_role(team_id) = 'coach'
+       else (public.my_role(team_id) = 'coach' and (athlete_id is null or coll not in ('athletes', 'videos', 'analyses', 'injuries') or not public.awaiting_parent(team_id, athlete_id)))
          or (public.my_role(team_id) = 'athlete' and (athlete_id is null or athlete_id = public.my_athlete(team_id)))
   end
 );

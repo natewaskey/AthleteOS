@@ -143,3 +143,15 @@ test('a local edit not yet pushed survives a pull', () => {
   sync(a, srv);
   assert.equal(a.state.templates.find((t) => t.id === id).name, 'From B', 'last write wins');
 });
+
+test('parent approval comes from the server, not the athlete device', () => {
+  const state = C.migrate({ ...C.emptyState(), athletes: [{ id: 'ann', name: 'Ann', birthdate: '2012-01-01', guardian: { name: '', email: '', consentAt: 123 } }] });
+  // Pending on the server undoes a box ticked on the athlete's phone.
+  assert.equal(S.applyConsents(state, { ann: { at: null, name: '' } }, 'ann'), true);
+  assert.equal(state.athletes[0].guardian.consentAt, null);
+  assert.equal(S.applyConsents(state, { ann: { at: 456, name: 'Pat' } }, 'ann'), true);
+  assert.deepEqual([state.athletes[0].guardian.consentAt, state.athletes[0].guardian.name], [456, 'Pat']);
+  assert.equal(S.applyConsents(state, { ann: { at: 456, name: 'Pat' } }, 'ann'), false);
+  // No parent code yet: nothing to apply.
+  assert.equal(S.applyConsents(state, {}, 'ann'), false);
+});

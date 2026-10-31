@@ -10,6 +10,7 @@
   let busy = false;
   let invites = {}; // athleteId -> code, shown after a coach asks for one
   let logins = null;
+  let loginsAt = 0;
   const Cloud = () => root.Cloud;
   const C = () => root.Core;
   const esc = (s) => ctx.esc(s);
@@ -205,10 +206,12 @@
         .catch((e) => ctx.toast(e.message));
       return `<div class="welcome"><p class="muted">Checking your account…</p></div>`;
     }
+    if (review) return reviewScreen();
     const first = (st.name || '').split(' ')[0];
     return `<div class="welcome">
       <h1 class="page-title">${first ? `Welcome, ${esc(first)}` : 'You’re signed in'}</h1>
-      <p class="muted">How will you use AthleteOS? · ${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
+      <p class="muted">${children && children.length ? 'Manage sharing for your athletes below.' : 'How will you use AthleteOS?'} · ${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
+      ${parentSection()}
       ${teams.length > 1 ? `<div class="row" style="justify-content:center;margin:1rem 0">${teams.map((m, k) => `<button class="btn btn-primary" data-cloud="resume" data-k="${k}">Open ${esc((m.teams && m.teams.name) || (m.teams && m.teams.solo ? 'my training' : 'team'))} (${m.role})</button>`).join('')}</div>` : ''}
       <div class="mode-grid">
         <div class="mode-card primary">
@@ -228,6 +231,14 @@
         <button class="mode-card" data-cloud="start-solo" ${busy ? 'disabled' : ''}>
           <span class="mode-icon">🏃</span><strong>I train on my own</strong>
           <span>No coach needed. Your training is backed up and on every device you sign in to.</span></button>
+        <div class="mode-card">
+          <span class="mode-icon">👪</span><strong>I’m a parent</strong>
+          <span>Approve sharing for your athlete. Enter the parent code from their app.</span>
+          <form data-cloud-form="parent-code" class="row" style="flex-wrap:nowrap;margin-top:.4rem">
+            <input name="code" placeholder="Parent code" autocapitalize="characters" maxlength="12" required style="flex:1;min-width:0;font:inherit" aria-label="Parent code"/>
+            <button class="btn" type="submit" ${busy ? 'disabled' : ''}>Next</button>
+          </form>
+        </div>
       </div>
     </div>`;
   }
@@ -239,12 +250,15 @@
     return uid ? (state.staff || []).find((x) => x.userId === uid) : null;
   };
 
-  // A coach on a synced team who isn't on the staff list yet finishes joining before anything else.
+  // Just joined a synced team: a coach adds themselves to the staff list, an athlete adds their birthday
+  // (and gets a parent code if they're under 18). Nothing else shows until that's done.
   function gate() {
     if (!Cloud() || !Cloud().enabled()) return '';
     const t = Cloud().team();
     const s = ctx.state();
-    if (!t || t.solo || t.role !== 'coach' || s.mode == null || !s.team.onboarded || myStaff(s)) return '';
+    if (!t || t.solo || s.mode == null) return '';
+    if (t.role === 'athlete') return athleteGate(t, s);
+    if (t.role !== 'coach' || !s.team.onboarded || myStaff(s)) return '';
     const open = (s.staff || []).filter((x) => !x.userId);
     const name = Cloud().status().name || '';
     return `<div class="welcome" style="max-width:620px">
@@ -270,28 +284,149 @@
     </div>`;
   }
 
-  // Next steps for a coach whose team is online, on the team page until they hide it.
-  const HIDE_STEPS = 'athleteos:coach-steps-hidden';
-  function coachSteps() {
-    if (!Cloud() || !Cloud().enabled()) return '';
-    const t = Cloud().team();
-    if (!t || t.solo || t.role !== 'coach') return '';
+  let parentCode = null; // this athlete's parent code, once fetched
+  const LATER = 'athleteos:parent-later';
+  function minorWaiting(a) {
+    const age = C().ageOn(a, C().toISODate(new Date()));
+    return age != null && age < 18 && !a.guardian.consentAt;
+  }
+
+  function athleteGate(t, s) {
+    if (!t.athleteId) return '';
+    const a = s.athletes.find((x) => x.id === t.athleteId);
+    if (!a) return '';
+    if (!a.birthdate) {
+      return `<div class="welcome" style="max-width:520px">
+        <p class="eyebrow">One last thing</p>
+        <h1 class="page-title">You’re on ${esc(t.name || s.team.name || 'the team')}</h1>
+        <p class="muted">Add your birthday and sport so training paces and targets fit you. If you’re under 18, a parent approves sharing next.</p>
+        <form data-cloud-form="about-me" class="card" style="text-align:left;display:grid;gap:.8rem">
+          <label>Birthday <input type="date" name="birthdate" required max="${C().toISODate(new Date())}"/></label>
+          <label>Sport <select name="sport">${ctx.sportOptions(a.sport || 'football')}</select></label>
+          <button class="btn btn-primary btn-block" type="submit">Continue</button>
+        </form>
+      </div>`;
+    }
+    let later = false;
     try {
-      if (localStorage.getItem(HIDE_STEPS) === t.id) return '';
+      later = localStorage.getItem(LATER) === a.id;
     } catch {}
-    const s = ctx.state();
-    const linked = new Set((logins || []).filter((l) => l.athlete_id).map((l) => l.athlete_id));
-    const waiting = s.athletes.filter((a) => a.name && !linked.has(a.id)).length;
-    if (!logins) Cloud().logins().then((l) => ((logins = l || []), ctx.render()), () => {});
-    return `<section class="card span-12 coach-steps">
-      <div class="card-head"><h3>🚀 Get your team on AthleteOS</h3><button class="btn btn-ghost btn-sm" data-cloud="hide-steps">Hide</button></div>
-      <ol class="steps">
-        <li><strong>Athletes:</strong> they create an account in the app and enter <code class="big-code">${esc(t.joinCode || '—')}</code>. They’re on your roster straight away.</li>
-        <li><strong>Other coaches:</strong> same thing with the coach code <code class="big-code">${esc(t.staffCode || '—')}</code>. They add their name and role when they join.</li>
-        ${waiting ? `<li><strong>${waiting} athlete${waiting === 1 ? ' is' : 's are'} already on your roster.</strong> Give ${waiting === 1 ? 'them a personal code' : 'each one a personal code'} in <button class="btn-link" data-cloud="go-settings">Settings › Account</button> so their history links to their login.</li>` : ''}
-        <li><strong>Build your first program</strong> with the AI program builder in Training.</li>
+    if (!minorWaiting(a) || later) return '';
+    return `<div class="welcome" style="max-width:560px">
+      <p class="eyebrow">Parent approval</p>
+      <h1 class="page-title">Ask a parent to approve</h1>
+      <p class="muted">You’re under 18, so your coaches can see your check-ins, workouts and videos only after a parent or guardian says OK. You can use the app and get your coach’s workouts right away.</p>
+      ${parentCodeBlock()}
+      <button class="btn btn-ghost" data-cloud="parent-later" data-id="${esc(a.id)}">I’ll do this later</button>
+    </div>`;
+  }
+
+  function parentCodeBlock() {
+    if (parentCode == null) {
+      parentCode = '';
+      Cloud()
+        .guardianCode()
+        .then((c) => ((parentCode = c), ctx.render()))
+        .catch((e) => ((parentCode = null), ctx.toast(e.message)));
+    }
+    return `<div class="card parent-code" style="text-align:left">
+      <p class="small muted" style="margin-top:0">Your parent code</p>
+      <div class="row" style="align-items:center"><code class="big-code" style="font-size:1.5rem">${esc(parentCode || '……')}</code><div class="spacer"></div>
+        <button class="btn btn-primary" data-cloud="share-parent" ${parentCode ? '' : 'disabled'}>Send to parent</button></div>
+      <ol class="small" style="margin:.8rem 0 0;padding-left:1.1rem;line-height:1.6">
+        <li>Your parent opens <strong>${esc(location.host + location.pathname)}</strong> on their phone.</li>
+        <li>They create a free account and tap <strong>I’m a parent</strong>.</li>
+        <li>They enter your code and approve. You’ll see it here.</li>
       </ol>
-    </section>`;
+    </div>`;
+  }
+
+  // Settings card for an athlete on a synced team ('' when the old on-device card applies).
+  function guardianCard(a) {
+    const t = Cloud() && Cloud().enabled() && Cloud().team();
+    if (!t || t.solo || t.role !== 'athlete' || t.athleteId !== a.id) return '';
+    const age = C().ageOn(a, C().toISODate(new Date()));
+    const head = (pill) => `<div class="card-head"><h3>Parent / guardian</h3>${pill || ''}</div>`;
+    if (age == null) return `<section class="card span-6">${head()}<p class="muted" style="margin-top:0">Add your date of birth above. Athletes under 18 need a parent to approve sharing with coaches.</p></section>`;
+    if (age >= 18) return `<section class="card span-6">${head()}<p class="muted" style="margin:0">You’re 18 or older, so no parent approval is needed.</p></section>`;
+    const g = a.guardian;
+    if (g.consentAt) {
+      return `<section class="card span-6">${head('<span class="pill good">Approved</span>')}
+        <p style="margin-top:0">${esc(g.name || 'Your parent')} approved sharing on ${esc(new Date(g.consentAt).toLocaleDateString())}. Your coaches can see your training.</p>
+        <p class="hint">Only your parent can withdraw this, from their own account.</p></section>`;
+    }
+    return `<section class="card span-6">${head('<span class="pill warn">Waiting on a parent</span>')}
+      <p class="muted" style="margin-top:0">Until a parent approves, your coaches can’t see your check-ins, workouts or videos. You still get their workouts and messages.</p>
+      ${parentCodeBlock()}</section>`;
+  }
+
+  // ---------- parents (signed in, no team of their own) ----------
+
+  let children = null; // athletes this parent manages
+  let review = null; // a code being approved: { code, team_name, athlete_name, consent_at }
+
+  function parentSection() {
+    if (children == null) {
+      children = [];
+      Cloud()
+        .myChildren()
+        .then((l) => ((children = l || []), refresh()))
+        .catch(() => {});
+    }
+    if (!children.length) return '';
+    return `<div class="card parent-list" style="text-align:left;margin:1rem 0">
+      <h3 style="margin-top:0">Your athletes</h3>
+      ${children.map((c) => `<div class="row" style="align-items:center;padding:.5rem 0;border-top:1px solid var(--border)">
+          <div style="flex:1;min-width:0"><strong>${esc(c.athlete_name || 'Athlete')}</strong><div class="small muted">${esc(c.team_name || 'Team')}</div></div>
+          ${c.consent_at ? `<span class="pill good">Sharing approved</span><button class="btn btn-sm btn-ghost" data-cloud="parent-set" data-code="${esc(c.code)}" data-agree="0">Withdraw</button>` : `<span class="pill warn">Not sharing</span><button class="btn btn-sm btn-primary" data-cloud="parent-set" data-code="${esc(c.code)}" data-agree="1">Approve</button>`}
+        </div>`).join('')}
+      <p class="hint" style="margin-bottom:0">Withdrawing stops coaches seeing their check-ins, workouts and videos straight away.</p>
+    </div>`;
+  }
+
+  function reviewScreen() {
+    const st = Cloud().status();
+    const name = review.athlete_name || 'this athlete';
+    return `<div class="welcome" style="max-width:560px">
+      <p class="eyebrow">Parent approval</p>
+      <h1 class="page-title">Approve sharing for ${esc(name)}</h1>
+      <p class="muted">${esc(name)} is on <strong>${esc(review.team_name || 'a team')}</strong> in AthleteOS. With your OK, their coaching staff can see:</p>
+      <ul class="card" style="text-align:left;line-height:1.7;padding-left:2.2rem">
+        <li>Morning check-ins: sleep, energy, soreness and stress</li>
+        <li>Workouts they log and their training load</li>
+        <li>Form-check videos they share</li>
+        <li>Injuries and pain they report</li>
+      </ul>
+      <form data-cloud-form="parent-approve" class="card parent-approve" style="text-align:left;display:grid;gap:.8rem">
+        <label>Your name <input name="name" required maxlength="80" value="${esc(st.name || '')}"/></label>
+        <label class="check"><input type="checkbox" name="agree" required/> I’m ${esc(name)}’s parent or legal guardian and I agree to share this with their coaching staff. I can withdraw at any time.</label>
+        <button class="btn btn-primary btn-block" type="submit">Approve</button>
+        <button class="btn btn-ghost btn-block" type="button" data-cloud="parent-cancel">Cancel</button>
+      </form>
+    </div>`;
+  }
+
+  // Team details for the coach's getting-started card (null when not on a synced team).
+  function teamInfo() {
+    if (!Cloud() || !Cloud().enabled()) return null;
+    const t = Cloud().team();
+    if (!t || t.solo || t.role !== 'coach') return null;
+    // Who has joined: fetched now and then, so new athletes tick the first step off.
+    if (!logins || Date.now() - loginsAt > 60000) {
+      loginsAt = Date.now();
+      Cloud().logins().then((l) => {
+        const changed = JSON.stringify(l || []) !== JSON.stringify(logins);
+        logins = l || [];
+        if (changed) ctx.render();
+      }, () => {});
+    }
+    const s = ctx.state();
+    return {
+      joinCode: t.joinCode,
+      staffCode: t.staffCode,
+      joined: (logins || []).filter((l) => l.role === 'athlete' && l.athlete_id).length,
+      waitingParents: s.athletes.filter((a) => Cloud().awaitingParent(a.id)).length,
+    };
   }
 
   // Apply who this login is to the device: role, athlete and mode follow the team membership.
@@ -360,11 +495,33 @@
         ctx.toast(`Welcome, ${(st.name || 'coach').split(' ')[0]}`);
         return ctx.go('team');
       }
-      case 'hide-steps':
+      case 'parent-later':
         try {
-          localStorage.setItem(HIDE_STEPS, Cloud().team().id);
+          localStorage.setItem(LATER, el.dataset.id);
         } catch {}
         return ctx.render();
+      case 'share-parent': {
+        const url = location.origin + location.pathname;
+        const text = `Please approve my AthleteOS sharing with my coaches. Open ${url}, create an account, tap "I'm a parent" and enter my code: ${parentCode}`;
+        try {
+          if (navigator.share) await navigator.share({ title: 'AthleteOS parent approval', text });
+          else {
+            await navigator.clipboard.writeText(text);
+            ctx.toast('Copied. Paste it in a message to your parent.');
+          }
+        } catch {}
+        return;
+      }
+      case 'parent-cancel':
+        review = null;
+        return refresh();
+      case 'parent-set': {
+        const agree = el.dataset.agree === '1';
+        if (!agree && !(await root.Dialogs.confirm('Coaches stop seeing their check-ins, workouts and videos. You can approve again any time.', { title: 'Withdraw sharing?', ok: 'Withdraw' }))) return;
+        await run(() => Cloud().guardianSet(el.dataset.code, agree), agree ? 'Sharing approved' : 'Sharing withdrawn');
+        children = null;
+        return refresh();
+      }
       case 'go-settings':
         return ctx.go('settings');
       case 'skip-login':
@@ -379,6 +536,8 @@
         return ctx.render();
       case 'sign-out-now':
         teams = null;
+        children = null;
+        review = null;
         return run(() => Cloud().signOut());
       case 'start-coach':
         // The setup wizard comes next; finishing it puts the team online (onCoachSetup).
@@ -455,6 +614,33 @@
         if (t) ctx.go(ctx.firstTab());
         return;
       }
+      case 'about-me': {
+        const s = ctx.state();
+        const a = ctx.me();
+        a.birthdate = d.birthdate;
+        a.sport = d.sport || a.sport;
+        // Under 18: make the parent code before anything is uploaded, so coaches can't read it before a parent approves.
+        if (minorWaiting(a)) {
+          try {
+            parentCode = await Cloud().guardianCode();
+          } catch (e) {
+            ctx.toast(e.message);
+          }
+        }
+        ctx.save();
+        return ctx.go(ctx.firstTab());
+      }
+      case 'parent-code':
+        return run(async () => {
+          const r = await Cloud().guardianLookup(d.code);
+          if (!r) throw new Error('That parent code didn’t match. Check it with your athlete.');
+          review = r;
+        });
+      case 'parent-approve':
+        await run(() => Cloud().guardianSet(review.code, true, d.name.trim()), `Approved. ${review.athlete_name || 'Your athlete'}’s coaches can now see their training.`);
+        review = null;
+        children = null;
+        return refresh();
       case 'staff-self': {
         const s = ctx.state();
         const st = C().normalizeStaff([{ name: d.name.trim(), role: d.role, userId: Cloud().status().userId }])[0];
@@ -502,7 +688,8 @@
     if (staff && !staff.userId) staff.userId = Cloud().status().userId;
     if (Cloud().team()) return;
     const s = ctx.state();
-    const t = await run(() => Cloud().createTeam(s.team.name || 'My team'), 'Your team is online');
+    const blank = s.athletes.length === 1 && s.athletes[0].id === 'me' && !s.athletes[0].name;
+    const t = await run(() => Cloud().createTeam(s.team.name || 'My team', { placeholder: blank }), 'Your team is online');
     if (t) ctx.go('team');
   }
 
@@ -528,5 +715,5 @@
     addEventListener('pageshow', (e) => e.persisted && ctx.render());
   }
 
-  root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen, gate, coachSteps, onCoachSetup };
+  root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen, gate, teamInfo, guardianCard, onCoachSetup };
 })(window);
