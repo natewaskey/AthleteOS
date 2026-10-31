@@ -402,3 +402,6 @@ tools/accuracy.js     command-line form checker accuracy report
 - **Readiness** = sleep 35%, body-map soreness 20%, stress 15%, mood 15%, load balance 15%, minus a penalty when resting HR is more than 3 bpm above your 14-day baseline. Any area marked "pain" caps readiness at 54 ("Keep it easy").
 
 These are training guides, not medical advice.
+
+## License
+Proprietary. All rights reserved; see LICENSE. Third-party code in vendor/ keeps its own license.
