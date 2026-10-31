@@ -43,6 +43,7 @@
     const askCoach = !coach() && !ctx.solo();
     return `<h1 class="page-title">Help & FAQ</h1>
       <p class="muted" style="margin-top:0">Quick answers about training, recovery, food and how AthleteOS works.${askCoach ? ' Can’t find it? <button class="btn-link" data-tab-link="messages">Message your coach</button>.' : ''}</p>
+      ${root.Tours ? root.Tours.helpCard(ctx.role()) : ''}
       <form id="faq-search" class="faq-search" role="search" onsubmit="return false">
         <input type="search" name="q" value="${esc(query)}" placeholder="Search, e.g. sore knee, sleep, ACWR" aria-label="Search help" autocomplete="off" />
       </form>

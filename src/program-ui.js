@@ -50,7 +50,7 @@
   function knownHTML(f) {
     const known = athleteData();
     if (!known || !known.facts.length) return '';
-    const ICON = { profile: '🧍', strength: '🏋️', screen: '🧭', form: '📐', injury: '🩹', training: '📅' };
+    const ICON = { profile: '🧍', strength: '🏋️', screen: '🧭', form: '📐', injury: '🩹', training: '📅', balance: '⚖️', pain: '📈', prevention: '🛡️' };
     return `<fieldset><legend>What the builder knows about you</legend>
       <ul class="known-list">${known.facts.map((x) => `<li><span aria-hidden="true">${ICON[x.kind] || '•'}</span> ${esc(x.text)}</li>`).join('')}</ul>
       <label class="check"><input type="checkbox" name="useData" ${f.useData !== false ? 'checked' : ''}/> <span>Build around this (Claude reads all of it; injuries and screen priorities are ticked below)</span></label></fieldset>`;
@@ -386,10 +386,11 @@
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
       const extra = root.Asymmetry ? root.Asymmetry.applyToAssignments(list, ctx.athleteById, today()) : 0;
+      const bal = root.Balance && (!form || form.useData !== false) ? root.Balance.applyToAssignments(ctx.state(), list, ctx.athleteById, today()) : 0;
       const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'athlete', assignments: list });
       if (res === 'blocked') return;
       ctx.save();
-      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan${extra ? ' · extra sets on your weaker side included' : ''}`);
+      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan${extra ? ' · extra sets on your weaker side included' : ''}${bal ? ' · balance and prevention work built in' : ''}`);
       return ctx.go('plan');
     }
     if (!dialog) {
@@ -413,6 +414,7 @@
       <label>Note to athletes <input name="note" maxlength="300" placeholder="e.g. Summer strength block"/></label>
       <label class="check"><input type="checkbox" name="notify" checked/> Message athletes about it</label>
       ${asymCount ? `<label class="check"><input type="checkbox" name="asym" checked/> Add a weak-side set for athletes with a left/right gap <span class="muted small">(${asymCount} on the team)</span></label>` : ''}
+      ${root.Balance ? `<label class="check"><input type="checkbox" name="balance" checked/> Fill each athlete’s training gaps and add their prevention and prep work <span class="muted small">(from their body balance map)</span></label>` : ''}
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${root.StaffUI.assignLabel('Assign program')}</button></div>
     </form>`;
     const f = $('#program-assign-form', dialog);
@@ -428,6 +430,7 @@
       const saved = savePreview();
       const list = P.expandProgram(saved, f.start.value, ids, { coachNote: f.note.value.trim() });
       if (f.asym && f.asym.checked) Asym.applyToAssignments(list, ctx.athleteById, today());
+      if (f.balance && f.balance.checked && root.Balance) root.Balance.applyToAssignments(ctx.state(), list, ctx.athleteById, today());
       const messages = f.notify.checked ? ids.map((id) => C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` })) : [];
       const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'coach', assignments: list, messages });
       ctx.save();

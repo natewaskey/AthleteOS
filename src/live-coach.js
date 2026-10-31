@@ -187,6 +187,7 @@
       return `<div class="live-stage" id="live-stage">
             <video id="live-video" playsinline muted></video>
             <canvas id="live-overlay"></canvas>
+            <svg class="live-outline" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke-width="1.2" stroke-dasharray="3 2"><circle cx="80" cy="14" r="5"/><path d="M80 19 v28 M80 24 l-12 14 M80 24 l12 14 M80 47 l-7 30 M80 47 l7 30 M68 82 h24"/></g><text x="80" y="88" text-anchor="middle">Fit your whole body inside the outline</text></svg>
             <div class="live-hud"><div class="live-reps"><span id="live-count">0</span><small>reps</small></div><div class="live-cue" id="live-cue">${ctx.esc(cue)}</div></div>
           </div>`;
     }
@@ -232,6 +233,8 @@
         if (e.type === 'found' && (!run.engine.setup || run.engine.setup.ok)) setText('live-cue', 'Got you. Start your reps');
         if (e.type === 'setup') {
           run.setupOk = e.ok;
+          const stg = byId('live-stage');
+          if (stg) stg.classList.toggle('framed', !!e.ok);
           setText('live-cue', e.ok ? (run.engine.reps.length ? 'Camera setup looks good' : 'Camera setup looks good. Start your reps') : '📷 ' + e.text);
           if (!e.ok && e.id !== 'none' && run.spokenSetup !== e.id) (run.spokenSetup = e.id), say(e.text);
         }

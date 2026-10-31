@@ -49,12 +49,12 @@
     return list.flatMap((l) => fn(l.side, l.x));
   }
 
-  function figure(shapes, title, leftLabel, rightLabel, areas, labels, interactive) {
+  function figure(shapes, title, leftLabel, rightLabel, areas, labels, interactive, describe) {
     const Core = root.Core;
     const body = shapes
       .map(([id, tag, attrs]) => {
         const lvl = areas[id] || 0;
-        const label = `${labels[id]}: ${Core.SORENESS_LEVELS[lvl]}`;
+        const label = describe ? describe(id, lvl) : `${labels[id]}: ${Core.SORENESS_LEVELS[lvl]}`;
         const a = Object.entries(attrs)
           .map(([k, v]) => `${k}="${v}"`)
           .join(' ');
@@ -69,11 +69,12 @@
   }
 
   /* areas: { areaId: level 1-3 }. interactive adds focus/keyboard affordances. */
-  function render(areas = {}, { interactive = false } = {}) {
+  // describe(id, level) -> label text, for maps that colour something other than soreness.
+  function render(areas = {}, { interactive = false, describe = null } = {}) {
     const labels = root.Core.BODY_AREA_LABEL;
     return `<div class="bodymap">
-      ${figure(FRONT, 'Front', 'R', 'L', areas, labels, interactive)}
-      ${figure(BACK, 'Back', 'L', 'R', areas, labels, interactive)}
+      ${figure(FRONT, 'Front', 'R', 'L', areas, labels, interactive, describe)}
+      ${figure(BACK, 'Back', 'L', 'R', areas, labels, interactive, describe)}
     </div>`;
   }
 

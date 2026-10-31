@@ -25,7 +25,7 @@
   const frameCache = new Map(); // analysis id -> { frames, aspect }
   const resultCache = new Map(); // id|exercise|view -> result
   const playerTime = new Map(); // analysis id -> last time, so re-renders keep position
-  const uiState = { compareRep: null, compareMode: 'overlay', skeleton: true, ghost: true };
+  const uiState = { compareRep: null, compareMode: 'overlay', skeleton: true, ghost: true, barpath: true };
   let active = null; // { id, player, result, frames, aspect, raf }
   // Telestrator: strokes are normalised 0..1 to the video frame.
   const draw = { active: false, tool: 'line', color: '#facc15', strokes: [], current: null };
@@ -68,18 +68,42 @@
     return data;
   }
 
+  // Standing height (for real-world cm and m/s) and body-blueprint limits for the analysed athlete.
+  function athleteFor(an) {
+    return (ctx.state().athletes || []).find((a) => a.id === an.athleteId) || null;
+  }
+  function heightOf(a) {
+    if (!a) return null;
+    const g = (a.growth || []).filter((x) => x.heightCm).slice(-1)[0];
+    return (g && g.heightCm) || (a.profile && a.profile.heightCm) || null;
+  }
+
   function computeResult(an, data) {
-    const key = `${an.id}|${an.exercise}|${an.view}`;
+    const a = athleteFor(an);
+    const heightCm = heightOf(a);
+    const limits = (a && a.blueprint && a.blueprint.limits) || null;
+    const key = `${an.id}|${an.exercise}|${an.view}|${heightCm || ''}|${limits ? JSON.stringify(limits) : ''}`;
     if (resultCache.has(key)) return resultCache.get(key);
-    const result = M.analyze(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view });
+    const V = root.Vision;
+    const result = V ? V.run(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view, heightCm, limits }) : M.analyze(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view, limits });
+    delete result.preparedFrames;
     result.framesRef = data.frames.filter((f) => f && f.lm && f.lm.length >= 33);
+    if (a && !an.demo && result.L && result.view === 'side' && !result.error) rememberLengths(a, an, result.L);
     resultCache.set(key, result);
     return result;
   }
 
+  // Side-on clips feed the body blueprint (#45): segment lengths per analysis, latest 12 kept.
+  function rememberLengths(a, an, L) {
+    const list = (a.bodyLengths || []).filter((x) => x.analysisId !== an.id);
+    const r = (x) => +(+x || 0).toFixed(4);
+    list.push({ analysisId: an.id, date: new Date(an.createdAt || Date.now()).toISOString().slice(0, 10), torso: r(L.torso), thigh: r(L.thigh), shin: r(L.shin), upper: r(L.upper), fore: r(L.fore) });
+    a.bodyLengths = list.slice(-12);
+  }
+
   // Keep the stored summary (for lists and the coach's roster) in sync with the result.
   function storeSummary(an, result) {
-    const checks = (result.checks || []).filter((c) => !c.info).map((c) => ({ id: c.id, label: c.label, status: c.status, display: c.display }));
+    const checks = (result.checks || []).filter((c) => !c.info).map((c) => ({ id: c.id, label: c.label, status: c.status, display: c.display, ...(c.confidenceLevel ? { conf: c.confidenceLevel } : {}) }));
     const changed = an.score !== (result.score ?? null) || an.reps !== result.reps?.length || JSON.stringify(an.checks) !== JSON.stringify(checks);
     if (!changed) return false;
     an.score = result.error ? null : result.score ?? null;
@@ -259,6 +283,7 @@
     return `
       ${(result.warnings || []).map((w) => `<div class="banner warn">${esc(w)}</div>`).join('')}
       ${programCard(an)}
+      ${(() => { const f = firstOf(an); return f ? `<div class="row" style="margin-bottom:.5rem"><span class="muted small">First ${esc(exInfo(an.exercise).label.toLowerCase())} check: score ${f.score}</span>${ghostButton(f.id, an.id, '👻 Compare with your first check')}</div>` : ''; })()}
       <div class="grid">
         <section class="card span-7 player-card">${playerCard(an, result)}</section>
         <section class="card span-5">
@@ -271,17 +296,17 @@
           <div class="readiness">
             <div class="ring band-${scoreBand(result.score)}" style="--pct:${result.score ?? 0}"><span>${result.score ?? '–'}</span></div>
             <div><h2>${result.score >= 80 ? 'Great form' : result.score >= 60 ? 'Good, with fixes' : result.score >= 40 ? 'Needs work' : 'Let’s fix this'}</h2>
-              <p class="muted" style="margin:0">${e.gait ? `${result.cadence ? Math.round(result.cadence) + ' steps/min · ' : ''}${fmtT(result.times[result.times.length - 1] || 0)} analysed` : `${reps.length} rep${reps.length === 1 ? '' : 's'} · ${result.view}-on view`}</p>
+              <p class="muted" style="margin:0">${e.custom ? `${fmtT(result.times[result.times.length - 1] || 0)} analysed · ${result.view}-on view` : e.gait ? `${result.cadence ? Math.round(result.cadence) + ' steps/min · ' : ''}${fmtT(result.times[result.times.length - 1] || 0)} analysed` : `${reps.length} rep${reps.length === 1 ? '' : 's'} · ${result.view}-on view`}</p>
               ${result.strengths && result.strengths.length ? `<p class="small" style="margin:.4rem 0 0">✅ ${esc(result.strengths.slice(0, 3).join(', '))}</p>` : ''}</div>
           </div>
         </section>
         <section class="card span-8">
-          <div class="card-head"><h3>Checks</h3><span class="muted small">${e.gait ? 'Across the whole clip' : 'Median across reps'}</span></div>
+          <div class="card-head"><h3>Checks</h3><span class="muted small">${e.gait || e.custom ? 'Across the whole clip' : 'Median across reps'}${result.confidenceLevel ? ` · ${esc(result.confidenceLevel)} confidence overall` : ''}${root.Explain ? root.Explain.btn('confidence') : ''}</span></div>
           <ul class="list checks">${result.checks
             .map(
               (c) => `<li>${statusDot(c.info ? 'info' : c.status)}
-              <div class="main"><strong>${esc(c.label)}</strong> <span class="muted">· ${esc(c.display || '')}</span>
-                <div class="muted small">Target: ${esc(c.target || '')}${c.reps > 1 && c.off ? ` · ${c.off} of ${c.reps} reps off` : ''}</div></div></li>`
+              <div class="main"><strong>${esc(c.label)}</strong>${root.Explain ? root.Explain.btn(`${an.exercise}.${c.id}`) : ''} <span class="muted">· ${esc(c.display || '')}</span>${confBadge(c)}
+                <div class="muted small">Target: ${esc(c.target || '')}${c.reps > 1 && c.off ? ` · ${c.off} of ${c.reps} reps off` : ''}${c.downgraded ? ' · Looked off, but the camera view was unclear. Film again to confirm.' : ''}</div></div></li>`
             )
             .join('')}</ul>
         </section>
@@ -291,21 +316,70 @@
           <div id="form-chart">${chartSVG(result)}</div>
           ${reps.length ? `<div class="rep-strip">${reps.map((r) => `<button class="rep-btn ${repStatus(r)}" data-form-action="rep" data-rep="${r.n}" aria-pressed="${compareRep && compareRep.n === r.n}">Rep ${r.n}<small>${r.score ?? '–'}</small></button>`).join('')}</div>` : ''}
           ${velocityHTML(result)}
+          ${barPathHTML(result)}
         </section>
+        ${twoAngleCard(an, result)}
 
         ${suggestionsCard(an, result)}
         ${discussionCards(an, result)}
       </div>`;
   }
 
+  function confBadge(c) {
+    if (!c.confidenceLevel || c.info) return '';
+    const why = c.confidenceWhy && c.confidenceWhy.length ? `: ${c.confidenceWhy.join(', ')}` : '';
+    return ` <span class="conf conf-${c.confidenceLevel}" title="${esc(`How sure the camera is${why}`)}">${c.confidenceLevel === 'high' ? 'sure' : c.confidenceLevel === 'medium' ? 'fairly sure' : 'unsure'}</span>`;
+  }
+
+  function barPathHTML(result) {
+    const bp = result.barPath;
+    if (!bp) return '';
+    const unit = (cm, rel) => (cm != null ? `${cm} cm` : `${Math.round(rel * 100)}% of leg length`);
+    const lim = 0.08;
+    return `<div class="small" style="margin-top:.6rem"><strong>Bar path</strong>${root.Explain ? root.Explain.btn('barpath') : ''} <span class="muted">· estimated from your ${bp.point === 'sh' ? 'shoulders' : 'hands'}. Turn on the bar path toggle above the video to see it.</span>
+      <div class="muted">Sideways drift: ${unit(bp.driftCm, bp.drift)} per rep (${bp.drift <= lim ? 'straight, good' : 'drifts, keep it over mid-foot'})${result.calibration ? '' : ' · add your height in your profile to see centimetres'}</div></div>`;
+  }
+
+  // Two-angle combine (#61): a side-on and a front-on clip of the same lift within 3 days.
+  function partnerFor(an) {
+    const other = an.view === 'front' ? 'side' : 'front';
+    return analyses()
+      .filter((x) => x.id !== an.id && x.athleteId === an.athleteId && x.exercise === an.exercise && x.view === other && Math.abs((x.createdAt || 0) - (an.createdAt || 0)) < 3 * 864e5)
+      .sort((a, b) => Math.abs(a.createdAt - an.createdAt) - Math.abs(b.createdAt - an.createdAt))[0] || null;
+  }
+
+  function twoAngleCard(an, result) {
+    const V = root.Vision;
+    const e = exInfo(an.exercise);
+    if (!V || e.gait || e.custom || result.error) return '';
+    const p = partnerFor(an);
+    if (!p) {
+      if (an.view === 'auto' || !e.views || e.views.length < 2) return '';
+      return `<section class="card span-12"><div class="card-head"><h3>Add a second angle</h3></div>
+        <p class="muted small" style="margin:0">Film the same lift from the ${an.view === 'front' ? 'side' : 'front'} too. Side-on measures depth, lean and bar path; front-on measures knees caving in and shifting. Together you get one full report.</p></section>`;
+    }
+    const pd = frameCache.get(p.id);
+    if (!pd) {
+      loadFrames(p).then(() => ctx.render()).catch(() => {});
+      return '';
+    }
+    const c = V.combine(result, computeResult(p, pd));
+    if (!c) return '';
+    return `<section class="card span-12"><div class="card-head"><h3>Both angles together · ${c.score ?? '–'}</h3><button class="btn btn-sm btn-ghost" data-form-open="${p.id}">Open the ${esc(p.view)} clip</button></div>
+      <p class="muted small" style="margin:0 0 .5rem">Each check comes from the angle that sees it best: ${c.fromSide} from the side, ${c.fromFront} from the front.</p>
+      <ul class="list checks">${c.checks.filter((x) => !x.info).map((x) => `<li>${statusDot(x.status)}<div class="main"><strong>${esc(x.label)}</strong> <span class="muted">· ${esc(x.display || '')} · ${esc(x.from)}</span></div></li>`).join('')}</ul></section>`;
+  }
+
   function velocityHTML(result) {
     const v = (result.checks || []).find((c) => c.id === 'velocity');
     if (!v || !v.series) return '';
     const max = Math.max(...v.series.filter((x) => x != null));
-    return `<div class="velocity"><div class="small"><strong>Rep speed</strong> <span class="muted">· how fast each rep came up (relative)</span></div>
+    const ms = (result.reps || []).map((r) => r.speedMs).filter((x) => x != null);
+    return `<div class="velocity"><div class="small"><strong>Rep speed</strong>${root.Explain ? root.Explain.btn('velocity') : ''} <span class="muted">· ${ms.length ? `about ${Math.max(...ms).toFixed(2)} m/s on the fastest rep (from your height; a bar-speed sensor is more exact)` : 'how fast each rep came up (relative)'}</span></div>
       <div class="vel-bars">${v.series.map((x, i) => {
         const pct = x == null || !max ? 0 : Math.round((x / max) * 100);
-        return `<div class="vel-bar ${pct < 75 ? 'bad' : pct < 85 ? 'warn' : ''}" title="Rep ${i + 1}: ${pct}% of fastest"><i style="height:${pct}%"></i><span>${i + 1}</span></div>`;
+        const sp = result.reps && result.reps[i] && result.reps[i].speedMs;
+        return `<div class="vel-bar ${pct < 75 ? 'bad' : pct < 85 ? 'warn' : ''}" title="Rep ${i + 1}: ${pct}% of fastest${sp ? ` · ${sp} m/s` : ''}"><i style="height:${pct}%"></i><span>${i + 1}</span></div>`;
       }).join('')}</div></div>`;
   }
 
@@ -321,6 +395,7 @@
         </div>
         <label class="check"><input type="checkbox" data-form-toggle="skeleton" ${uiState.skeleton ? 'checked' : ''}/> Skeleton</label>
         <label class="check"><input type="checkbox" data-form-toggle="ghost" ${uiState.ghost ? 'checked' : ''}/> Target ghost</label>
+        ${result && result.barPath ? `<label class="check"><input type="checkbox" data-form-toggle="barpath" ${uiState.barpath ? 'checked' : ''}/> Bar path</label>` : ''}
         <button class="btn btn-sm" data-form-action="draw" aria-pressed="${!!draw.active}">✏️ Draw</button>
         <div class="spacer"></div>
         <span class="muted small" id="form-time">0:00</span>
@@ -660,8 +735,9 @@
       }
       // Live angle label at the joint the chart tracks.
       const val = result.series[i];
-      const lab = { squat: 'kn', lunge: 'kn', bss: 'kn', deadlift: 'hip', rdl: 'hip', running: 'kn' }[result.exercise] || 'el';
-      if (val != null && J[lab] && J[lab].v >= 0.45) {
+      const lab = { squat: 'kn', lunge: 'kn', bss: 'kn', deadlift: 'hip', rdl: 'hip', running: 'kn', hipthrust: 'hip', sprintstart: 'sh' }[result.exercise] || 'el';
+      const degrees = !['clean', 'cut', 'landing'].includes(result.exercise) && !(result.view === 'front' && ['squat', 'bss'].includes(result.exercise));
+      if (degrees && val != null && J[lab] && J[lab].v >= 0.45) {
         const p = P(J[lab]);
         g.font = `600 ${Math.round(lw * 4)}px system-ui, sans-serif`;
         const txt = `${Math.round(val)}°`;
@@ -671,6 +747,22 @@
         g.fillStyle = '#fff';
         g.fillText(txt, p.x + lw * 3, p.y);
       }
+    }
+    // Bar path so far in the current rep (or the last 2 s).
+    if (uiState.barpath && result.barPath && result.barPath.path) {
+      const from = rep ? rep.start : Math.max(0, i - 30);
+      g.strokeStyle = '#22d3ee';
+      g.lineWidth = lw * 0.8;
+      g.beginPath();
+      let started = false;
+      for (let k = from; k <= i; k++) {
+        const q = result.barPath.path[k];
+        if (!q) continue;
+        const x = q[0] * w, y = q[1] * h;
+        if (!started) (g.moveTo(x, y), (started = true));
+        else g.lineTo(x, y);
+      }
+      g.stroke();
     }
     // Drawings: saved ones near their timestamp, plus the one being made.
     const an = byId(active && active.id);
@@ -902,7 +994,10 @@
       const e = M.EXERCISES[form.exercise.value];
       $('#analyze-tip', d).textContent = '📱 ' + e.tips;
       const live = root.LiveCoach && root.LiveCoach.LIVE_EXERCISES.includes(form.exercise.value);
-      $('#analyze-setup', d).innerHTML = live ? `<button type="button" class="btn btn-sm btn-ghost" data-form-action="setup-check" data-exercise="${form.exercise.value}">📷 Check your camera setup live first</button>` : '';
+      const MU = root.MobilityUI;
+      const v = (e.views || ['side'])[0];
+      const guide = MU && MU.filmDiagram ? `<details class="film-guide-wrap"${uiState.guideOpen ? ' open' : ''}><summary class="small">📐 Where to put the phone</summary><div class="film-guide">${MU.filmDiagram(v, { distance: e.custom === 'sprintstart' ? 9 : e.gait ? 6 : e.custom === 'cut' ? 6 : 3, height: ['pushup', 'bench', 'hipthrust'].includes(form.exercise.value) ? 'knee' : 'hip' })}<p class="small" style="margin:0">${esc(e.views && e.views.length > 1 ? `Best from the ${e.views[0]}. Film from the ${e.views[1]} as well and the app combines both angles into one report.` : `Film from the ${v}.`)} Put the phone on something steady, landscape, with a metre of space above your head and below your feet.</p></div></details>` : '';
+      $('#analyze-setup', d).innerHTML = guide + (live ? `<button type="button" class="btn btn-sm btn-ghost" data-form-action="setup-check" data-exercise="${form.exercise.value}">📷 Check your camera setup live first</button>` : '');
     };
     syncTip();
     form.addEventListener('change', (e) => {
@@ -992,7 +1087,112 @@
 
   // ---------- events ----------
 
+  // ---------- ghost replay (#47): then vs now ----------
+
+  function ghostButton(oldId, newId, label = '👻 Then vs now') {
+    if (!oldId || !newId || oldId === newId) return '';
+    return `<button type="button" class="btn btn-sm btn-ghost" data-form-ghost="${esc(oldId)}:${esc(newId)}">${esc(label)}</button>`;
+  }
+
+  // Oldest analysis of the same lift, same athlete, same view, for the detail page button.
+  function firstOf(an) {
+    return analyses().filter((x) => x.id !== an.id && x.athleteId === an.athleteId && x.exercise === an.exercise && x.view === an.view && x.createdAt < an.createdAt && x.score != null).sort((a, b) => a.createdAt - b.createdAt)[0] || null;
+  }
+
+  // One rep as a list of poses, normalised: ankle at the origin, leg length = 1, facing right.
+  function repTrack(result, frames, aspect) {
+    const reps = result.reps || [];
+    const best = reps.length ? reps.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a)) : null;
+    const [from, to] = best ? [best.start, best.end] : [0, frames.length - 1];
+    const L = (result.L && result.L.leg) || 0.4;
+    const f0 = M.joints(frames[from], result.side, aspect);
+    const o = f0.an && f0.an.v >= 0.45 ? f0.an : { x: aspect / 2, y: 0.9 };
+    const flip = result.facing === -1 ? -1 : 1;
+    const out = [];
+    for (let i = from; i <= to; i++) {
+      const j = M.joints(frames[i], result.side, aspect);
+      const p = {};
+      for (const [k, q] of Object.entries(j)) if (q && q.v >= 0.45) p[k] = { x: ((q.x - o.x) * flip) / L, y: (q.y - o.y) / L };
+      out.push(p);
+    }
+    return { poses: out, score: best ? best.score : result.score, rep: best ? best.n : null };
+  }
+
+  async function openGhost(oldId, newId) {
+    const a = byId(oldId), b = byId(newId);
+    if (!a || !b || !root.Dialogs) return;
+    let ra, rb, da, db;
+    try {
+      [da, db] = await Promise.all([loadFrames(a), loadFrames(b)]);
+      ra = computeResult(a, da);
+      rb = computeResult(b, db);
+    } catch (err) {
+      return ctx.toast(err && err.message ? err.message : 'The videos for this comparison aren’t on this device.');
+    }
+    const ta = repTrack(ra, ra.framesRef, da.aspect), tb = repTrack(rb, rb.framesRef, db.aspect);
+    const when = (x) => ctx.fmtDate(C().toISODate(new Date(x.createdAt)), { month: 'short', day: 'numeric', year: 'numeric' });
+    const changes = (rb.checks || []).filter((c) => !c.info).map((c) => {
+      const old = (ra.checks || []).find((x) => x.id === c.id);
+      if (!old || old.status === c.status) return null;
+      const better = RANK[c.status] < RANK[old.status];
+      const WORD = { good: 'good', warn: 'close', bad: 'off' };
+      const same = (old.display || '') === (c.display || '');
+      return `<li class="${better ? 'good-text' : 'pain-text'}">${better ? '▲' : '▼'} ${esc(c.label)}: ${esc(same ? WORD[old.status] : old.display || WORD[old.status])} → ${esc(same ? WORD[c.status] : c.display || WORD[c.status])}</li>`;
+    }).filter(Boolean);
+    root.Dialogs.html(
+      `<h2 id="app-dialog-title">👻 ${esc(exInfo(b.exercise).label)}: then vs now</h2>
+      <div class="ghost-legend small"><span><i class="g-old"></i> ${esc(when(a))} · score ${ra.score ?? '–'}</span><span><i class="g-new"></i> ${esc(when(b))} · score ${rb.score ?? '–'}</span></div>
+      <canvas class="ghost-canvas" width="640" height="420" data-ghost-canvas></canvas>
+      <p class="hint" style="margin:.3rem 0">Best rep from each video, lined up at the feet and scaled to the same leg length, played at the same pace.</p>
+      ${changes.length ? `<ul class="small plain">${changes.join('')}</ul>` : '<p class="small muted">The checks scored the same both times.</p>'}
+      <div class="dialog-actions"><button type="button" class="btn btn-primary" data-dlg-cancel>Close</button></div>`,
+      { wide: true }
+    ).then(() => cancelAnimationFrame(ghostRaf));
+    const cv = $('[data-ghost-canvas]', root.Dialogs.el());
+    const g = cv.getContext('2d');
+    const all = [...ta.poses, ...tb.poses].flatMap((p) => Object.values(p));
+    const xs = all.map((p) => p.x), ys = all.map((p) => p.y);
+    const minX = Math.min(...xs, -0.3), maxX = Math.max(...xs, 0.6), minY = Math.min(...ys, -2.4), maxY = Math.max(...ys, 0.2);
+    const sc = Math.min((cv.width - 40) / (maxX - minX), (cv.height - 40) / (maxY - minY));
+    const offX = (cv.width - (maxX - minX) * sc) / 2;
+    const P = (p) => [offX + (p.x - minX) * sc, 20 + (p.y - minY) * sc];
+    const drawPose = (pose, color, dash) => {
+      g.strokeStyle = color;
+      g.lineWidth = 5;
+      g.lineCap = 'round';
+      g.setLineDash(dash);
+      for (const [x, y] of M.BONES) {
+        if (!pose[x] || !pose[y] || x.startsWith('o') || y.startsWith('o')) continue;
+        const p1 = P(pose[x]), p2 = P(pose[y]);
+        g.beginPath();
+        g.moveTo(...p1);
+        g.lineTo(...p2);
+        g.stroke();
+      }
+      g.setLineDash([]);
+    };
+    const t0 = performance.now();
+    const loop = () => {
+      const u = (((performance.now() - t0) / 2600) % 1);
+      g.clearRect(0, 0, cv.width, cv.height);
+      g.fillStyle = 'rgba(255,255,255,0.06)';
+      g.fillRect(0, P({ x: 0, y: 0 })[1], cv.width, 2);
+      const pick = (tr) => tr.poses[Math.min(tr.poses.length - 1, Math.floor(u * tr.poses.length))] || {};
+      drawPose(pick(ta), 'rgba(160,160,170,0.75)', [8, 7]);
+      drawPose(pick(tb), '#22c55e', []);
+      if (cv.isConnected) ghostRaf = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+  let ghostRaf = 0;
+  const C = () => ctx.C;
+
   async function onClick(e) {
+    const gh = e.target.closest('[data-form-ghost]');
+    if (gh) {
+      const [x, y] = gh.dataset.formGhost.split(':');
+      return openGhost(x, y);
+    }
     const tool = e.target.closest('[data-draw-tool]');
     if (tool) {
       draw.tool = tool.dataset.drawTool;
@@ -1187,5 +1387,5 @@
     uiState.compareRep = null;
   }
 
-  root.FormUI = { init, listView, detailView, athleteCard, messageCard, unseenCount, mount, openAnalyze, clearCaches };
+  root.FormUI = { ghostButton, openGhost, init, listView, detailView, athleteCard, messageCard, unseenCount, mount, openAnalyze, clearCaches };
 })(window);

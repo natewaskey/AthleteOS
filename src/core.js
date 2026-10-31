@@ -764,6 +764,17 @@
       meals: objList(input.meals, 2000),
       supplements: objList(input.supplements, 100),
       fvProfiles: objList(input.fvProfiles, 50), // jump force-velocity profiles (fv.js)
+      // Whole-body view: strength-ratio tests, prevention routines done, pain monitoring and report cards
+      // (prevention.js, checkup.js normalise entries as they're created).
+      ratioTests: objList(input.ratioTests, 300),
+      preventionLog: objList(input.preventionLog, 1500),
+      painLog: objList(input.painLog, 2000),
+      reportCards: objList(input.reportCards, 60),
+      healthScreen: input.healthScreen && typeof input.healthScreen === 'object' ? JSON.parse(JSON.stringify(input.healthScreen)) : null,
+      // Camera mobility tests and body blueprint (mobility.js, vision.js).
+      mobility: objList(input.mobility, 300),
+      bodyLengths: objList(input.bodyLengths, 12),
+      blueprint: input.blueprint && typeof input.blueprint === 'object' ? JSON.parse(JSON.stringify(input.blueprint)) : null,
       water: objList(input.water, 400).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date || '')),
       journal: objList(input.journal, 1000),
       mindSessions: objList(input.mindSessions, 2000),
@@ -887,7 +898,7 @@
 
   // ---------- form analyses ----------
 
-  const FORM_EXERCISES = ['squat', 'deadlift', 'rdl', 'lunge', 'bss', 'bench', 'pushup', 'ohp', 'landing', 'running'];
+  const FORM_EXERCISES = ['squat', 'deadlift', 'rdl', 'lunge', 'bss', 'bench', 'pushup', 'ohp', 'row', 'pullup', 'hipthrust', 'clean', 'landing', 'cut', 'sprintstart', 'running'];
 
   function normalizeFormComment(input) {
     return {
@@ -923,7 +934,7 @@
       duration: Number(input.duration) || 0,
       score: input.score == null ? null : Math.round(Number(input.score)),
       reps: Math.max(0, Math.round(Number(input.reps) || 0)),
-      checks: checks.slice(0, 20).map((c) => ({ id: String(c.id), label: String(c.label), status: ['good', 'warn', 'bad'].includes(c.status) ? c.status : 'good', display: String(c.display || '') })),
+      checks: checks.slice(0, 20).map((c) => ({ id: String(c.id), label: String(c.label), status: ['good', 'warn', 'bad'].includes(c.status) ? c.status : 'good', display: String(c.display || ''), ...(['high', 'medium', 'low'].includes(c.conf) ? { conf: c.conf } : {}) })),
       loadKg: input.loadKg == null || input.loadKg === '' ? null : Math.max(0, Number(input.loadKg) || 0),
       loadReps: input.loadReps == null || input.loadReps === '' ? null : Math.max(0, Math.round(Number(input.loadReps) || 0)),
       athleteNote: String(input.athleteNote || '').trim().slice(0, 1000),
@@ -977,7 +988,7 @@
     ['Leg swings', 'warmup', { s: 1, a: 10, e: 1 }],
     ['Walking lunge with rotation', 'warmup', { s: 1, a: 6, e: 1 }],
     ['Inchworm', 'warmup', { s: 1, a: 5 }],
-    ['Glute bridge', 'warmup', { s: 2, a: 10 }],
+    ['Glute bridge', 'warmup', { s: 2, a: 10 }, 'hipthrust'],
     ['Band pull-apart', 'warmup', { s: 2, a: 15 }],
     ['Jumping jacks', 'warmup', { s: 1, m: 'sec', a: 45 }],
     // corrective drills (form checks add these to warm-ups)
@@ -989,6 +1000,12 @@
     ['Split squat hold', 'warmup', { s: 2, m: 'sec', a: 20, e: 1 }],
     ['Scapular push-up', 'warmup', { s: 2, a: 10 }],
     ['Wall slide', 'warmup', { s: 2, a: 10 }],
+    // injury-prevention drills (sport prevention routines, balance gaps)
+    ['Band external rotation', 'warmup', { s: 2, a: 12, e: 1 }],
+    ['Single-leg balance', 'warmup', { s: 2, m: 'sec', a: 30, e: 1 }],
+    ['Tibialis raise', 'warmup', { s: 2, a: 15 }],
+    ['Eccentric wrist extension', 'warmup', { s: 2, a: 12, e: 1 }],
+    ['Neck isometrics', 'warmup', { s: 2, m: 'sec', a: 10 }],
     ['Ankle rocks (knee to wall)', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
     ['Couch stretch', 'mobility', { s: 2, a: 45, e: 1 }],
     ['Deep squat hold', 'mobility', { s: 2, a: 45 }],
@@ -998,15 +1015,16 @@
     ['Hip CARs', 'mobility', { s: 1, m: 'reps', a: 5, e: 1 }],
     ['Shoulder CARs', 'mobility', { s: 1, m: 'reps', a: 5, e: 1 }],
     ['Hamstring floss', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
+    ['Sleeper stretch', 'mobility', { s: 2, m: 'sec', a: 30, e: 1 }],
     ['Foam roll', 'mobility', { s: 1, a: 300 }],
     // speed & agility (distance in metres)
     ['A-skips', 'speed', { s: 3, a: 18.288 }],
     ['B-skips', 'speed', { s: 3, a: 18.288 }],
     ['High knees', 'speed', { s: 2, a: 18.288 }],
     ['Carioca', 'speed', { s: 2, a: 18.288, e: 1 }],
-    ['Acceleration sprint', 'speed', { s: 6, a: 9.144, r: 60 }],
+    ['Acceleration sprint', 'speed', { s: 6, a: 9.144, r: 60 }, 'sprintstart'],
     ['Flying sprint', 'speed', { s: 4, a: 18.288, r: 120 }],
-    ['Pro agility (5-10-5)', 'speed', { s: 4, m: 'reps', a: 1, r: 60, e: 1 }],
+    ['Pro agility (5-10-5)', 'speed', { s: 4, m: 'reps', a: 1, r: 60, e: 1 }, 'cut'],
     ['3-cone drill (L-drill)', 'speed', { s: 4, m: 'reps', a: 1, r: 60 }],
     ['T-drill', 'speed', { s: 4, m: 'reps', a: 1, r: 60 }],
     ['Agility ladder: in-in-out-out', 'speed', { s: 3, m: 'reps', a: 2, r: 30 }],
@@ -1031,8 +1049,8 @@
     ['Drop landing (stick it)', 'plyo', { s: 3, a: 4, r: 45 }],
     ['Clap push-up', 'plyo', { s: 3, a: 5, r: 60 }],
     // power
-    ['Power clean', 'power', { s: 5, a: 3, r: 150, l: 'pct', v: 70 }],
-    ['Hang clean', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 70 }],
+    ['Power clean', 'power', { s: 5, a: 3, r: 150, l: 'pct', v: 70 }, 'clean'],
+    ['Hang clean', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 70 }, 'clean'],
     ['Hang snatch', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 65 }],
     ['Clean pull', 'power', { s: 3, a: 3, r: 120, l: 'pct', v: 90 }],
     ['Kettlebell swing', 'power', { s: 3, a: 12, r: 60, l: 'weight', v: 24 }],
@@ -1051,16 +1069,16 @@
     ['Bench press', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'bench'],
     ['Incline dumbbell press', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
     ['Overhead press', 'strength', { s: 4, a: 6, r: 120, l: 'pct', v: 70 }, 'ohp'],
-    ['Pull-up', 'strength', { s: 4, a: 6, r: 90, l: 'bw' }],
-    ['Chin-up', 'strength', { s: 3, a: 8, r: 90, l: 'bw' }],
-    ['Barbell row', 'strength', { s: 4, a: 8, r: 90, l: 'rpe', v: 8 }],
-    ['Dumbbell row', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8, e: 1 }],
+    ['Pull-up', 'strength', { s: 4, a: 6, r: 90, l: 'bw' }, 'pullup'],
+    ['Chin-up', 'strength', { s: 3, a: 8, r: 90, l: 'bw' }, 'pullup'],
+    ['Barbell row', 'strength', { s: 4, a: 8, r: 90, l: 'rpe', v: 8 }, 'row'],
+    ['Dumbbell row', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8, e: 1 }, 'row'],
     ['Lat pulldown', 'strength', { s: 3, a: 10, r: 60, l: 'rpe', v: 8 }],
     ['Split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
     ['Bulgarian split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 8, e: 1 }, 'bss'],
     ['Walking lunge', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
     ['Step-up', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
-    ['Hip thrust', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
+    ['Hip thrust', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }, 'hipthrust'],
     ['Single-leg RDL', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
     ['Nordic hamstring curl', 'strength', { s: 3, a: 5, r: 90, l: 'bw' }],
     ['Copenhagen plank', 'strength', { s: 3, m: 'sec', a: 20, r: 45, l: 'bw', e: 1 }],

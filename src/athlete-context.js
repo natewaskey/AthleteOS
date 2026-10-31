@@ -83,6 +83,19 @@
       add('training', `Last 4 weeks: ${done.length} of ${recent.length} planned sessions done${rpes.length ? `, average effort RPE ${(rpes.reduce((s, x) => s + x, 0) / rpes.length).toFixed(1)}` : ''}`);
     }
 
+    // Whole-body balance: training gaps, region spikes, connected findings; pain monitoring.
+    const Balance = opt('./balance.js', 'Balance');
+    if (Balance) for (const t of Balance.contextFacts(state, athlete, todayISO)) add('balance', t);
+    const Prevention = opt('./prevention.js', 'Prevention');
+    if (Prevention) {
+      const pain = Prevention.painStatus(athlete, todayISO).filter((p) => p.level !== 'green');
+      if (pain.length) add('pain', `Pain monitoring: ${pain.map((p) => `${p.label} ${p.level === 'red' ? 'over the limit (protect it)' : 'above 3/10 (lighter loads)'}`).join('; ')}`);
+      for (const p of pain) if (p.level === 'red') avoidAreas.add(p.area);
+      const sp = Prevention.sportPlan(state, athlete, todayISO);
+      const behind = sp.routines.filter((r) => r.status !== 'ok');
+      if (behind.length && (athlete.workouts || []).length) add('prevention', `${sp.profile.label} injury prevention behind target: ${behind.map((r) => `${r.name} (${r.perWeekDone}/${r.perWeek} a week: ${r.items.join(', ')})`).join('; ')}. Build them into warm-ups.`);
+    }
+
     return { facts, avoidAreas: [...avoidAreas], restrictions: [...restrictions], focus: [...focus] };
   }
 
