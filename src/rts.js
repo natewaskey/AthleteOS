@@ -95,7 +95,7 @@
       const start = new Date(since + 'T00:00:00').getTime();
       const list = analyses.filter((a) => a.athleteId === athlete.id && a.exercise === 'landing' && a.createdAt >= start && a.score != null);
       const last = list.reduce((b, a) => (!b || a.createdAt > b.createdAt ? a : b), null);
-      if (!last) return { state: 'none', text: 'Film a jump landing screen (Train → Form check)' };
+      if (!last) return { state: 'none', text: 'Film a jump landing screen (Form check)' };
       const valgus = (last.checks || []).find((c) => c.id === 'valgus');
       const ok = last.score >= 70 && !(valgus && valgus.status === 'bad');
       return { state: ok ? 'met' : 'not', text: `Score ${last.score}${valgus ? ` · knees ${valgus.status === 'good' ? 'stable' : valgus.status === 'warn' ? 'caving a little' : 'caving in'}` : ''}`, value: last.score };

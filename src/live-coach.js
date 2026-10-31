@@ -184,7 +184,7 @@
     }
 
     function stageHTML(cue) {
-      return `<div class="live-stage" id="live-stage">
+      return `<div class="live-stage hud" id="live-stage"><span class="hud-tag">● LIVE · POSE TRACKING</span>
             <video id="live-video" playsinline muted></video>
             <canvas id="live-overlay"></canvas>
             <svg class="live-outline" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke-width="1.2" stroke-dasharray="3 2"><circle cx="80" cy="14" r="5"/><path d="M80 19 v28 M80 24 l-12 14 M80 24 l12 14 M80 47 l-7 30 M80 47 l7 30 M68 82 h24"/></g><text x="80" y="88" text-anchor="middle">Fit your whole body inside the outline</text></svg>
@@ -210,7 +210,7 @@
       const P = (p) => [ox + (mirror ? 1 - p[0] : p[0]) * vw * s, oy + p[1] * vh * s];
       g.lineWidth = Math.max(3, w / 180);
       g.lineCap = 'round';
-      g.strokeStyle = status === 'bad' ? '#ef4444' : status === 'warn' ? '#f59e0b' : '#22c55e';
+      g.strokeStyle = status === 'bad' ? '#ff4f6d' : status === 'warn' ? '#ffb547' : '#38f2ff';
       for (const [a, b] of LINKS) {
         if ((lm[a][3] ?? 1) < 0.4 || (lm[b][3] ?? 1) < 0.4) continue;
         g.beginPath();
@@ -218,7 +218,7 @@
         g.lineTo(...P(lm[b]));
         g.stroke();
       }
-      g.fillStyle = '#fff';
+      g.fillStyle = '#dff8ff';
       for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
         if ((lm[i][3] ?? 1) < 0.4) continue;
         const [x, y] = P(lm[i]);

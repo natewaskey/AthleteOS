@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#07090d" />
+    <meta name="theme-color" content="#08090b" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&display=swap" />
     <meta name="description" content="Motiq: training, readiness and communication for athletes and coaches." />
     <title>Motiq</title>
     <link rel="manifest" href="manifest.webmanifest" />
@@ -41,8 +41,9 @@
       <aside class="sidebar" aria-label="Main navigation">
         <div class="brand">
           <svg viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a2b"/><stop offset="1" stop-color="#ff2e7e"/></linearGradient></defs><path d="M4 22 L11 10 L16 18 L21 8 L28 22" /></svg>
-          <span>Mot<strong>iq</strong></span>
+          <span>Motiq</span>
         </div>
+        <div id="side-search"></div>
         <nav class="side-nav" id="tabs"></nav>
         <div class="side-foot" id="side-foot"></div>
       </aside>
@@ -50,7 +51,7 @@
         <header class="topbar">
           <div class="brand">
             <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L11 10 L16 18 L21 8 L28 22" /></svg>
-            <span>Mot<strong>iq</strong></span>
+            <span>Motiq</span>
           </div>
           <div class="topbar-controls" id="role-bar"></div>
         </header>
@@ -163,6 +164,7 @@
 
     <div id="toast" role="status" aria-live="polite"></div>
 
+    <script src="src/icons.js"></script>
     <script src="src/cloud-config.js"></script>
     <script src="src/dialogs.js"></script>
     <script src="src/explain.js"></script>
