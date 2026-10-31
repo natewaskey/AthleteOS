@@ -71,10 +71,11 @@
   }
 
   /*
-   * detect(src, { onProgress(fraction), signal }) -> { frames, width, height, aspect, duration, fps }
+   * detect(src, { onProgress(fraction), signal, fps, maxSeconds }) ->
+   * fps / maxSeconds override the sampling (jump tests want ~30 fps over a short clip). { frames, width, height, aspect, duration, fps }
    * src is an object URL (or any same-origin URL) for the video.
    */
-  async function detect(src, { onProgress = () => {}, signal } = {}) {
+  async function detect(src, { onProgress = () => {}, signal, fps: wantFps, maxSeconds = MAX_SECONDS } = {}) {
     const lm = await landmarker();
     const video = document.createElement('video');
     video.muted = true;
@@ -83,10 +84,10 @@
     video.crossOrigin = 'anonymous';
     video.src = src;
     await once(video, 'loadeddata');
-    const duration = Math.min(video.duration || 0, MAX_SECONDS);
+    const duration = Math.min(video.duration || 0, maxSeconds);
     if (!duration || !isFinite(duration)) throw new Error('Could not read the video length.');
     // Fewer samples for longer clips keeps analysis around a minute on a phone.
-    const fps = duration > 45 ? 8 : duration > 20 ? 12 : 15;
+    const fps = wantFps || (duration > 45 ? 8 : duration > 20 ? 12 : 15);
     const frames = [];
     let lastTs = -1;
     for (let t = 0; t <= duration; t += 1 / fps) {

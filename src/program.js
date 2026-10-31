@@ -547,6 +547,7 @@
       stages,
       clearedAt: Number(input.clearedAt) || null,
       createdBy: String(input.createdBy || ''),
+      rts: input.rts && typeof input.rts === 'object' ? JSON.parse(JSON.stringify(input.rts)) : null, // return-to-sport sign-offs (rts.js)
     };
   }
 
@@ -701,6 +702,7 @@
     };
     const pick = (list, used) => list.find((n) => ok(n) && !used.has(n)) || null;
     const gentle = exp === 'beginner' || goal === 'return';
+    const fv = !gentle && ['force', 'velocity'].includes(input.fv) ? input.fv : null;
     const main = gentle
       ? {
           squat: ['Goblet squat', 'Split squat', 'Step-up', 'Front squat'],
@@ -791,7 +793,14 @@
         const ol = pick(main.olympic, used);
         if (ol) add('power', [ol], loadFor(ol, { sets: scheme.sets, amount: 3, loadType: 'pct', loadValue: 70, restSec: 150 }));
       }
-      const loadExtra = { sets: scheme.sets, amount: scheme.reps, loadType: scheme.load[0], loadValue: scheme.load[1], restSec: scheme.rest };
+      let loadExtra = { sets: scheme.sets, amount: scheme.reps, loadType: scheme.load[0], loadValue: scheme.load[1], restSec: scheme.rest };
+      // Force-velocity profile: lean the main lifts toward the side of the curve that's lacking.
+      if (fv === 'force') loadExtra = { ...loadExtra, amount: Math.min(loadExtra.amount, 4), loadValue: loadExtra.loadType === 'pct' ? Math.max(loadExtra.loadValue, 85) : Math.max(loadExtra.loadValue, 8.5), restSec: Math.max(loadExtra.restSec, 180), notes: 'Heavy: force focus from your jump profile.' };
+      if (fv === 'velocity') loadExtra = { ...loadExtra, amount: Math.min(loadExtra.amount, 5), loadValue: loadExtra.loadType === 'pct' ? Math.min(loadExtra.loadValue, 70) : Math.min(loadExtra.loadValue, 7), notes: 'Lighter and fast: drive up as quickly as you can (speed focus from your jump profile).' };
+      if (fv === 'velocity' && kind !== 'upper') {
+        const fast = pick(['Jump squat', 'Med ball slam', 'Broad jump'], used);
+        if (fast) add('power', [fast], { sets: 4, amount: 5, restSec: 120, ...(fast === 'Jump squat' ? { loadType: 'rpe', loadValue: 5, notes: 'Light load (about 20–30% of your squat max). Every rep as high and fast as possible.' } : { notes: 'Max intent on every rep.' }) });
+      }
       const accExtra = { sets: scheme.acc[0], amount: scheme.acc[1], loadType: scheme.acc[2], loadValue: scheme.acc[3], restSec: 75 };
       const strength = [];
       const put = (key, group, extra, eachSide) => {
@@ -836,6 +845,8 @@
       wantsPlyo ? 'Jumps before lifting to train power.' : '',
       progression.deloadEvery ? `Loads build each week with a lighter deload every ${progression.deloadEvery}th week.` : '',
       avoid.length || restrictions.length ? 'Exercises that stress your limitations were left out.' : '',
+      fv === 'force' ? 'Your jump force-velocity profile shows a force deficit, so main lifts are heavier (fewer reps, higher loads).' : '',
+      fv === 'velocity' ? 'Your jump force-velocity profile shows a velocity deficit, so there’s extra fast, light work and main lifts are moved for speed.' : '',
     ].filter(Boolean).join(' ');
     return normalizeProgram({
       name: `${GOALS[goal]}${sport.id !== 'other' ? ` · ${sport.label}` : ''}`,
@@ -971,6 +982,7 @@
       `Season phase: ${PHASES[input.phase] || 'not specified'}`,
       `Available equipment: ${(input.equipment || []).map((e) => EQUIPMENT[e] || e).join(', ') || 'full gym'}`,
       `Focus areas: ${(input.focus || []).map((f) => FOCUS[f] || f).join(', ') || 'balanced'}`,
+      ...(input.fv === 'force' ? ['Jump force-velocity profile: force deficit. Emphasise heavy strength work (3–5 reps at 80–90%).'] : input.fv === 'velocity' ? ['Jump force-velocity profile: velocity deficit. Emphasise fast, light work (jump squats at 20–30% 1RM, ballistic throws, lighter main lifts moved fast).'] : []),
       `Injuries / areas to protect: ${(input.avoidAreas || []).map((a) => C.BODY_AREA_LABEL[a] || a).join(', ') || 'none reported'}`,
       `Restrictions: ${(input.restrictions || []).map((r) => RESTRICTIONS[r]?.label || r).join(', ') || 'none'}`,
     ];

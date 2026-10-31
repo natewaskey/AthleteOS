@@ -48,6 +48,14 @@
       a: 'One missed day is fine. Readiness, baselines and the weekly adapter work best with a check-in most days, so try to make it part of your morning routine.' },
 
     // ---------- training ----------
+    { id: 'jump-test', cat: 'training', for: 'all', q: 'How do I test my jump with my phone camera?', tags: 'jump cmj vertical rsi drop jump camera video force plate', link: ['progress', 'Open Progress'],
+      a: 'Go to **Progress → Jump testing → Test with camera**. Put the phone on a stand side-on about 3 m away with your whole body in frame, then do 3 jumps with hands on hips and land with straight legs. Height comes from flight time, like a jump mat. Slow-motion video is the most precise.' },
+    { id: 'asymmetry', cat: 'training', for: 'all', q: 'What does the left vs right card mean?', tags: 'asymmetry lsi symmetry weak side imbalance single leg hop',
+      a: 'It compares your sides from single-leg hops, single-leg camera jumps and your movement screen. The number is weaker ÷ stronger: **90% or more** is the usual goal. With a clear weaker side, programs add one extra set on that side for one-sided exercises.' },
+    { id: 'fv-profile', cat: 'training', for: 'all', q: 'What is a force-velocity profile?', tags: 'force velocity profile f0 v0 power deficit loaded jump samozino', link: ['progress', 'Open Progress'],
+      a: 'Jump at 3–5 loads and AthleteOS works out whether you lack **force** (strength) or **velocity** (speed) compared with the best profile for your power. The program builder then leans your training toward what is lacking: heavier lifts for a force deficit, faster lighter work for a velocity deficit.' },
+    { id: 'return-criteria', cat: 'training', for: 'all', q: 'How do I get cleared to return after an injury?', tags: 'return to sport play injury cleared criteria hop strength landing', link: ['health', 'Open Health'],
+      a: 'Instead of a set date, you return when you meet the criteria: pain-free for 7 days, strength and single-leg hop at 90%+ of the other side, a clean landing on camera, and your jump back to 90% of normal. A coach signs off each one, then clears you.' },
     { id: 'acwr', cat: 'training', for: 'all', q: 'What is ACWR and what number is good?', tags: 'load acute chronic ratio overtraining',
       a: 'ACWR compares your last 7 days of training load with your last 28. Between **0.8 and 1.3** is the sweet spot, 1.3 to 1.5 is caution and above 1.5 is a spike. It’s a guide, not a predictor; big sudden jumps matter most.' },
     { id: 'overtraining', cat: 'training', for: 'athlete', q: 'Am I overtraining?', tags: 'too much burnout tired load', link: ['progress', 'See my load'],
@@ -84,6 +92,8 @@
       a: 'Teen athletes need about **8 to 10 hours**, adults 7 to 9. Keep the same bedtime every night, a cool dark room and no screens for 30 minutes before bed. Sleep counts for 35% of readiness.' },
     { id: 'supplements', cat: 'fuel', for: 'all', q: 'Should I take supplements or cut weight?', tags: 'supplement creatine weight cut diet lose',
       a: 'Food first. Talk to a doctor or registered dietitian before taking supplements or trying to lose weight, especially if you’re under 18. Never cut weight fast with fasting, dehydration or sweat suits.' },
+    { id: 'supplement-check', cat: 'fuel', for: 'all', q: 'How do I know a supplement is safe to take if I get drug tested?', tags: 'supplement anti-doping drug test nsf informed sport banned wada usada', link: ['wellness', 'Open Fuel'],
+      a: 'Add it under **Wellness → Fuel → Supplements**. Only products certified by **NSF Certified for Sport** or **Informed Sport** are tested for banned substances, and even then you are responsible for what you take. Pre-workouts, fat burners and muscle builders are the riskiest. Check medicines on Global DRO.' },
 
     // ---------- mind ----------
     { id: 'nerves', cat: 'mind', for: 'all', q: 'How do I calm my nerves before competing?', tags: 'nervous anxious pressure scared choke', link: ['wellness', 'Open Mind'],
@@ -98,6 +108,8 @@
       a: 'Athletes without a check-in today are marked on the Team page. The printable **weekly coach report** (Performance) shows check-ins, compliance and missed sessions for the week.' },
     { id: 'coach-assign', cat: 'coach', for: 'coach', q: 'How do I assign a workout or program?', tags: 'assign program group workout', link: ['plan', 'Open Plan & library'],
       a: 'Build or generate it in **Plan & library**, then assign it to athletes or whole groups with a start date. You can edit or remove any assigned session later; athletes who skip one show as skipped.' },
+    { id: 'coach-prescribe', cat: 'coach', for: 'coach', q: 'Why does my program say “Submit for approval”?', tags: 'certification certified verify prescribe approval cscs atc head coach permission', link: ['approvals', 'Open Approvals'],
+      a: 'Only the head coach and staff with a **verified, current prescribing certification** can give athletes programs. Add your certification (and a photo of it) in **Settings → My certifications**; the head coach verifies it. Until then your programs go to **Training → Approvals** for the head coach or a certified coach to approve. Dietitians, sports scientists and interns always build drafts.' },
     { id: 'coach-testing', cat: 'coach', for: 'coach', q: 'How do I run testing day?', tags: 'testing combine leaderboard 1rm', link: ['performance', 'Open Testing'],
       a: 'Open **Performance → Testing** and enter results for the whole team. Results are marked coach-verified, feed leaderboards by group, and a tested 1RM drives %1RM loads.' },
     { id: 'coach-minors', cat: 'coach', for: 'coach', q: 'Why can’t I see some athletes?', tags: 'minor guardian consent hidden under 18',

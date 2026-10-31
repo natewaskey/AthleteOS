@@ -22,7 +22,7 @@
   ];
   const COACH_SECTIONS = [
     { id: 'team', label: 'Team', icon: 'users', routes: ['team'] },
-    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar']] },
+    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
@@ -67,9 +67,11 @@
   const Prof = window.ProfileUI;
   const Summary = window.SummaryUI;
   const Help = window.FAQUI;
+  const Staff = window.StaffUI;
   const Smart = window.SmartUI;
   const SM = window.Smart;
   const Sci = window.ScienceUI;
+  const JumpUI = window.JumpUI;
   const LiveCam = window.LiveCoach;
   const P = window.Platform;
 
@@ -108,10 +110,11 @@
   const me = () => athleteById(state.session.athleteId) || state.athletes[0];
   const activeStaff = () => (state.staff || []).find((x) => x.id === state.activeStaffId) || (state.staff || [])[0] || null;
   const coachName = () => (role() === 'coach' && activeStaff() && activeStaff().name) || state.coach.name || 'Coach';
-  // Credentials athletes see next to their coach (head coach, or the first certified staff member).
+  // Verified credentials athletes see next to their coach (head coach, or the first staff member with one).
+  const verifiedCerts = (st) => (st.certs || []).filter((c) => C.certStatus(c, today()).state === 'verified');
   const coachCreds = () => {
-    const st = state.staff.find((x) => x.role === 'head' && (x.certs || []).length) || state.staff.find((x) => (x.certs || []).length);
-    return st ? st.certs.filter((c) => C.certCurrent(c, today())).map(C.certLabel).join(' · ') : '';
+    const st = state.staff.find((x) => x.role === 'head' && verifiedCerts(x).length) || state.staff.find((x) => verifiedCerts(x).length);
+    return st ? verifiedCerts(st).map(C.certLabel).join(' · ') + ' ✓' : '';
   };
   const roleLabel = (st) => C.STAFF_ROLES[st.role] || st.role;
   const athleteName = (a) => a.name || 'Athlete';
@@ -357,8 +360,11 @@
       }
       <section class="card span-3"><h3>Weekly load</h3><div class="stat">${num(thisWeek.load)}<small>AU</small></div>
         <div class="muted">${weekDelta == null ? 'no data last week' : `${weekDelta >= 0 ? '▲' : '▼'} ${Math.abs(weekDelta)}% vs last week`}</div></section>
-      <section class="card span-3"><h3>Streak</h3><div class="stat">${streak}<small>${streak === 1 ? 'day' : 'days'}</small></div>
-        <div class="muted">${streak ? 'Keep it rolling' : 'Start one today'}</div></section>`;
+      ${pro()
+        ? `<section class="card span-3"><h3>Training days</h3><div class="stat">${new Set(a.workouts.filter((w) => C.daysBetween(w.date, t) < 28 && w.date <= t).map((w) => w.date)).size}<small>/ 28</small></div>
+        <div class="muted">last 4 weeks</div></section>`
+        : `<section class="card span-3"><h3>Streak</h3><div class="stat">${streak}<small>${streak === 1 ? 'day' : 'days'}</small></div>
+        <div class="muted">${streak ? 'Keep it rolling' : 'Start one today'}</div></section>`}`;
   }
 
   function trendCard(a, span = 'span-8') {
@@ -554,15 +560,16 @@
       return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Summary.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
+        ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a)}
         ${trendCard(a, 'span-8')}
         <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
-        ${Smart.partnerCard(a, { span: 'span-6' })}
+        ${pro() ? '' : Smart.partnerCard(a, { span: 'span-6' })}
         ${Screens.card(a, { span: 'span-6' })}
         <section class="card span-6"><div class="card-head"><h3>🏅 Personal records</h3><button class="btn btn-sm btn-ghost" data-tab-link="records">All records</button></div>
           <p class="muted" style="margin:0">${prs ? `${prs} records across your lifts and endurance efforts.` : 'Log lifts and timed efforts to start setting records.'}</p></section>
         <section class="card span-12 sci-cta"><div class="row"><div class="main"><strong>🔬 The science behind your numbers</strong><div class="muted small">Every score, warning and exercise choice, with the research and how strong it is.</div></div><button class="btn" data-sci="library">Open evidence library</button></div></section>
-        ${solo() ? '' : Progress.wallCard()}`);
+        ${solo() || pro() ? '' : Progress.wallCard()}`);
     },
 
     screen() {
@@ -794,38 +801,8 @@
       <p class="hint">Switching keeps all your data.</p></section>`;
   }
 
-  function certList(st, { editable = false } = {}) {
-    const t = today();
-    return (st.certs || []).length
-      ? `<div class="chips">${st.certs.map((c) => `<span class="chip ${C.certCurrent(c, t) ? 'cert' : 'cert expired'}" title="${esc(c.type === 'other' ? c.name : C.CERTIFICATIONS[c.type])}${c.number ? ' · #' + esc(c.number) : ''}${c.expires ? ' · expires ' + esc(c.expires) : ''}">🎓 ${esc(C.certLabel(c))}${C.certCurrent(c, t) ? '' : ' (expired)'}${editable ? ` <button type="button" class="chip-x" data-action="remove-cert" data-id="${c.id}" aria-label="Remove ${esc(C.certLabel(c))}">✕</button>` : ''}</span>`).join('')}</div>`
-      : '<span class="muted small">No certifications listed</span>';
-  }
-
-  function certFields({ required = false } = {}) {
-    return `<div class="grid-3">
-      <label>Certification <select name="certType" ${required ? 'required' : ''}><option value="">Choose…</option>${Object.entries(C.CERTIFICATIONS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
-      <label>Certificate / licence # <input name="certNumber" maxlength="40" placeholder="optional"/></label>
-      <label>Expires <input type="date" name="certExpires"/></label>
-    </div>
-    <label data-cert-other hidden>Name of certification <input name="certName" maxlength="80" placeholder="e.g. UEFA B Licence"/></label>`;
-  }
-
-  function certsCard() {
-    const st = activeStaff();
-    if (!st) return '';
-    return `<section class="card span-6"><div class="card-head"><h3>🎓 My certifications</h3></div>
-      <p class="muted" style="margin-top:0">Optional. Your athletes see these next to your name.</p>
-      ${certList(st, { editable: true })}
-      <form id="cert-form" style="margin-top:.75rem">${certFields({ required: true })}<button class="btn" type="submit">+ Add certification</button></form>
-      <p class="hint" style="margin-top:.6rem">Self-reported in this version. A production version would verify each one with the issuing body.</p>
-    </section>`;
-  }
-
-  function readCert(d) {
-    if (!d.certType) return null;
-    const c = C.normalizeCert({ type: d.certType, name: d.certName, number: d.certNumber, expires: d.certExpires });
-    return c.type === 'other' && !c.name ? null : c;
-  }
+  const certsCard = () => Staff.certsCard();
+  const staffCard = () => Staff.staffCard();
 
   function coachWizard() {
     const st = activeStaff() || { name: '', role: 'head' };
@@ -841,8 +818,8 @@
           <label>Team name <input name="team" value="${esc(state.team.name)}" maxlength="80" placeholder="e.g. Westview Varsity Soccer" /></label>
         </fieldset>
         <fieldset><legend>Your certification (optional)</legend>
-          <p class="hint" style="margin-top:0">Shown to your athletes next to your name. Add more later in Settings.</p>
-          ${certFields()}
+          <p class="hint" style="margin-top:0">Shown to your athletes next to your name once verified. As head coach you can verify it yourself in Settings.</p>
+          ${Staff.certFields()}
         </fieldset>
         <fieldset><legend>2 · Athletes</legend>
           <div class="grid-2">
@@ -853,30 +830,11 @@
         </fieldset>
         <fieldset><legend>3 · Staff (optional)</legend>
           <label>Other coaches, one per line as “Name, role” <textarea name="staff" rows="3" placeholder="Dana Kim, trainer&#10;Marcus Lee, strength"></textarea></label>
-          <p class="hint">Roles: head, assistant, strength, trainer. Every coach has full access.</p>
+          <p class="hint">Roles: head, assistant, strength, trainer, physio, dietitian, scientist, intern. Only the head coach and staff with a verified certification can assign programs; the others’ programs go to Training › Approvals.</p>
         </fieldset>
         <div class="row"><button class="btn btn-primary" type="submit">Finish setup</button><button class="btn btn-ghost" type="button" data-action="skip-wizard">Skip for now</button><div class="spacer"></div><button class="btn btn-ghost" type="button" data-action="load-sample">Explore the demo team</button></div>
       </form>
     </div>`;
-  }
-
-  function staffCard() {
-    return `<section class="card span-6"><div class="card-head"><h3>Coaching staff</h3>${state.team.name ? `<span class="muted small">${esc(state.team.name)}</span>` : ''}</div>
-      <ul class="list">${state.staff
-        .map(
-          (x) => `<li><div class="avatar coach">${esc(initials(x.name || 'Coach'))}</div>
-          <div class="main"><strong>${esc(x.name || 'Unnamed')}</strong>${x.id === (activeStaff() || {}).id ? ' <span class="pill info">you</span>' : ''}
-            ${certList(x)}
-            <select data-staff-role="${x.id}" aria-label="Role for ${esc(x.name)}">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === x.role ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-          ${state.staff.length > 1 && x.id !== (activeStaff() || {}).id ? `<button class="btn btn-sm btn-ghost btn-danger" data-action="remove-staff" data-id="${x.id}">Remove</button>` : ''}</li>`
-        )
-        .join('')}</ul>
-      <form id="add-staff-form" class="row" style="margin-top:.75rem;align-items:flex-end">
-          <label style="flex:1;margin:0">Name <input name="name" required maxlength="60" /></label>
-          <label style="margin:0">Role <select name="role">${Object.entries(C.STAFF_ROLES).map(([k, v]) => `<option value="${k}" ${k === 'assistant' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-          <button class="btn" type="submit">+ Add</button></form>
-      <p class="hint">Every coach on the staff has full access. Roles are labels for your athletes.</p>
-    </section>`;
   }
 
   function onboarding(a) {
@@ -915,6 +873,8 @@
       const alerts = statuses.flatMap((s) => s.flags.filter((f) => f.level !== 'info').map((f) => ({ ...f, a: s.athlete })));
       for (const x of [...Health.alerts(), ...Plan.alerts()]) if (athleteById(x.athleteId)) alerts.push({ ...x, a: athleteById(x.athleteId) });
       for (const a of state.athletes) {
+        const risky = consentLocked(a) ? [] : (a.supplements || []).filter((x) => window.Nutrition.supplementRisk(x).level === 'bad');
+        if (risky.length) alerts.push({ level: 'warn', text: `Supplement to check: ${risky.map((x) => x.name).join(', ')}`, a });
         const r = SM.injuryRisk(state, a, t);
         if (r.level !== 'low' && !consentLocked(a)) alerts.push({ level: r.level === 'high' ? 'bad' : 'warn', text: `${r.label} injury risk: ${r.factors.slice(0, 2).map((f) => f.label.toLowerCase()).join(', ')}`, a });
       }
@@ -974,6 +934,10 @@
 
     help() {
       return Help.view();
+    },
+
+    approvals() {
+      return Staff.approvalsView();
     },
 
     challenges() {
@@ -1063,6 +1027,7 @@
           ${Sci.importCard({ team: true })}
           ${certsCard()}
           ${staffCard()}
+          ${Staff.policyCard()}
           ${modeCard()}
           ${advanced(aiCard() + dataCard())}
         </div>`;
@@ -1140,6 +1105,7 @@
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
+        ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a, { span: 'span-12' })}
         <section class="card span-6">
           <div class="card-head"><h3>Body map · ${s.checkin ? 'today' : 'no check-in today'}</h3></div>
@@ -1292,10 +1258,21 @@
 
   // ---------- chrome ----------
 
+  // Pro mode hides challenges and the recruiting profile from the navigation.
+  const PRO_HIDDEN = ['challenges', 'profile'];
+  const pro = () => !!state.settings.proMode;
+  function withoutPro(list) {
+    if (!pro()) return list;
+    return list.map((x) => {
+      if (x.id === 'me') return { ...x, label: 'Settings', icon: 'gear', routes: ['settings'], sub: null };
+      const sub = x.sub && x.sub.filter(([r]) => !PRO_HIDDEN.includes(r));
+      return { ...x, routes: x.routes.filter((r) => r !== 'challenges'), sub };
+    });
+  }
   function sections() {
     if (state.mode == null) return [];
-    if (role() === 'coach') return COACH_SECTIONS;
-    return ATHLETE_SECTIONS.filter((x) => !(x.team && solo()));
+    if (role() === 'coach') return withoutPro(COACH_SECTIONS);
+    return withoutPro(ATHLETE_SECTIONS.filter((x) => !(x.team && solo())));
   }
   // [firstRoute, label] per section (kept for callers that only need the landing routes).
   const tabsFor = () => sections().map((x) => [x.routes[0], x.label]);
@@ -1308,6 +1285,7 @@
     if (sec.routes.includes('messages')) n += unread;
     if (sec.routes.includes('form')) n += Form.unseenCount();
     if (sec.routes.includes('plan') && role() !== 'coach') n += Plan.dueCount();
+    if (sec.routes.includes('approvals') && role() === 'coach') n += Staff.pendingCount();
     return n;
   }
 
@@ -1376,6 +1354,7 @@
   }
 
   function render() {
+    document.body.classList.toggle('pro', pro() && state.mode != null);
     if (state.mode == null) {
       renderChrome();
       $('#view').innerHTML = welcomeView();
@@ -1417,8 +1396,9 @@
     }
   }
 
-  function setRole(r) {
+  async function setRole(r) {
     if (solo()) return;
+    if (r === 'coach' && state.session.role !== 'coach' && !(await Staff.checkPin(activeStaff()))) return render();
     state.session.role = r === 'coach' ? 'coach' : 'athlete';
     save();
     go(firstTab());
@@ -1435,7 +1415,9 @@
 
   function prefsFields() {
     const theme = document.documentElement.dataset.theme || 'system';
-    return `<div class="grid-2">
+    // On a team the head coach sets Pro mode (in the prescribing policy card); solo athletes set it here.
+    const proField = solo() ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="proMode" ${pro() ? 'checked' : ''}/> <span><strong>Pro mode</strong>: no badges, streaks, confetti, challenges or recruiting profile. Denser, data-first screens.</span></label>` : '';
+    return `<div class="grid-2">${proField}
       <label>Units <select name="units">
         <option value="imperial" ${units() === 'imperial' ? 'selected' : ''}>Imperial (mi, lb, ft, yd)</option>
         <option value="metric" ${units() === 'metric' ? 'selected' : ''}>Metric (km, kg, m)</option></select></label>
@@ -1852,14 +1834,6 @@
         else toast(m === 'solo' ? 'Switched to training on your own' : m === 'coach' ? 'Switched to coach view' : 'Switched to team athlete');
         return go(firstTab());
       }
-      case 'remove-cert': {
-        const st = activeStaff();
-        const c = st && st.certs.find((x) => x.id === id);
-        if (!c || !(await Dialogs.confirm(`Remove ${C.certLabel(c)} from your certifications?`, { title: 'Remove certification?', ok: 'Remove', danger: true }))) return;
-        st.certs = st.certs.filter((x) => x.id !== id);
-        save();
-        return render();
-      }
       case 'skip-wizard':
         state.team.onboarded = true;
         save();
@@ -1935,22 +1909,15 @@
       save();
       render();
     } else if (t.id === 'staff-switch') {
-      state.activeStaffId = t.value;
-      save();
-      toast(`Signed in as ${coachName()}`);
-      render();
-    } else if (t.dataset && t.dataset.staffRole) {
-      const st = state.staff.find((x) => x.id === t.dataset.staffRole);
-      if (st && C.STAFF_ROLES[t.value]) {
-        if (st.role === 'head' && t.value !== 'head' && state.staff.filter((x) => x.role === 'head').length === 1) {
-          toast('The team needs at least one head coach');
-          return render();
+      const next = state.staff.find((x) => x.id === t.value);
+      Staff.checkPin(next).then((ok) => {
+        if (ok) {
+          state.activeStaffId = t.value;
+          save();
+          toast(`Signed in as ${coachName()}`);
         }
-        st.role = t.value;
-        save();
-        toast('Role updated');
         render();
-      }
+      });
     } else if (t.name === 'certType') {
       const other = t.closest('form').querySelector('[data-cert-other]');
       if (other) other.hidden = t.value !== 'other';
@@ -2013,29 +1980,13 @@
       save();
       toast(!was && d.consent ? 'Consent recorded. Your coaches can now see your data.' : was && !d.consent ? 'Consent withdrawn' : 'Saved');
       render();
-    } else if (f.id === 'cert-form') {
-      e.preventDefault();
-      const c = readCert(data());
-      if (!c) return toast('Pick a certification (and name it if you chose Other)');
-      const st = activeStaff();
-      st.certs = [...(st.certs || []), c];
-      save();
-      toast(`${C.certLabel(c)} added`);
-      render();
-    } else if (f.id === 'add-staff-form') {
-      e.preventDefault();
-      const d = data();
-      state.staff.push(C.normalizeStaff([{ name: d.name, role: d.role }])[0]);
-      save();
-      toast('Staff member added');
-      render();
     } else if (f.id === 'wizard-form') {
       e.preventDefault();
       const d = data();
       const st = activeStaff();
       st.name = d.coach.trim();
       st.role = C.STAFF_ROLES[d.role] ? d.role : 'head';
-      const cert = readCert(d);
+      const cert = Staff.readCert(d);
       if (cert) st.certs = [...(st.certs || []), cert];
       state.coach.name = st.name;
       state.team.name = d.team.trim();
@@ -2076,6 +2027,7 @@
 
   function savePrefs(d) {
     state.settings.units = C.unitSystem(d.units);
+    if (solo()) state.settings.proMode = !!d.proMode;
     save();
     applyTheme(d.theme);
     toast('Saved');
@@ -2195,12 +2147,14 @@
   const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
   Sci.init(shared);
+  JumpUI.init(shared);
   Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
   Chal.init(shared);
   Prof.init(shared);
   Summary.init(shared);
   Help.init(shared);
+  Staff.init({ ...shared, activeStaff });
   LiveCam.init(shared);
   Screens.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, fmtDate, units, openAnalyze: (o) => Form.openAnalyze(o) });
 
