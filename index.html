@@ -19,6 +19,22 @@
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
+    <script>
+      // If the app can't start (a file failed to load or crashed), show a way out instead of a blank page.
+      (function () {
+        var errs = [];
+        window.addEventListener('error', function (e) { if (e.error || (e.target && e.target.tagName === 'SCRIPT')) errs.push(e.message || (e.target && e.target.src) || 'error'); }, true);
+        setTimeout(function () {
+          if (window.__booted) return;
+          var v = document.getElementById('view');
+          if (!v) return;
+          v.innerHTML = '<div class="welcome" style="max-width:520px"><h1 class="page-title">AthleteOS didn’t start</h1>' +
+            '<p class="muted">Your data is still saved on this device. This is usually a bad connection or an update landing halfway.</p>' +
+            '<p><button class="btn btn-primary" onclick="location.reload()">Reload</button></p>' +
+            '<details><summary class="small muted">Details</summary><pre class="small" style="white-space:pre-wrap">' + (errs.join('\n') || 'Timed out while loading').replace(/</g, '&lt;') + '</pre></details></div>';
+        }, 10000);
+      })();
+    </script>
     <a class="skip-link" href="#view">Skip to content</a>
     <div class="bg-fx" aria-hidden="true"></div>
     <div class="app-shell">
@@ -213,6 +229,7 @@
     <script src="src/cloud-ui.js"></script>
     <script src="src/demo-rich.js"></script>
     <script src="src/tours.js"></script>
+    <script src="src/shell.js"></script>
     <script src="src/app.js"></script>
   </body>
 </html>

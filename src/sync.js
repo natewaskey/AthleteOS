@@ -341,6 +341,10 @@
 
   // Google: Supabase sends the person to Google and back here with the session in the URL hash.
   function signInWithGoogle() {
+    // Remember the page so the app opens there again when Google sends the person back.
+    try {
+      if (/^#[a-z]/.test(location.hash)) sessionStorage.setItem('athleteos:return', location.hash);
+    } catch {}
     location.assign(`${CFG.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo())}`);
   }
 
@@ -621,9 +625,25 @@
     notify();
   }
 
+  // Is the team's Claude server function deployed? null = not checked yet (assume yes).
+  let aiReady = null;
+  async function checkAI() {
+    if (!enabled() || !navigator.onLine) return;
+    const before = aiReady;
+    try {
+      const res = await fetch(CFG.url + '/functions/v1/claude/v1/messages', { method: 'OPTIONS' });
+      aiReady = res.ok;
+    } catch {
+      // Online but the request failed outright: the function isn't there (no CORS answer).
+      aiReady = navigator.onLine ? false : aiReady;
+    }
+    if (aiReady !== before && hooks.onAI) hooks.onAI(aiReady);
+  }
+
   function init(h) {
     hooks = { ...hooks, ...h };
     if (!enabled()) return;
+    checkAI();
     const back = captureRedirect();
     if (back) arriving = afterSignIn().catch((e) => ((lastError = e.message), notify()));
     loadProviders();
@@ -640,5 +660,5 @@
     return { baseURL: CFG.url + '/functions/v1/claude', token: mem.auth.access_token, team: mem.team.id, key: CFG.key };
   }
 
-  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
+  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled, aiAvailable: () => aiReady !== false, checkAI };
 })(typeof window !== 'undefined' ? window : globalThis);

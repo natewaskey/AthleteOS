@@ -715,6 +715,7 @@
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
+          ${window.Shell ? Shell.installCard() + Shell.reminderCard() : ''}
           ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard())}
         </div>`;
     },
@@ -1068,6 +1069,7 @@
           ${Staff.policyCard()}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
+          ${window.Shell ? Shell.installCard() : ''}
           ${advanced(aiCard() + dataCard())}
         </div>`;
     },
@@ -1135,6 +1137,7 @@
           <div class="muted">${info.icon} ${esc(info.label)}${a.position ? ' · ' + esc(a.position) : ''}</div></div>
         <div class="spacer"></div>
         <button class="btn btn-primary" data-open-thread="${a.id}">Message</button>
+        ${window.Shell ? Shell.linkButton('team/' + a.id) : ''}
       </div>
       ${s.flags.length ? `<div class="flag-row">${s.flags.map((f) => `<span class="pill ${f.level === 'bad' ? 'bad' : f.level === 'warn' ? 'warn' : 'info'}">${esc(f.text)}</span>`).join('')}</div>` : ''}
       <div class="grid">
@@ -1367,8 +1370,9 @@
       .join('');
     // Role controls live in the sidebar on desktop and the top bar on phones (rendered once to keep ids unique).
     const controls = roleControls();
-    $('#side-foot').innerHTML = isMobile() ? '' : `${logBtn}<div class="side-controls">${controls}</div>`;
-    $('#role-bar').innerHTML = isMobile() ? `<div class="top-controls">${controls}</div>${isCoach ? '' : `<button class="icon-btn primary" data-action="open-log" aria-label="Log workout">${icon('plus')}</button>`}` : '';
+    const pill = window.Shell ? Shell.syncPill() : '';
+    $('#side-foot').innerHTML = isMobile() ? '' : `${logBtn}<div class="side-controls">${controls}</div>${pill}`;
+    $('#role-bar').innerHTML = isMobile() ? `${pill}<div class="top-controls">${controls}</div>${isCoach ? '' : `<button class="icon-btn primary" data-action="open-log" aria-label="Log workout">${icon('plus')}</button>`}` : '';
     // Bottom bar (phones): four sections + More
     const primary = secs.slice(0, 4);
     const rest = secs.slice(4);
@@ -1433,6 +1437,7 @@
     Plan.mount();
     Screens.mount();
     if (window.Tours) window.Tours.maybeStart(ui.tab, role());
+    if (window.Shell) Shell.maybeInstallBanner();
     const th = $('#thread');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -1487,7 +1492,12 @@
     if (window.AI && window.AI.viaCloud()) return `<section class="card span-6"><div class="card-head"><h3>✨ Claude (AI program design)</h3><span class="pill good">Included with your team</span></div>
       <p class="muted" style="margin:0">Claude runs through your team’s account, so there’s no key to add. Teams have a daily limit.</p></section>`;
     const has = window.AI && window.AI.getKey();
-    return `<section class="card span-6"><div class="card-head"><h3>✨ Claude (AI program design)</h3>${has ? '<span class="pill good">Connected</span>' : ''}</div>
+    const cloud = window.Cloud && window.Cloud.enabled();
+    const onTeam = cloud && window.Cloud.team();
+    const note = has ? '' : onTeam
+      ? '<p class="cue small" style="margin-top:0">Claude for your team isn’t switched on yet. The account owner turns it on once in Supabase (docs/CLOUD_SETUP.md, step 3); after that nobody needs a key.</p>'
+      : cloud ? '<p class="cue small" style="margin-top:0"><strong>No key needed:</strong> sign in (Account &amp; sync above) and Claude is included with your account.</p>' : '';
+    return `<section class="card span-6"><div class="card-head"><h3>✨ Claude (AI program design)</h3>${has ? '<span class="pill good">Connected</span>' : ''}</div>${note}
       <p class="muted" style="margin-top:0">Optional. With an Anthropic API key, the program generator can use Claude (${esc(window.AI ? window.AI.MODEL : '')}) to design fully custom programs from anything you write. The built-in generator works without it.</p>
       <form id="ai-form">
         <label>Anthropic API key <input type="password" name="key" autocomplete="off" placeholder="${has ? '•••••••• saved on this device' : 'sk-ant-…'}" /></label>
@@ -1603,7 +1613,51 @@
     syncSportFields();
     syncRpeHint();
     wDialog.showModal();
+    if (!w) restoreLogDraft();
   }
+
+  // Unsaved new workout: kept on this device so a refresh or a closed tab doesn't lose it.
+  const LOG_DRAFT = 'athleteos:log-draft';
+  const DRAFT_FIELDS = ['date', 'sport', 'title', 'sessionType', 'duration', 'distance', 'elevation', 'rpe', 'notes'];
+  function saveLogDraft() {
+    if (editingId || !wDialog.open) return;
+    const d = { at: Date.now(), athleteId: me().id, f: {}, ex: [] };
+    for (const k of DRAFT_FIELDS) d.f[k] = wForm[k].value;
+    d.ex = $$('.exercise-row', wForm).map((row) => ['ex-name', 'ex-sets', 'ex-reps', 'ex-weight'].map((n) => row.querySelector(`[name="${n}"]`).value));
+    const typed = d.f.title || d.f.duration || d.f.notes || d.ex.some((r) => r[0]);
+    try {
+      if (typed) localStorage.setItem(LOG_DRAFT, JSON.stringify(d));
+    } catch {}
+  }
+  function clearLogDraft() {
+    try {
+      localStorage.removeItem(LOG_DRAFT);
+    } catch {}
+  }
+  function restoreLogDraft() {
+    let d = null;
+    try {
+      d = JSON.parse(localStorage.getItem(LOG_DRAFT) || 'null');
+    } catch {}
+    if (!d || d.athleteId !== me().id || Date.now() - d.at > 2 * 86400000) return clearLogDraft();
+    wForm.sport.value = d.f.sport || wForm.sport.value;
+    $('#exercise-rows').innerHTML = '';
+    for (const k of DRAFT_FIELDS) if (k !== 'sport' && d.f[k] != null) wForm[k].value = d.f[k];
+    clearConverted(wForm.distance);
+    clearConverted(wForm.elevation);
+    for (const r of d.ex || []) {
+      const row = exerciseRow({ name: r[0], sets: r[1], reps: r[2] });
+      row.querySelector('[name="ex-weight"]').value = r[3] || '';
+      $('#exercise-rows').append(row);
+    }
+    syncSportFields();
+    syncRpeHint();
+    toast('Picked up your unsaved workout');
+  }
+  wForm.addEventListener('input', saveLogDraft);
+  wForm.addEventListener('change', saveLogDraft);
+  // Saving or cancelling ends the draft (a page refresh doesn't close the dialog, so the draft survives that).
+  wDialog.addEventListener('close', clearLogDraft);
 
   // A prefilled but unsaved workout (from voice logging).
   function openWorkoutDraft(w) {
@@ -2187,7 +2241,7 @@
   // ---------- boot ----------
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.register('sw.js').then((reg) => window.Shell && Shell.watchUpdates(reg), () => {});
   }
 
   Form.init({
@@ -2226,6 +2280,7 @@
   Chal.init(shared);
   Prof.init(shared);
   Summary.init(shared);
+  if (window.Shell) Shell.init({ ...shared, today });
   Help.init(shared);
   Staff.init({ ...shared, activeStaff });
   LiveCam.init(shared);
@@ -2271,16 +2326,33 @@
         store();
         render();
       },
-      onStatus: () => CloudUI.refresh(),
+      // Whether Claude is switched on for the team changes what the AI buttons say.
+      onAI: () => state.mode != null && render(),
+      onStatus: () => {
+        CloudUI.refresh();
+        if (window.Shell) Shell.updateSync();
+      },
       // An under-18 athlete's own data isn't uploaded until a parent or guardian approves sharing.
       holdPush: () => !solo() && role() === 'athlete' && Cloud.team() && Cloud.team().role === 'athlete' && C.needsConsent(me(), today()),
     });
   }
 
+  // Back from Google sign-in: open the page the person started from.
+  try {
+    const back = sessionStorage.getItem('athleteos:return');
+    sessionStorage.removeItem('athleteos:return');
+    if (back && !location.hash) history.replaceState(null, '', back);
+  } catch {}
   const [initialTab, initialId] = location.hash.slice(1).split('/');
   go(initialTab || '', initialId);
+  window.__booted = true;
   // Refreshing mid-workout keeps focus mode and the rest timer where they were.
   if (state.mode != null && window.LiveUI) LiveUI.restoreFocus();
   if (state.mode != null && window.PlanUI && PlanUI.restoreRest) PlanUI.restoreRest();
+  // A workout that was being typed when the page reloaded opens again with what was entered.
+  try {
+    const d = JSON.parse(localStorage.getItem(LOG_DRAFT) || 'null');
+    if (d && state.mode != null && role() === 'athlete' && d.athleteId === me().id && !$('#focus-mode')) openWorkout(null);
+  } catch {}
   if (window.CloudUI) CloudUI.checkRecovery();
 })();
