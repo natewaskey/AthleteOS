@@ -60,6 +60,7 @@
   function suggestLoad(state, athlete, item, beforeISO) {
     if (!item || item.measure !== 'reps' || !['pct', 'weight'].includes(item.loadType)) return null;
     if (item.formFix && item.formFix.kind === 'hold') return null; // a form fix already holds the weight
+    if (/med ball|band|sled|plate/i.test(item.name)) return null; // implements that don't go up in small steps
     const last = lastPerformance(state, athlete.id, item.name, beforeISO);
     if (!last) return null;
     const rx = `${last.sets}×${last.repsTarget}`;

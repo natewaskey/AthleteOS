@@ -995,6 +995,7 @@
       `Injuries / areas to protect: ${(input.avoidAreas || []).map((a) => C.BODY_AREA_LABEL[a] || a).join(', ') || 'none reported'}`,
       `Restrictions: ${(input.restrictions || []).map((r) => RESTRICTIONS[r]?.label || r).join(', ') || 'none'}`,
     ];
+    if (Array.isArray(input.context)) lines.push(...input.context.map((l) => String(l).slice(0, 400)).slice(0, 30));
     if (input.request) lines.push('', 'In the athlete’s own words:', String(input.request).slice(0, 2000));
     lines.push('', 'Exercise library by block:', lib);
     return { system: AI_SYSTEM, user: lines.join('\n') };

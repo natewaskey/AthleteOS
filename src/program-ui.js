@@ -9,6 +9,7 @@
   let ctx, C, P;
   let form = null; // last generator inputs
   let preview = null; // program being previewed (not yet saved) or an opened saved one
+  let talk = null; // last change made by describing it: { before, changes, unknown, by }
   let previewWeek = 0;
   let busy = null; // AbortController while generating
 
@@ -19,16 +20,40 @@
   const programs = () => ctx.state().programs;
   const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  // What the app already knows about the athlete building a program (null for coaches).
+  function athleteData() {
+    const me = ctx.role() === 'athlete' ? ctx.me() : null;
+    return me && root.AthleteContext ? root.AthleteContext.build(ctx.state(), me, today()) : null;
+  }
+
   function defaults() {
     const me = ctx.role() === 'athlete' ? ctx.me() : null;
-    return {
+    const known = athleteData();
+    const base = {
       // The athlete's main goal sets the starting goal, focus areas and season phase.
       ...((me && me.focus && root.Goals && root.Goals.programDefaults(me.focus)) || { goal: 'general', focus: [], phase: 'general' }),
       sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4,
       equipment: ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'cones', 'kettlebell'], avoidAreas: [], restrictions: [], request: '', engine: 'builtin',
       // An athlete's own jump force-velocity profile steers the program unless they change it.
       fv: (me && root.FV && root.FV.bias(me, today())) || '',
+      useData: true,
     };
+    // Injuries, restrictions and screen priorities start ticked.
+    if (known) {
+      base.avoidAreas = [...new Set([...base.avoidAreas, ...known.avoidAreas])];
+      base.restrictions = [...new Set([...base.restrictions, ...known.restrictions])];
+      base.focus = [...new Set([...base.focus, ...known.focus.filter((k) => P.FOCUS[k])])];
+    }
+    return base;
+  }
+
+  function knownHTML(f) {
+    const known = athleteData();
+    if (!known || !known.facts.length) return '';
+    const ICON = { profile: '🧍', strength: '🏋️', screen: '🧭', form: '📐', injury: '🩹', training: '📅' };
+    return `<fieldset><legend>What the builder knows about you</legend>
+      <ul class="known-list">${known.facts.map((x) => `<li><span aria-hidden="true">${ICON[x.kind] || '•'}</span> ${esc(x.text)}</li>`).join('')}</ul>
+      <label class="check"><input type="checkbox" name="useData" ${f.useData !== false ? 'checked' : ''}/> <span>Build around this (Claude reads all of it; injuries and screen priorities are ticked below)</span></label></fieldset>`;
   }
 
   // ---------- list ----------
@@ -81,12 +106,13 @@
           <label>Force-velocity emphasis <select name="fv">${[['', 'Balanced'], ['force', 'Force deficit: heavier strength'], ['velocity', 'Velocity deficit: faster, lighter work']].map(([k, v]) => `<option value="${k}" ${k === (f.fv || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         </div>
         ${fvHint()}
+        ${knownHTML(f)}
         <fieldset><legend>Equipment available</legend><div class="row">${Object.entries(P.EQUIPMENT).filter(([k]) => !['none', 'field'].includes(k)).map(([k, v]) => chip('equipment', k, v, f.equipment.includes(k))).join('')}</div>
           <p class="hint" style="margin:.4rem 0 0">Bodyweight and open space (a field or park) are always assumed.</p></fieldset>
         <fieldset><legend>Extra focus</legend><div class="row">${Object.entries(P.FOCUS).map(([k, v]) => chip('focus', k, v, f.focus.includes(k))).join('')}</div></fieldset>
         <fieldset><legend>Injuries or areas to protect</legend>
-          <div class="row">${['knee-l', 'knee-r', 'shoulder-l', 'shoulder-r', 'lower-back', 'hamstring-l', 'hamstring-r', 'ankle-l', 'ankle-r', 'hips', 'wrist-l', 'wrist-r'].map((a) => chip('avoidAreas', a, C.BODY_AREA_LABEL[a].replace(' / Achilles', ''), f.avoidAreas.includes(a))).join('')}</div>
-          <div class="row" style="margin-top:.5rem">${['no-jumping', 'no-running', 'no-overhead', 'no-lower-load', 'no-upper-load'].map((r) => chip('restrictions', r, P.RESTRICTIONS[r].label, f.restrictions.includes(r))).join('')}</div>
+          <div class="row">${[...new Set(['knee-l', 'knee-r', 'shoulder-l', 'shoulder-r', 'lower-back', 'hamstring-l', 'hamstring-r', 'ankle-l', 'ankle-r', 'hips', 'wrist-l', 'wrist-r', ...f.avoidAreas.filter((a) => C.BODY_AREA_LABEL[a])])].map((a) => chip('avoidAreas', a, C.BODY_AREA_LABEL[a].replace(' / Achilles', ''), f.avoidAreas.includes(a))).join('')}</div>
+          <div class="row" style="margin-top:.5rem">${[...new Set(['no-jumping', 'no-running', 'no-overhead', 'no-lower-load', 'no-upper-load', ...f.restrictions.filter((r) => P.RESTRICTIONS[r])])].map((r) => chip('restrictions', r, P.RESTRICTIONS[r].label, f.restrictions.includes(r))).join('')}</div>
         </fieldset>
         <label>Tell us exactly what you want <textarea name="request" rows="3" maxlength="2000" placeholder="e.g. I’m a sophomore wide receiver. I want a faster 40 and a higher vertical before summer camp. Left knee gets sore after jumping. I train at school Mon/Wed/Fri and at home on weekends with dumbbells.">${esc(f.request)}</textarea></label>
         <fieldset><legend>How to build it</legend>
@@ -113,6 +139,7 @@
       goal: fd.get('goal'), sport: fd.get('sport'), experience: fd.get('experience'), daysPerWeek: +fd.get('daysPerWeek'), minutes: +fd.get('minutes'), weeks: +fd.get('weeks'), phase: fd.get('phase'),
       equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin', fv: fd.get('fv') || '',
       position: ctx.role() === 'athlete' ? ctx.me().position : '',
+      useData: fd.get('useData') === 'on',
     };
   }
 
@@ -127,6 +154,8 @@
       previewWeek = 0;
       return ctx.go('plan', 'program:preview');
     }
+    const known = form.useData ? athleteData() : null;
+    if (known && root.AthleteContext) form.context = root.AthleteContext.lines(known);
     prog.hidden = false;
     btn.disabled = true;
     busy = new AbortController();
@@ -172,6 +201,7 @@
         </div>
       </div>
       ${p.description ? `<div class="cue coach"><div>${esc(p.description)}</div></div>` : ''}
+      ${talkHTML()}
       <section class="card" style="margin-bottom:1rem">
         <h3>Progression</h3>
         <div class="grid-3">
@@ -204,6 +234,57 @@
         .join('')}</div>`;
   }
 
+  // Change the program by describing it. Common edits run instantly; anything else goes to Claude.
+  function talkHTML() {
+    const hasAI = root.AI && root.AI.hasKey();
+    const E = root.ProgramEdit;
+    if (!E) return '';
+    return `<section class="card talk-edit" style="margin-bottom:1rem">
+      <h3>💬 Change it by describing it</h3>
+      <form id="talk-form" class="row" style="flex-wrap:nowrap">
+        <input name="talk" style="flex:1;min-width:0" maxlength="500" placeholder="e.g. swap bench for dumbbell bench, add a set to squats, no jumping" aria-label="Describe a change"/>
+        <button class="btn btn-primary" type="submit">Apply</button>
+      </form>
+      <div class="row talk-examples" style="margin-top:.4rem">${E.EXAMPLES.slice(0, 5).map((x) => `<button type="button" class="chip" data-prog-action="talk-example" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <p class="hint" style="margin:.4rem 0 0">${hasAI ? 'Simple edits apply instantly. Anything else, Claude rewrites the program for you.' : 'Handles swaps, adding or removing exercises, sets, loads, days, length and session time. Add a Claude key in Settings for anything else.'}</p>
+      <div id="talk-progress" hidden><div class="progress"><i class="indeterminate"></i></div><p class="small muted">Claude is revising your program…</p></div>
+      ${talk ? `<div class="talk-result cue ${talk.changes.length ? 'coach' : 'warn'}"><div>
+        ${talk.changes.length ? `<strong>${talk.by === 'claude' ? '✨ Claude changed:' : 'Changed:'}</strong><ul>${talk.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+        ${talk.unknown.length ? `<p class="small" style="margin:.3rem 0 0">I didn’t understand: ${talk.unknown.map((u) => `“${esc(u)}”`).join(', ')}. Try wording like “${esc(E.EXAMPLES[Math.floor(Math.random() * E.EXAMPLES.length)])}”.</p>` : ''}
+        ${talk.changes.length ? `<div class="row" style="margin-top:.4rem"><button class="btn btn-sm" data-prog-action="talk-keep">Keep</button><button class="btn btn-sm btn-ghost" data-prog-action="talk-undo">↶ Undo</button></div>` : ''}
+      </div></div>` : ''}
+    </section>`;
+  }
+
+  async function runTalk(el) {
+    const text = String(new FormData(el).get('talk') || '').trim();
+    if (!text || !preview) return;
+    const E = root.ProgramEdit;
+    const before = JSON.parse(JSON.stringify(preview));
+    const equipment = form ? form.equipment : null;
+    const local = E.apply(preview, text, { equipment });
+    if (local.unknown.length && root.AI && root.AI.hasKey()) {
+      const prog = $('#talk-progress');
+      if (prog) prog.hidden = false;
+      el.querySelector('[type=submit]').disabled = true;
+      try {
+        const known = athleteData();
+        const revised = await root.AI.editProgram(preview, text, { context: known && root.AthleteContext ? root.AthleteContext.lines(known) : [], fallbacks: ctx.state().ai.fallbacks !== false });
+        revised.meta = preview.meta || null;
+        preview = revised;
+        talk = { before, changes: E.diff(before, revised), unknown: [], by: 'claude' };
+      } catch (err) {
+        if (prog) prog.hidden = true;
+        el.querySelector('[type=submit]').disabled = false;
+        return ctx.toast(err.message || 'Claude couldn’t make that change');
+      }
+    } else {
+      if (local.changes.length) preview = { ...local.program, meta: preview.meta || null, source: preview.source };
+      talk = { before, changes: local.changes, unknown: local.unknown, by: 'builtin' };
+    }
+    rerender();
+  }
+
   function view(id) {
     if (id === 'programs') return listHTML();
     if (id === 'program:new') return formHTML();
@@ -211,7 +292,7 @@
     if (id && id.startsWith('program:')) {
       const p = programs().find((x) => x.id === id.slice(8));
       if (!p) return `<div class="card empty">Program not found. <button class="btn" data-prog-action="back">Back</button></div>`;
-      if (!preview || preview.id !== p.id) (preview = JSON.parse(JSON.stringify(p))), (previewWeek = 0);
+      if (!preview || preview.id !== p.id) (preview = JSON.parse(JSON.stringify(p))), (previewWeek = 0), (talk = null);
       return programHTML(preview, true);
     }
     return listHTML();
@@ -313,6 +394,7 @@
         return ctx.go('plan', 'program:new');
       case 'back':
         preview = null;
+        talk = null;
         return ctx.go('plan', 'programs');
       case 'back-form':
         return ctx.go('plan', 'program:new');
@@ -347,6 +429,18 @@
         ctx.save();
         return ctx.render();
       }
+      case 'talk-example': {
+        const input = $('#talk-form [name=talk]');
+        if (input) (input.value = el.dataset.text), input.focus();
+        return;
+      }
+      case 'talk-keep':
+        talk = null;
+        return rerender();
+      case 'talk-undo':
+        if (talk) preview = talk.before;
+        talk = null;
+        return rerender();
       case 'drop-session':
         preview.sessions.splice(+el.dataset.si, 1);
         return rerender();
@@ -380,6 +474,10 @@
   }
 
   function onSubmit(e) {
+    if (e.target.id === 'talk-form') {
+      e.preventDefault();
+      return runTalk(e.target);
+    }
     if (e.target.id !== 'gen-form') return;
     e.preventDefault();
     generate(e.target);

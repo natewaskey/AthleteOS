@@ -2198,3 +2198,8 @@ body.pro .stat { font-size: 1.6rem; }
 .rts-strength { gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap; }
 .rts-strength input { padding: 0.3rem 0.5rem; }
 .warn-t { color: var(--warn); }
+
+.known-list { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; gap: .3rem; font-size: .9rem; }
+.cue.warn { background: color-mix(in srgb, var(--warn, #d97706) 12%, var(--surface)); border-left: 3px solid var(--warn, #d97706); }
+.talk-examples { gap: .35rem; }
+.talk-result ul { margin: .3rem 0 0; padding-left: 1.1rem; }
