@@ -186,6 +186,7 @@
       // N weeks
       if ((m = c.match(/^(?:make it\s+|make the program\s+|run it for\s+)?(\w+)\s+weeks?(?:\s+long)?$/)) && num(m[1])) {
         p.weeks = Math.max(1, Math.min(16, num(m[1])));
+        if (p.cycle) p.cycle = P.periodize(p.weeks, { peak: !!p.peakDate });
         changes.push(`Length: ${p.weeks} weeks`);
         continue;
       }
