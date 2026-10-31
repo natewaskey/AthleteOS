@@ -706,6 +706,26 @@
     if (hint) hint.textContent = !v ? 'At least 6 characters.' : v.length < 6 ? `${6 - v.length} more character${v.length === 5 ? '' : 's'}` : ['Weak', 'Weak', 'Okay', 'Good', 'Strong'][Math.min(4, score)] + ' password';
   }
 
+  // Opened from a "forgot password" email: ask for the new password straight away.
+  async function checkRecovery() {
+    if (!Cloud() || !Cloud().enabled() || !Cloud().status().recovery) return;
+    for (;;) {
+      const pw = await root.Dialogs.prompt('You’re signed in from the reset link. Choose a new password (at least 6 characters).', { title: 'Set a new password', type: 'password', ok: 'Save password', cancel: 'Not now', required: true, placeholder: 'New password' });
+      if (pw == null) return Cloud().skipRecovery();
+      if (pw.length < 6) {
+        ctx.toast('Use a password of at least 6 characters.');
+        continue;
+      }
+      try {
+        await Cloud().updatePassword(pw);
+        return ctx.toast('Password updated');
+      } catch (e) {
+        ctx.toast(e.message || 'Couldn’t update the password');
+        if (!Cloud().status().signedIn) return;
+      }
+    }
+  }
+
   function init(c) {
     ctx = c;
     document.addEventListener('click', onClick);
@@ -715,5 +735,5 @@
     addEventListener('pageshow', (e) => e.persisted && ctx.render());
   }
 
-  root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen, gate, teamInfo, guardianCard, onCoachSetup };
+  root.CloudUI = { init, checkRecovery, card, refresh, applySession, firstRun, loginScreen, startScreen, gate, teamInfo, guardianCard, onCoachSetup };
 })(window);

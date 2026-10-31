@@ -296,6 +296,28 @@
 
   // ---------- builder ----------
 
+  // The workout being built is kept for this tab, so a refresh reopens it with every change.
+  const DRAFT_KEY = 'athleteos:builder';
+  function keepDraft() {
+    try {
+      if (draft && /#plan\/(build:|edit:)/.test(location.hash)) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {}
+  }
+  function dropDraft() {
+    draft = null;
+    try {
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {}
+  }
+  function loadDraft() {
+    try {
+      const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+      const m = location.hash.match(/#plan\/(?:build:)?(.+)$/);
+      if (d && m && d._editing === m[1]) draft = d;
+      else sessionStorage.removeItem(DRAFT_KEY);
+    } catch {}
+  }
+
   function startDraft(id) {
     if (id.startsWith('edit:')) {
       const a = assignments().find((x) => x.id === id.slice(5));
@@ -457,7 +479,7 @@
       const res = Staff().submit({ kind: 'edit', title: `Edit: ${plan.name}`, assignmentId: a.id, plan, date, messages: [msg] });
       if (res === 'blocked') return null;
       ctx.save();
-      draft = null;
+      dropDraft();
       return { assignment: a, pending: res === 'pending' };
     }
     const name = (draft.name || '').trim();
@@ -474,7 +496,7 @@
     if (idx >= 0) list[idx] = plan;
     else list.push(plan);
     ctx.save();
-    draft = null;
+    dropDraft();
     return plan;
   }
 
@@ -523,6 +545,7 @@
           <div class="muted">${coach && athlete ? esc(ctx.athleteName(athlete)) + ' · ' : ''}${esc(ctx.fmtDate(a.date, { weekday: 'long', month: 'short', day: 'numeric' }))} · ≈ ${C.estimateMinutes(a.plan)} min</div>${ctx.solo && ctx.solo() ? '' : Staff().prescribedLine(a)}</div>
         <span class="pill ${s.cls}">${s.label}</span>
         <div class="spacer"></div>
+        ${root.Shell && !(ctx.solo && ctx.solo()) ? root.Shell.linkButton('plan/a:' + a.id) : ''}
         ${doing ? `<span class="muted small" id="session-clock">${a.startedAt ? '' : 'Not started'}</span><button class="btn btn-primary" data-plan-action="focus" data-id="${a.id}">▶ Focus mode</button>${a.assignedBy === 'athlete' ? '' : `<button class="btn btn-ghost" data-plan-action="skip" data-id="${a.id}">Skip</button>`}` : ''}
         ${!coach && canRemove(a) ? `<button class="btn btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}">Remove</button>` : ''}
         ${a.programId && canRemove(a) && assignments().some((x) => x.programId === a.programId && x.athleteId === a.athleteId && x.status === 'assigned' && x.date >= today()) ? `<button class="btn btn-ghost btn-danger" data-plan-action="unassign-program" data-id="${a.id}">Remove rest of program</button>` : ''}
@@ -644,14 +667,20 @@
     return null;
   }
 
-  function startRest(sec, label) {
+  const REST_KEY = 'athleteos:rest';
+
+  // endAt: resume a timer that was running before the page was refreshed.
+  function startRest(sec, label, endAt = null) {
     stopRest();
-    if (!sec) return;
+    if (!sec && !endAt) return;
     const el = document.createElement('div');
     el.id = 'rest-timer';
     el.setAttribute('role', 'status');
     document.body.append(el);
-    const end = Date.now() + sec * 1000;
+    const end = endAt || Date.now() + sec * 1000;
+    try {
+      sessionStorage.setItem(REST_KEY, JSON.stringify({ end, label: label || '' }));
+    } catch {}
     const tick = () => {
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       el.innerHTML = `<span>⏱ Rest${label ? ` · ${esc(label)}` : ''}</span><strong>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</strong><button class="btn btn-sm" data-plan-action="stop-rest">Skip</button>`;
@@ -660,6 +689,9 @@
         el.classList.add('done');
         el.querySelector('span').textContent = '✅ Rest done, next set!';
         clearInterval(restTimer);
+        try {
+          sessionStorage.removeItem(REST_KEY);
+        } catch {}
         restTimer = setTimeout(stopRest, 4000);
       }
     };
@@ -673,6 +705,17 @@
     restTimer = null;
     const el = $('#rest-timer');
     if (el) el.remove();
+    try {
+      sessionStorage.removeItem(REST_KEY);
+    } catch {}
+  }
+
+  function restoreRest() {
+    try {
+      const r = JSON.parse(sessionStorage.getItem(REST_KEY) || 'null');
+      if (r && r.end > Date.now()) startRest(0, r.label, r.end);
+      else sessionStorage.removeItem(REST_KEY);
+    } catch {}
   }
 
   // ---------- assign dialog ----------
@@ -808,10 +851,10 @@
       case 'assign':
         return openAssign({ templateId: el.dataset.template, athleteId: el.dataset.athlete, date: el.dataset.date });
       case 'new-template':
-        draft = null;
+        dropDraft();
         return ctx.go('plan', 'build:new');
       case 'edit-template':
-        draft = null;
+        dropDraft();
         return ctx.go('plan', 'build:' + el.dataset.id);
       case 'duplicate': {
         const t = templates().find((x) => x.id === el.dataset.id);
@@ -829,7 +872,7 @@
       }
       case 'cancel-build': {
         const back = draft && draft._editing && draft._editing.startsWith('edit:') ? 'a:' + draft._editing.slice(5) : null;
-        draft = null;
+        dropDraft();
         return ctx.go('plan', back);
       }
       case 'add-block':
@@ -980,7 +1023,7 @@
         return rerenderKeepScroll();
       }
       case 'edit-session':
-        draft = null;
+        dropDraft();
         return ctx.go('plan', 'edit:' + el.dataset.id);
     }
   }
@@ -1013,6 +1056,7 @@
       return ctx.render();
     }
     onBuilderInput(e);
+    keepDraft();
     // Keep typed set values without re-rendering.
     const el = e.target;
     if (el.dataset && el.dataset.sf && e.type === 'change') {
@@ -1027,6 +1071,7 @@
 
   // Session clock for an in-progress workout.
   function mount() {
+    keepDraft();
     const clock = $('#session-clock');
     if (!clock) return;
     const m = location.hash.match(/#plan\/a:(.+)$/);
@@ -1044,6 +1089,7 @@
   function init(c) {
     ctx = c;
     C = c.C;
+    loadDraft();
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
     document.addEventListener('input', onInput);
@@ -1051,10 +1097,10 @@
   }
 
   function reset() {
-    draft = null;
+    dropDraft();
     weekStart = null;
     stopRest();
   }
 
-  root.PlanUI = { init, view, todayCard, todayLine, alerts, dueCount, mount, reset, openAssign, prescription, startRest };
+  root.PlanUI = { init, view, todayCard, todayLine, alerts, dueCount, mount, reset, openAssign, prescription, startRest, restoreRest };
 })(window);

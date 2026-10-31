@@ -147,7 +147,7 @@
         <label>Tell us exactly what you want <textarea name="request" rows="3" maxlength="2000" placeholder="e.g. I’m a sophomore wide receiver. I want a faster 40 and a higher vertical before summer camp. Left knee gets sore after jumping. I train at school Mon/Wed/Fri and at home on weekends with dumbbells.">${esc(f.request)}</textarea></label>
         <fieldset><legend>How to build it</legend>
           <label class="check"><input type="radio" name="engine" value="builtin" ${f.engine !== 'claude' || !hasAI ? 'checked' : ''}/> <span><strong>Built-in generator</strong>: instant, works offline. Reads keywords in your request (equipment, injuries, focus, time).</span></label>
-          <label class="check"><input type="radio" name="engine" value="claude" ${f.engine === 'claude' && hasAI ? 'checked' : ''} ${hasAI ? '' : 'disabled'}/> <span><strong>✨ Claude</strong>: understands anything you write and designs a fully custom program (about 30–90 seconds).${hasAI ? '' : ' <button type="button" class="btn btn-sm btn-ghost" data-tab-link="settings">Add an API key in Settings</button>'}</span></label>
+          <label class="check"><input type="radio" name="engine" value="claude" ${f.engine === 'claude' && hasAI ? 'checked' : ''} ${hasAI ? '' : 'disabled'}/> <span><strong>✨ Claude</strong>: understands anything you write and designs a fully custom program (about 30–90 seconds).${hasAI ? '' : ` <button type="button" class="btn btn-sm btn-ghost" data-tab-link="settings">${root.AI && root.AI.viaSignIn && root.AI.viaSignIn() ? 'Sign in to use Claude free' : 'Set up Claude in Settings'}</button>`}</span></label>
         </fieldset>
         <p class="pain-text small" id="gen-error" hidden></p>
         <div id="gen-progress" hidden><div class="progress"><i class="indeterminate"></i></div><p class="small muted" data-status>Designing your program…</p></div>
@@ -309,7 +309,7 @@
         <button class="btn btn-primary" type="submit">Apply</button>
       </form>
       <div class="row talk-examples" style="margin-top:.4rem">${E.EXAMPLES.slice(0, 5).map((x) => `<button type="button" class="chip" data-prog-action="talk-example" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div>
-      <p class="hint" style="margin:.4rem 0 0">${hasAI ? 'Simple edits apply instantly. Anything else, Claude rewrites the program for you.' : 'Handles swaps, adding or removing exercises, sets, loads, days, length and session time. Add a Claude key in Settings for anything else.'}</p>
+      <p class="hint" style="margin:.4rem 0 0">${hasAI ? 'Simple edits apply instantly. Anything else, Claude rewrites the program for you.' : 'Handles swaps, adding or removing exercises, sets, loads, days, length and session time. Turn on Claude in Settings for anything else.'}</p>
       <div id="talk-progress" hidden><div class="progress"><i class="indeterminate"></i></div><p class="small muted">Claude is revising your program…</p></div>
       ${talk ? `<div class="talk-result cue ${talk.changes.length ? 'coach' : 'warn'}"><div>
         ${talk.changes.length ? `<strong>${talk.by === 'claude' ? '✨ Claude changed:' : 'Changed:'}</strong><ul>${talk.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}

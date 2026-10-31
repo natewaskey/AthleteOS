@@ -32,7 +32,9 @@
   }
 
   // Signed in to a team: requests go through the team's server (supabase/functions/claude), no key needed.
-  const viaCloud = () => !getKey() && !!(root.Cloud && root.Cloud.team());
+  const viaCloud = () => !getKey() && !!(root.Cloud && root.Cloud.team()) && (!root.Cloud.aiAvailable || root.Cloud.aiAvailable());
+  // Not signed in yet, but signing in would give Claude with no key.
+  const viaSignIn = () => !getKey() && !!(root.Cloud && root.Cloud.enabled() && !root.Cloud.team());
   const hasKey = () => !!getKey() || viaCloud();
 
   function client() {
@@ -186,5 +188,5 @@
     }
   }
 
-  root.AI = { getKey, setKey, hasKey, viaCloud, generateProgram, editProgram, chat, estimateMeal, MODEL };
+  root.AI = { getKey, setKey, hasKey, viaCloud, viaSignIn, generateProgram, editProgram, chat, estimateMeal, MODEL };
 })(window);

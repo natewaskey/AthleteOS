@@ -266,11 +266,35 @@
 
   let focus = null;
 
-  function openFocus({ assignment, athlete, render }) {
+  const FOCUS_KEY = 'athleteos:focus';
+  const remember = () => {
+    try {
+      if (focus) sessionStorage.setItem(FOCUS_KEY, JSON.stringify({ id: focus.id, idx: focus.idx }));
+      else sessionStorage.removeItem(FOCUS_KEY);
+    } catch {}
+  };
+
+  function openFocus({ assignment, athlete, render, idx = null }) {
     const items = assignment.plan.blocks.flatMap((b) => b.items.map((i) => ({ i, b })));
     if (!items.length) return;
     const start = items.findIndex(({ i }) => (assignment.progress[i.id]?.sets || []).filter((s) => s.done).length < i.sets);
-    focus = { assignment, athlete, render, items, idx: Math.max(0, start) };
+    // Look the session and athlete up by id each time: a background sync swaps in fresh objects,
+    // and taps written to the old ones would be lost.
+    const first = assignment, me = athlete;
+    focus = {
+      id: assignment.id,
+      athleteId: athlete.id,
+      render,
+      items,
+      idx: idx != null ? Math.min(Math.max(0, idx), items.length - 1) : Math.max(0, start),
+      get assignment() {
+        return (ctx.state().assignments || []).find((x) => x.id === this.id) || first;
+      },
+      get athlete() {
+        return (ctx.state().athletes || []).find((x) => x.id === this.athleteId) || me;
+      },
+    };
+    remember();
     let el = $('#focus-mode');
     if (!el) {
       el = document.createElement('div');
@@ -336,6 +360,25 @@
     document.body.classList.remove('focus-open');
     if (focus) focus.render();
     focus = null;
+    remember();
+  }
+
+  // After a page refresh, put the athlete back on the exercise they were doing.
+  function restoreFocus() {
+    let saved = null;
+    try {
+      saved = JSON.parse(sessionStorage.getItem(FOCUS_KEY) || 'null');
+    } catch {}
+    if (!saved || focus) return;
+    const a = (ctx.state().assignments || []).find((x) => x.id === saved.id);
+    const athlete = a && (ctx.state().athletes || []).find((x) => x.id === a.athleteId);
+    if (!a || !athlete || a.status !== 'assigned' || ctx.role() !== 'athlete') {
+      try {
+        sessionStorage.removeItem(FOCUS_KEY);
+      } catch {}
+      return;
+    }
+    openFocus({ assignment: a, athlete, render: ctx.render, idx: saved.idx });
   }
 
   function onClick(e) {
@@ -351,6 +394,7 @@
         return closeFocus();
       case 'prev':
         focus.idx = Math.max(0, focus.idx - 1);
+        remember();
         return drawFocus();
       case 'next':
         if (focus.idx === focus.items.length - 1) {
@@ -360,6 +404,7 @@
           return;
         }
         focus.idx++;
+        remember();
         return drawFocus();
       case 'set': {
         const a = focus.assignment;
@@ -378,7 +423,7 @@
       case 'coach-set': {
         const lib = C.libraryEntry(i.name);
         const k = +el.dataset.set;
-        const a = focus.assignment, athlete = focus.athlete, item = i;
+        const aId = focus.assignment.id, athlete = focus.athlete, item = i;
         const AR = root.Autoreg;
         const stopAt = AR ? AR.stopLoss(i, focus.items[focus.idx].b.type) : null;
         return root.LiveCoach.openSet({
@@ -386,7 +431,8 @@
           title: `${i.name} · set ${k + 1} of ${i.sets}`,
           stopAt,
           onDone: (res) => {
-            if (!focus || focus.assignment !== a) return;
+            if (!focus || focus.id !== aId) return;
+            const a = focus.assignment;
             if (!res.reps) return ctx.toast('No full reps were counted, so the set wasn’t logged.');
             if (!a.startedAt) a.startedAt = Date.now();
             const p = (a.progress[item.id] = a.progress[item.id] || { sets: [], note: '' });
@@ -416,10 +462,10 @@
     document.addEventListener('keydown', (e) => {
       if (!focus || document.querySelector('dialog[open]')) return;
       if (e.key === 'Escape') closeFocus();
-      if (e.key === 'ArrowRight') (focus.idx = Math.min(focus.items.length - 1, focus.idx + 1)), drawFocus();
-      if (e.key === 'ArrowLeft') (focus.idx = Math.max(0, focus.idx - 1)), drawFocus();
+      if (e.key === 'ArrowRight') (focus.idx = Math.min(focus.items.length - 1, focus.idx + 1)), remember(), drawFocus();
+      if (e.key === 'ArrowLeft') (focus.idx = Math.max(0, focus.idx - 1)), remember(), drawFocus();
     });
   }
 
-  root.LiveUI = { init, plateMath, plateHTML, startIntervals, stopIntervals, openHowTo, openSwap, openFocus, closeFocus };
+  root.LiveUI = { init, plateMath, plateHTML, startIntervals, stopIntervals, openHowTo, openSwap, openFocus, closeFocus, restoreFocus };
 })(window);
