@@ -23,6 +23,12 @@
     pushup: { depth: ['Scapular push-up'], 'line-bottom': ['Dead bug'], 'line-top': ['Dead bug'], lockout: ['Scapular push-up'] },
     ohp: { lockout: ['Wall slide', 'Shoulder CARs'], barpath: ['Wall slide'], lean: ['Dead bug'] },
     landing: { valgus: ['Mini-band squat', 'Lateral band walk'], symmetry: ['Drop landing (stick it)'], soft: ['Drop landing (stick it)'] },
+    row: { torso: ['Dowel hip hinge'], swing: ['Band pull-apart'], pull: ['Band pull-apart'] },
+    pullup: { top: ['Scapular push-up'], hang: ['Band pull-apart'], kip: ['Hollow hold'] },
+    hipthrust: { lockout: ['Glute bridge'], shin: ['Glute bridge'], arch: ['Dead bug'] },
+    clean: { extension: ['Clean pull'], barclose: ['Clean pull'], elbows: ['Wall slide'] },
+    cut: { valgus: ['Lateral band walk', 'Lateral bound (skater)'], trunk: ['Side plank', 'Pallof press'], wide: ['Lateral bound (skater)'], sink: ['Drop landing (stick it)'] },
+    sprintstart: { lean: ['Sled sprint'], rise: ['Sled sprint'], shin: ['A-skips'], arms: ['High knees'] },
     running: { cadence: ['A-skips'], overstride: ['A-skips', 'B-skips'], kneeflex: ['Pogo hops'], lean: ['High knees'], bounce: ['A-skips'], arms: ['High knees'] },
   };
 
@@ -50,7 +56,8 @@
       const cleared = an.flagsCleared || [];
       for (const c of an.checks || []) {
         const drills = (DRILLS[an.exercise] || {})[c.id];
-        if (c.status !== 'bad' || !drills || cleared.includes(c.id)) continue;
+        // Low-confidence results (unclear camera view) never shape the program.
+        if (c.status !== 'bad' || c.conf === 'low' || !drills || cleared.includes(c.id)) continue;
         const drill = drills.find((d) => C.libraryEntry(d));
         if (drill) out.push({ key: keyOf(an.exercise, c.id), exercise: an.exercise, check: c.id, label: c.label, drill, analysisId: an.id, date });
       }

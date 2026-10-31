@@ -37,10 +37,10 @@
     return (B && B.REGIONS[b] && B.REGIONS[b].label) || (C.BODY_AREA_LABEL[b] || C.BODY_AREA_LABEL[`${b}-l`] || b).replace(/^Left /, '');
   };
   // Test values as people read them: 5:12 for a mile, 4.62 s for a dash, 50 cm, 8 reps.
-  function fmtTest(info, v) {
+  function fmtTest(info, v, units) {
     if (info.unit === 'time') return v >= 90 ? `${Math.floor(v / 60)}:${String(Math.round(v % 60)).padStart(2, '0')}` : `${Number(v).toFixed(2)} s`;
     if (info.unit === 'jump') return `${Math.round(v)} cm`;
-    if (info.unit === 'weight') return `${Math.round(v)} kg`;
+    if (info.unit === 'weight') return units === 'imperial' ? `${Math.round(v / 0.45359237 / 5) * 5} lb` : `${Math.round(v)} kg`;
     return `${Math.round(v)} reps`;
   }
   const avg = (v) => (v.length ? v.reduce((s, x) => s + x, 0) / v.length : null);
@@ -338,7 +338,7 @@
     return { now, yearAgo: then, rows, weeks };
   }
 
-  const api = { TYPE_LABEL, TREND_KEYS, FACTORS, episodes, events, exportText, exportCSV, troubleEpisodes, factorsBefore, patterns, longTrends, seasonCompare, regionLabel, base };
+  const api = { fmtTest, TYPE_LABEL, TREND_KEYS, FACTORS, episodes, events, exportText, exportCSV, troubleEpisodes, factorsBefore, patterns, longTrends, seasonCompare, regionLabel, base };
   if (node) module.exports = api;
   else root.Timeline = api;
 })(typeof window !== 'undefined' ? window : globalThis);

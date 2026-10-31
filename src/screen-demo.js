@@ -301,6 +301,64 @@
       },
     },
 
+    // Side view: stand on the left leg and reach the right foot forward along the tape.
+    ybalance: {
+      seconds: 4.5,
+      box: [-0.5, 0.75, -0.08, 1.15],
+      frame(u, fault) {
+        const d = cycle(u, { down: 0.38, hold: 0.2, up: 0.32 });
+        const p = fault ? { ax: 0, shin: 22 * d, thigh: 38 * d, trunk: 28 * d, arm: 20, elbow: 30, heel: 14 * clamp((d - 0.5) / 0.5, 0, 1) } : { ax: 0, shin: 36 * d, thigh: 70 * d, trunk: 22 * d, arm: 20, elbow: 30, heel: 0 };
+        const j = side(p);
+        const reach = fault ? 0.36 * d : 0.6 * d;
+        const toe2 = [L.foot + reach, 0.012 + 0.02 * (1 - d)];
+        const ankle2 = [toe2[0] - L.foot * 0.9, toe2[1] + L.ankleH];
+        const knee2 = ik(j.hip, ankle2, L.thigh, L.shin);
+        const touch = d > 0.95;
+        return {
+          view: 'side',
+          joints: { ...j, toe2, ankle2, knee2 },
+          links: LINKS_SIDE,
+          far: LINKS_SIDE_FAR,
+          props: [{ type: 'tape', x0: L.foot, x1: L.foot + reach, y: -0.02, cm: Math.round((reach / 0.57) * 100) }],
+          marks: touch ? [{ at: 'toe2', bad: !!fault }, ...(fault ? [{ at: 'heel', bad: true }] : [])] : [],
+          hud: {
+            checks: fault
+              ? [{ ok: false, text: 'Short reach' }, { ok: false, text: 'Standing heel lifts' }]
+              : [{ ok: true, text: 'Long reach, light toe touch' }, { ok: true, text: 'Standing heel stays down' }],
+          },
+        };
+      },
+    },
+
+    // Side view: drop off a box, land, then jump. Good: deep, soft knees and hips; fault: stiff and upright.
+    landing: {
+      seconds: 3.2,
+      box: [-0.6, 0.6, -0.05, 1.45],
+      frame(u, fault) {
+        const boxH = 0.17;
+        // 0–0.25 standing on the box, 0.25–0.4 falling, 0.4–0.7 absorbing, 0.7–1 standing tall.
+        const fall = clamp((u - 0.25) / 0.15, 0, 1);
+        const absorb = u < 0.4 ? 0 : u < 0.55 ? ease((u - 0.4) / 0.15) : u < 0.7 ? 1 - ease((u - 0.55) / 0.15) : 0;
+        const p = fault ? { ax: 0, shin: 14 * absorb, thigh: 30 * absorb, trunk: 4 * absorb, arm: 30 + 20 * absorb, elbow: 20 } : { ax: 0, shin: 34 * absorb, thigh: 85 * absorb, trunk: 38 * absorb, arm: 30 + 50 * absorb, elbow: 20 };
+        const j = side(p);
+        const dx = lerp(-0.3, 0, fall), dy = u < 0.25 ? boxH : boxH * (1 - fall * fall);
+        const moved = Object.fromEntries(Object.entries(j).map(([k, q]) => [k, [q[0] + dx, q[1] + dy]]));
+        const deep = absorb > 0.95;
+        return {
+          view: 'side',
+          joints: moved,
+          links: LINKS_SIDE,
+          props: [{ type: 'box', x0: -0.55, x1: -0.2, h: boxH }],
+          marks: deep ? [{ at: 'knee', bad: !!fault }, { at: 'hip', bad: !!fault }] : [],
+          hud: {
+            checks: fault
+              ? [{ ok: false, text: 'Stiff landing, little knee bend' }, { ok: false, text: 'Trunk stays upright' }]
+              : [{ ok: true, text: 'Soft landing, knees and hips bend' }, { ok: true, text: 'Chest over the knees' }],
+          },
+        };
+      },
+    },
+
     pushups: {
       seconds: 2.2,
       box: [-0.25, 1.15, -0.05, 0.6],

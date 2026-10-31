@@ -19,6 +19,8 @@
   const $ = (sel, el = document) => el.querySelector(sel);
   const esc = (s) => ctx.esc(s);
   const today = () => C.toISODate(new Date());
+  // Test values for people: 4.62 s, 5:12, 50 cm, 385 lb.
+  const ft = (t, v) => (root.Timeline && root.Timeline.fmtTest && t.info ? root.Timeline.fmtTest(t.info, v, ctx.units()) : String(Math.round(v * 100) / 100));
   const coach = () => ctx.role() === 'coach';
   const you = (a, b) => (coach() ? b : a);
   const B = () => root.Balance;
@@ -101,7 +103,7 @@
         ? `<div class="area-detail muted small">${esc(C.BODY_AREA_LABEL[picked])}: nothing flagged.</div>`
         : `<p class="muted small" style="margin:.4rem 0 0">Tap an area to see the evidence behind it.</p>`;
     const n = Object.keys(map.areas).length;
-    return `<section class="card span-6 balance-map-card"><div class="card-head"><h3>🧍 Body balance map</h3><span class="muted small">${n ? `${n} area${n > 1 ? 's' : ''} flagged` : 'All clear'}</span></div>
+    return `<section class="card span-6 balance-map-card"><div class="card-head"><h3>🧍 Body balance map ${root.Explain ? root.Explain.btn('connected') : ''}</h3><span class="muted small">${n ? `${n} area${n > 1 ? 's' : ''} flagged` : 'All clear'}</span></div>
       <div class="balance-map">${root.BodyMap.render(map.levels, { interactive: true, describe })}</div>${legend}${detail}
       <p class="hint" style="margin:.5rem 0 0">Built from ${you('your', 'their')} left/right tests, movement screen, check-in soreness and pain, injuries, form checks, training balance, body-region load, strength ratios and pain monitoring.</p></section>`;
   }
@@ -132,7 +134,7 @@
         <div class="muted small">${esc(c.text)}${c12 && c12.value !== c.value ? ` · 12 weeks: ${esc(c12.value)}` : ''} · target ${esc(c.target.toLowerCase())}</div>
         ${c.status === 'warn' && c.fix.length ? `<div class="small">Add: ${c.fix.slice(0, 3).map(esc).join(', ')}</div>` : ''}</li>`;
     }).join('');
-    return `<section class="card span-6"><div class="card-head"><h3>⚖️ Training balance · 4 weeks</h3><span class="muted small">${tb4.totalSets} sets logged</span></div>
+    return `<section class="card span-6"><div class="card-head"><h3>⚖️ Training balance · 4 weeks ${root.Explain ? root.Explain.btn('balance') : ''}</h3><span class="muted small">${tb4.totalSets} sets logged</span></div>
       <ul class="asym-list">${rows}</ul>
       <p class="hint" style="margin:.4rem 0 0">The program builder fills these gaps automatically when ${you('you add a program', 'you assign one')}.</p></section>`;
   }
@@ -142,7 +144,7 @@
     if (!list.length) return `<section class="card span-6"><div class="card-head"><h3>📊 Body-region load</h3></div><p class="muted" style="margin:0">Log sessions to see weekly load on knees, back, shoulders, Achilles and more.</p></section>`;
     const flagged = list.filter((r) => r.level !== 'ok');
     const rows = list.slice(0, 10).map((r) => `<li class="row" style="gap:.5rem"><span style="min-width:8.5rem">${esc(r.label)}</span>${spark(r.weeks, { cls: r.level })}<div class="spacer"></div>${r.ratio != null ? pill(r.level, `${r.ratio}×`) : pill('info', 'new')}</li>`).join('');
-    return `<section class="card span-6"><div class="card-head"><h3>📊 Body-region load · 8 weeks</h3>${flagged.length ? pill('warn', `${flagged.length} climbing`) : pill('ok', 'Steady')}</div>
+    return `<section class="card span-6"><div class="card-head"><h3>📊 Body-region load · 8 weeks ${root.Explain ? root.Explain.btn('regionload') : ''}</h3>${flagged.length ? pill('warn', `${flagged.length} climbing`) : pill('ok', 'Steady')}</div>
       ${flagged.map((r) => `<p class="small ${r.level === 'bad' ? 'bad-t' : 'warn-t'}" style="margin:0 0 .35rem">${esc(r.text)}</p>`).join('')}
       <ul class="region-list">${rows}</ul>
       <p class="hint" style="margin:.4rem 0 0">This week vs ${you('your', 'their')} 4-week average for each area, from the stress each exercise and sport puts on it. A spike in one area can matter even when total load looks fine.</p></section>`;
@@ -175,7 +177,7 @@
       return `<li><div class="row" style="gap:.4rem"><span>${esc(def.label)}</span><div class="spacer"></div>${r ? pill(r.status, r.sides.map((s) => `${s.side === 'both' ? '' : s.side[0].toUpperCase() + ' '}${s.ratio}`).join(' · ')) : '<span class="muted small">not tested</span>'}<button class="btn btn-sm btn-ghost" data-body="ratio-add" data-test="${id}" data-athlete="${a.id}">${r ? 'Retest' : 'Test'}</button></div>
         <div class="muted small">Target ${def.ok}+ · ${esc(def.why)}${r ? ` · ${esc(ctx.relDate(r.date))}` : ''}${r && r.gap && r.gap.pct >= 10 ? ` · ${r.gap.weak} side ${r.gap.pct}% weaker` : ''}</div></li>`;
     }).join('');
-    return `<section class="card span-6"><div class="card-head"><h3>💪 Strength ratios</h3></div><ul class="asym-list">${rows}</ul>
+    return `<section class="card span-6"><div class="card-head"><h3>💪 Strength ratios ${root.Explain ? root.Explain.btn('hq') : ''}</h3></div><ul class="asym-list">${rows}</ul>
       <p class="hint" style="margin:.4rem 0 0">Muscles that work against each other need to stay in proportion. Results below target show on the body map and steer the program.</p></section>`;
   }
 
@@ -184,7 +186,7 @@
     const rows = st.map((p) => `<li><div class="row" style="gap:.4rem"><strong>${esc(p.label)}</strong><div class="spacer"></div>${pill(p.level, p.level === 'red' ? 'Stop and get it checked' : p.level === 'amber' ? 'Go lighter' : 'OK to train')}</div>
       <div class="pain-dots" aria-label="Last ${p.entries.length} entries">${p.entries.slice(-7).map((e) => `<span title="${esc(e.date)}: during ${e.during ?? '–'}, after ${e.after ?? '–'}, morning ${e.morning ?? '–'}" class="pd lvl-${Math.max(e.during ?? 0, e.after ?? 0, e.morning ?? 0) >= 6 ? 3 : Math.max(e.during ?? 0, e.after ?? 0, e.morning ?? 0) > 3 ? 2 : 1}">${Math.max(e.during ?? 0, e.after ?? 0, e.morning ?? 0)}</span>`).join('')}</div>
       <div class="small">${esc(p.text)}</div></li>`).join('');
-    return `<section class="card span-6"><div class="card-head"><h3>📈 Pain monitoring</h3><button class="btn btn-sm btn-primary" data-body="pain-add" data-athlete="${a.id}">+ Log pain</button></div>
+    return `<section class="card span-6"><div class="card-head"><h3>📈 Pain monitoring ${root.Explain ? root.Explain.btn('pain') : ''}</h3><button class="btn btn-sm btn-primary" data-body="pain-add" data-athlete="${a.id}">+ Log pain</button></div>
       ${rows ? `<ul class="asym-list">${rows}</ul>` : `<p class="muted" style="margin:0">Got a niggle? Score it 0–10 during and after training and the next morning. The app tells ${you('you', 'them')} whether to keep going, go lighter or get it checked.</p>`}
       <p class="hint" style="margin:.4rem 0 0">Rule of thumb from tendon research (Silbernagel 2007): up to 3/10 that settles by the next morning is OK. Any sharp pain, swelling, or pain that changes how you move needs a professional.</p></section>`;
   }
@@ -271,7 +273,7 @@
       `${y.sessions} sessions · ${C.formatDuration(y.minutes)} · ${y.checkins} check-ins${y.sleep ? ` · ${y.sleep} h sleep on average` : ''}`,
       y.prs ? `${y.prs} personal records` : '',
       ...y.formProgress.map((f) => `${f.exercise} form score ${f.first} → ${f.last} over ${f.checks} checks`),
-      ...y.testProgress.map((t) => `${t.label}: ${t.first} → ${t.last}${t.better ? ' ✓' : ''}`),
+      ...y.testProgress.map((t) => `${t.label}: ${ft(t, t.first)} → ${ft(t, t.last)}${t.better ? ' ✓' : ''}`),
       y.screens && y.screens.count > 1 ? `Movement screen ${y.screens.first}% → ${y.screens.last}%` : '',
       y.injuries.length ? `${y.injuries.length} injur${y.injuries.length > 1 ? 'ies' : 'y'}` : 'No injuries logged',
     ].filter(Boolean);
@@ -357,7 +359,7 @@
     root.Dialogs.html(`<div class="eyebrow">Season yearbook</div><h2 id="app-dialog-title">${esc(ctx.athleteName(a))}: ${esc(ctx.fmtDate(from, { month: 'short', year: 'numeric' }))} to now</h2>
       <div class="yb-stats"><div><strong>${y.sessions}</strong><span>sessions</span></div><div><strong>${C.formatDuration(y.minutes)}</strong><span>training</span></div><div><strong>${y.prs}</strong><span>records</span></div><div><strong>${y.injuries.length}</strong><span>injuries</span></div></div>
       ${thumbs ? `<h4>Form</h4><ul>${thumbs}</ul>` : ''}
-      ${y.testProgress.length ? `<h4>Tests</h4><ul>${y.testProgress.map((t) => `<li>${esc(t.label)}: ${t.first} → <strong>${t.last}</strong>${t.better ? ' <span class="good-t">better</span>' : ''}</li>`).join('')}</ul>` : ''}
+      ${y.testProgress.length ? `<h4>Tests</h4><ul>${y.testProgress.map((t) => `<li>${esc(t.label)}: ${esc(ft(t, t.first))} → <strong>${esc(ft(t, t.last))}</strong>${t.better ? ' <span class="good-t">better</span>' : ''}</li>`).join('')}</ul>` : ''}
       ${y.screens ? `<h4>Movement</h4><p>Movement screen ${y.screens.first}% → <strong>${y.screens.last}%</strong> over ${y.screens.count} screen${y.screens.count > 1 ? 's' : ''}.</p>` : ''}
       <h4>Health</h4><p>${y.injuries.length ? esc(y.injuries.map((i) => `${i.label} (${i.date})`).join(', ')) : 'No injuries logged this season.'} ${y.reportCards ? `${y.reportCards} report card${y.reportCards > 1 ? 's' : ''} saved.` : ''}</p>
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-body="print">Print</button><button type="button" class="btn btn-primary" data-dlg-cancel>Close</button></div>`, { wide: true });

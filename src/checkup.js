@@ -259,7 +259,7 @@
     const formProgress = Object.entries(byEx).filter(([, l]) => l.length >= 2).map(([exercise, l]) => ({ exercise, first: l[0].score, last: l[l.length - 1].score, firstId: l[0].id, lastId: l[l.length - 1].id, checks: l.length }));
     const tests = {};
     for (const t of (a.tests || []).filter((x) => x.date >= fromISO && x.date <= toISO).sort((x, y) => (x.date < y.date ? -1 : 1))) (tests[t.testId] = tests[t.testId] || []).push(t);
-    const testProgress = Object.entries(tests).filter(([id, l]) => l.length >= 2 && C.TEST_INFO[id] && C.TEST_INFO[id].better !== 'none').map(([id, l]) => ({ id, label: C.TEST_INFO[id].name, first: l[0].value, last: l[l.length - 1].value, better: C.TEST_INFO[id].better === 'higher' ? l[l.length - 1].value > l[0].value : l[l.length - 1].value < l[0].value }));
+    const testProgress = Object.entries(tests).filter(([id, l]) => l.length >= 2 && C.TEST_INFO[id] && C.TEST_INFO[id].better !== 'none').map(([id, l]) => ({ id, info: C.TEST_INFO[id], label: C.TEST_INFO[id].name, first: l[0].value, last: l[l.length - 1].value, better: C.TEST_INFO[id].better === 'higher' ? l[l.length - 1].value > l[0].value : l[l.length - 1].value < l[0].value }));
     const injuries = (state.injuries || []).filter((i) => i.athleteId === a.id && i.type !== 'illness' && i.date >= fromISO && i.date <= toISO);
     const prs = [...C.strengthRecords(w), ...C.enduranceRecords(w)].length;
     const S = Screen();
