@@ -195,6 +195,7 @@
   // ===================== browser client =====================
 
   const CFG = root.CLOUD_CONFIG || {};
+  let arriving = null; // finishing a sign-in that came back from an email link or Google
   const STORE = 'athleteos:cloud';
   const enabled = () => !!(CFG.url && CFG.key);
   let mem = loadMem();
@@ -303,6 +304,22 @@
     await afterSignIn();
   }
 
+  // Which outside sign-ins (Google, ...) are switched on in the Supabase project.
+  let providers = {};
+  const hasProvider = (name) => !!providers[name];
+  async function loadProviders() {
+    try {
+      const s = await http('/auth/v1/settings', { auth: false });
+      providers = (s && s.external) || {};
+      notify();
+    } catch {}
+  }
+
+  // Google: Supabase sends the person to Google and back here with the session in the URL hash.
+  function signInWithGoogle() {
+    location.assign(`${CFG.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo())}`);
+  }
+
   async function resetPassword(email) {
     await http(`/auth/v1/recover?redirect_to=${encodeURIComponent(redirectTo())}`, { method: 'POST', body: { email }, auth: false });
   }
@@ -320,6 +337,12 @@
   // Links in confirmation and reset emails come back with the session in the URL hash.
   function captureRedirect() {
     const h = location.hash || '';
+    if (/error_description=/.test(h)) {
+      // e.g. the person closed the Google window
+      lastError = new URLSearchParams(h.slice(1)).get('error_description') || 'Sign in didn’t finish';
+      history.replaceState(null, '', location.pathname + location.search);
+      return false;
+    }
     if (!/access_token=/.test(h)) return false;
     const p = new URLSearchParams(h.slice(1));
     setAuth({ access_token: p.get('access_token'), refresh_token: p.get('refresh_token'), expires_in: Number(p.get('expires_in')) || 3600 });
@@ -331,7 +354,7 @@
     const me = await http('/auth/v1/user');
     mem.auth.userId = me.id;
     mem.auth.email = me.email;
-    mem.auth.name = (me.user_metadata && me.user_metadata.name) || mem.auth.name || '';
+    mem.auth.name = (me.user_metadata && (me.user_metadata.name || me.user_metadata.full_name)) || mem.auth.name || '';
     saveMem();
     notify();
   }
@@ -339,6 +362,7 @@
   // ---------- teams ----------
 
   async function memberships() {
+    await arriving;
     const uid = mem.auth && mem.auth.userId;
     if (!uid) return [];
     return http(`/rest/v1/team_members?user_id=eq.${uid}&select=team_id,role,athlete_id,teams(name,solo,join_code,staff_code)`);
@@ -522,7 +546,8 @@
     hooks = { ...hooks, ...h };
     if (!enabled()) return;
     const back = captureRedirect();
-    if (back) afterSignIn().catch((e) => ((lastError = e.message), notify()));
+    if (back) arriving = afterSignIn().catch((e) => ((lastError = e.message), notify()));
+    loadProviders();
     syncNow();
     setInterval(() => document.visibilityState === 'visible' && navigator.onLine && syncNow(), 30000);
     addEventListener('online', () => syncNow());
@@ -536,5 +561,5 @@
     return { baseURL: CFG.url + '/functions/v1/claude', token: mem.auth.access_token, team: mem.team.id, key: CFG.key };
   }
 
-  root.Cloud = { init, status, signUp, signIn, signOut, resetPassword, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
+  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, signOut, resetPassword, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled };
 })(typeof window !== 'undefined' ? window : globalThis);

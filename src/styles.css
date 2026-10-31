@@ -2280,4 +2280,7 @@ body.pro .stat { font-size: 1.6rem; }
 .big-code { font-family: var(--font-mono); font-weight: 700; font-size: 1.05rem; letter-spacing: .08em; padding: .1rem .45rem; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); }
 .btn-block { width: 100%; justify-content: center; }
 .mode-card.primary form input { font: inherit; }
-body:has(.auth-wrap) .topbar { display: none; }
+body:has(.auth-wrap) .topbar { display: none !important; }
+.btn-google { gap: .6rem; background: #fff; color: #1f1f1f; border: 1px solid #dadce0; font-weight: 600; }
+.btn-google:hover { background: #f6f7f8; }
+.auth-tabs + .btn-google + .auth-or { margin: 1rem 0; }
