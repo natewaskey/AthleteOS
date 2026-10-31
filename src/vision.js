@@ -289,12 +289,13 @@
     return result;
   }
 
-  function run(frames, { exercise, aspect = 16 / 9, view = 'auto', heightCm = null, limits = null } = {}) {
+  function run(frames, { exercise, aspect = 16 / 9, view = 'auto', heightCm = null, limits = null, calib: refCalib = null } = {}) {
     const ex = M.EXERCISES[exercise];
     const prep = prepare(frames, aspect, { exercise, view: view === 'auto' ? (ex && ex.views[0]) || 'side' : view });
     const result = M.analyze(prep.frames, { exercise, aspect, view, limits });
     result.aspect = aspect;
-    const calib = calibration(result, heightCm);
+    // A known object measured in the picture beats an estimate from standing height.
+    const calib = refCalib && refCalib.cmPerUnit > 0 ? { cmPerUnit: refCalib.cmPerUnit, heightCm: heightCm || null, ref: refCalib.label || 'reference' } : calibration(result, heightCm);
     enhance(result, { frames: prep.frames, calib, roll: prep.roll });
     // Draw the bar path on the original video (the measurements used the straightened copy).
     if (result.barPath && prep.roll) {

@@ -96,6 +96,9 @@ One place that looks at the body as a whole over months and years, built to keep
 - Drop jumps also give ground contact time and **RSI** (height ÷ contact). Slow-motion clips (×2/×4/×8) are detected from the jump arc and corrected automatically.
 - Results save as CMJ, RSI and single-leg jump metrics, next to CSV-imported force plate data, so they feed normal ranges and the readiness picture. Warnings flag bent-knee landings, missing feet and low frame rates.
 
+- **Record with camera check:** recording in the app first checks the setup live (whole body in frame, distance with room to jump, side-on angle, phone level and still, light, frame rate) and only unlocks recording once everything is green. The setup is remembered per test so next time matches.
+- **Precise mode** (on by default) analyses 60 frames a second. Do 3 jumps per video: the result shows the best, the middle value and how consistent the jumps were (CV), and says whether the change since last time is bigger than normal test noise (MDC from published test error, or from the athlete's own repeat tests once there are 3).
+- **Jump mat / force plate check:** enter the reference device's reading next to a camera test. After two or more, the jump card shows the camera's average bias and 95% limits of agreement (Bland-Altman).
 ### Left vs right (asymmetry)
 - The **Left vs right** card pulls side-to-side numbers from single-leg hop tests (new tests in Progress), camera single-leg jumps and the two-sided movement screen tests, and shows a limb symmetry index for each (weaker ÷ stronger; 90%+ is the usual target, gaps of 10% and 15% are flagged).
 - When the legs or arms have a clear weaker side, programs steer toward it: one extra set on that side is added after each one-sided strength or power exercise when an athlete adds a program, and coaches get a "weak-side set" checkbox when assigning.
@@ -160,13 +163,23 @@ One place that looks at the body as a whole over months and years, built to keep
 - Also shows estimated maxes and the movement screen score. Each section can be shown or hidden.
 - Share it as a downloaded web page, a copy-paste email version for college coaches, or print / PDF.
 
+### Camera accuracy
+- **Camera check before recording:** form checks and jump tests can be recorded in the app. A live checklist (in frame, distance, angle, level, light, frame rate, phone still) must be all green for a second before recording unlocks, and the setup is saved so the next session films from the same spot.
+- **Size calibration:** 📏 on the video player: tap both ends of something of known size (bumper plate 45 cm, a tape measure, a box) and distances and bar speed use that instead of the athlete's height.
+- **Second angle:** after a side-on check the app asks for the front-on angle (and the other way round) and combines both.
+- **Precise mode:** analyse up to 60 frames a second instead of 30.
+- **Repeat reliability:** form score changes are compared with how much the reps varied, so "up 6" is called a real change only when it beats the noise.
+- **Validity:** each check has a **Right? Yes / No**. The checks card shows how often the camera agreed with a coach's eye for that lift and which check is least reliable.
+- **Cloud copies:** shared form checks and live sets upload their video and tracked poses to private cloud storage (needs the latest `supabase/schema.sql`), so the coach can replay them on their own device.
+
 ### Live camera coaching
-- Set the phone down and move. The app tracks your body on the device, counts reps as they happen, grades each rep with the same rules as video analysis, and speaks a short cue ("Sit deeper") or the rep count.
+- Set the phone down and move. The app tracks your body on the device, counts reps as they happen, grades each rep with the same rules as video analysis, and shows a short cue ("Sit deeper") and the rep count on screen. No spoken cues.
 - Works for squat, lunge, Bulgarian split squat, push-up, deadlift, Romanian deadlift, overhead press and the jump-landing screen.
-- **Camera setup check:** before and during the set it tells you what to fix, out loud: feet or head cut off, too far away, off to the side, too dark, or filming from the wrong angle for the lift.
+- **Camera setup check:** before and during the set it shows what to fix on screen: feet or head cut off, too far away, off to the side, too dark, or filming from the wrong angle for the lift.
 - **Inside the workout:** in Live workout mode, lifts with a form check get a **🎥 Coach me live** button. The camera counts the set's reps, cues each one, then logs the reps to that set with a form score and saves the set as a form check.
 - A set summary shows the main thing to fix, and the set can be saved as a form check.
-- No video is recorded. The camera needs the app open in its own tab: embedded previews block camera access.
+- **Set replay:** every live set is recorded (at up to 60 fps) and saved with its reps, so between sets the athlete can rewatch it at 0.25×, 0.5× or 1× and jump straight to any rep. Last live set › **▶ Replay set**. If the set is shared, the coach can replay it on their own device too.
+- The camera needs the app open in its own tab: embedded previews block camera access.
 
 ### Wellness: Fuel, Mind, Health
 - **Fuel:**
@@ -374,6 +387,8 @@ src/importer.js       CSV import for HRV, jumps, GPS and bar velocity
 src/evidence.js       research grades and citations for exercises and scoring rules
 src/jump.js           camera jump testing: flight time, height, contact time, RSI, slow-motion check
 src/jump-ui.js        jump test dialog, jump testing card, left vs right card
+src/camcheck.js       camera check before recording (framing, distance, angle, level, light, fps), in-app recorder
+src/reliability.js    repeat-trial spread, real change vs noise (MDC), Bland-Altman agreement, check accuracy
 src/asymmetry.js      limb symmetry from hops, jumps and the screen; weak-side sets in programs
 src/fv.js             jump force-velocity profile (F0, V0, Pmax, deficit) for the program builder
 src/rts.js            criteria-based return to sport: data checks and coach sign-offs

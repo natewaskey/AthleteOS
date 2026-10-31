@@ -284,3 +284,27 @@ create or replace function public.team_logins(t uuid) returns table (user_id uui
   select m.user_id, u.email::text, m.role, m.athlete_id from team_members m join auth.users u on u.id = m.user_id where m.team_id = t and my_role(t) = 'coach'
 $$;
 grant execute on function public.team_logins(uuid) to authenticated;
+
+-- Videos and pose data for form checks and live sets the athlete shared with the coach.
+-- Private Storage bucket; paths are <team id>/<athlete id>/<file>. Same people who can read the
+-- athlete's records can read and write their media (coaches, unless a parent still has to approve).
+insert into storage.buckets (id, name, public) values ('media', 'media', false) on conflict (id) do nothing;
+
+create or replace function public.media_access(path text) returns boolean language plpgsql stable security definer set search_path = public as $$
+declare parts text[] := string_to_array(path, '/'); t uuid; a text;
+begin
+  if array_length(parts, 1) < 3 then return false; end if;
+  begin t := parts[1]::uuid; exception when others then return false; end;
+  a := parts[2];
+  return (my_role(t) = 'coach' and not awaiting_parent(t, a)) or (my_role(t) = 'athlete' and a = my_athlete(t));
+end $$;
+grant execute on function public.media_access(text) to authenticated;
+
+drop policy if exists media_read on storage.objects;
+create policy media_read on storage.objects for select to authenticated using (bucket_id = 'media' and public.media_access(name));
+drop policy if exists media_insert on storage.objects;
+create policy media_insert on storage.objects for insert to authenticated with check (bucket_id = 'media' and public.media_access(name));
+drop policy if exists media_update on storage.objects;
+create policy media_update on storage.objects for update to authenticated using (bucket_id = 'media' and public.media_access(name));
+drop policy if exists media_delete on storage.objects;
+create policy media_delete on storage.objects for delete to authenticated using (bucket_id = 'media' and public.media_access(name));

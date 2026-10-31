@@ -29,7 +29,7 @@
       route: 'form', role: 'athlete', title: 'Form check',
       steps: [
         { sel: '[data-form-action="new"]', title: 'Film a lift', text: 'Pick the exercise, film it on your phone and the app measures depth, angles, bar path and rep speed. It all runs on your phone.' },
-        { sel: '[data-tab-link="live"]', title: 'Live coach', text: 'Or prop the phone up and get spoken cues while you train, rep by rep.' },
+        { sel: '[data-tab-link="live"]', title: 'Live coach', text: 'Or prop the phone up and get on-screen cues while you train, rep by rep, with a replay after the set.' },
         { sel: '.analysis-card', title: 'Your checks over time', text: 'Each video is kept with its score. Open one to compare with your first check and see what changed.' },
       ],
     },

@@ -99,6 +99,46 @@
   function save() {
     store();
     if (window.Cloud) window.Cloud.changed();
+    queueMediaShare();
+  }
+
+  // Copy shared form checks and live sets (video + poses) to cloud storage so the coach can replay them.
+  let mediaTimer = null;
+  let mediaBusy = false;
+  const mediaTried = new Set();
+  function queueMediaShare() {
+    if (!window.Cloud || !window.Cloud.team || !window.Cloud.team() || !window.Media || !Media.share) return;
+    clearTimeout(mediaTimer);
+    mediaTimer = setTimeout(shareMedia, 1500);
+  }
+  async function shareMedia() {
+    if (mediaBusy) return;
+    mediaBusy = true;
+    try {
+      for (const an of state.analyses || []) {
+        if (!an.sharedWithCoach || mediaTried.has(an.id) || (an.cloud && an.cloud.video && an.cloud.poses) || !navigator.onLine) continue;
+        mediaTried.add(an.id);
+        try {
+          const cloud = await Media.share(an);
+          if (cloud && (cloud.video !== (an.cloud || {}).video || cloud.poses !== (an.cloud || {}).poses)) {
+            an.cloud = cloud;
+            store();
+            if (window.Cloud) window.Cloud.changed();
+          }
+        } catch (e) {
+          if (e && /schema\.sql/.test(e.message || '')) break; // bucket not set up yet: try again next session
+        }
+      }
+    } finally {
+      mediaBusy = false;
+    }
+  }
+  if (window.Media) {
+    Media.cloudPath = (kind, id) => {
+      const list = state.analyses || [];
+      const an = kind === 'video' ? list.find((x) => x.videoId === id && x.cloud && x.cloud.video) : list.find((x) => x.id === id && x.cloud && x.cloud.poses);
+      return an ? an.cloud[kind] : null;
+    };
   }
 
   function store() {
@@ -2484,7 +2524,7 @@
   });
 
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
-  const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, openAnalyze: (o) => Form.openAnalyze(o) };
+  const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, storeVideo, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);

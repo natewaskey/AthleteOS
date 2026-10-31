@@ -945,6 +945,20 @@
       seenByAthlete: input.seenByAthlete == null ? true : !!input.seenByAthlete,
       demo: input.demo && typeof input.demo === 'object' ? { opts: { ...(input.demo.opts || {}) } } : null,
       flagsCleared: Array.isArray(input.flagsCleared) ? input.flagsCleared.map(String).slice(0, 20) : [],
+      // Camera angle the analysis detected (for pairing a side-on and a front-on clip).
+      seenView: ['side', 'front', 'angled'].includes(input.seenView) ? input.seenView : null,
+      // Per-rep scores, for "real change vs noise" between sessions.
+      repScores: Array.isArray(input.repScores) ? input.repScores.filter((x) => x != null && isFinite(x)).slice(0, 60).map((x) => Math.round(Number(x))) : [],
+      // Size calibration from a known object in the picture (plate, tape): cm per frame unit.
+      calib: input.calib && Number(input.calib.cmPerUnit) > 0 ? { cmPerUnit: +Number(input.calib.cmPerUnit).toFixed(3), refCm: Number(input.calib.refCm) || null, label: String(input.calib.label || '').slice(0, 40) } : null,
+      // Was each check right? Set by the coach or athlete: checkId -> 'right' | 'wrong'.
+      labels: input.labels && typeof input.labels === 'object' ? Object.fromEntries(Object.entries(input.labels).filter(([, v]) => v === 'right' || v === 'wrong').slice(0, 30)) : {},
+      // Live coach sets: when each rep happened on the recording, for rep-by-rep replay.
+      repTimes: Array.isArray(input.repTimes) ? input.repTimes.filter((x) => isFinite(x)).slice(0, 60).map((x) => +Number(x).toFixed(2)) : [],
+      source: ['upload', 'camera', 'live'].includes(input.source) ? input.source : 'upload',
+      fps: input.fps == null ? null : Math.round(Number(input.fps)) || null,
+      // Copies kept in the team's cloud storage so a coach on another device can replay it.
+      cloud: { video: !!(input.cloud && input.cloud.video), poses: !!(input.cloud && input.cloud.poses) },
     };
   }
 
