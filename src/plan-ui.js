@@ -373,6 +373,7 @@
         <input ${k} data-f="group" value="${esc(it.group)}" placeholder="SS" title="Superset group, e.g. A1 / A2" class="group-in" aria-label="Superset group" maxlength="3" />
         <input ${k} data-f="name" value="${esc(it.name)}" list="lib-${blockType}" placeholder="Exercise name" aria-label="Exercise" class="name-in" />
         ${libItem && libItem.form ? '<span class="pill info" title="Athletes can check their form on this lift">📐</span>' : ''}
+        ${root.HowTo && root.HowTo.lookup(it.name) ? `<button type="button" class="btn btn-sm btn-ghost" data-plan-action="howto" data-name="${esc(it.name)}" aria-label="How to do ${esc(it.name)}" title="Demo and coaching cues">▶</button>` : ''}
         <div class="item-move">
           <button type="button" class="btn btn-sm btn-ghost" data-plan-action="move-item" ${k} data-dir="-1" ${ii === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
           <button type="button" class="btn btn-sm btn-ghost" data-plan-action="move-item" ${k} data-dir="1" ${ii === count - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
@@ -611,7 +612,7 @@
           ${flag ? `<div class="small flag-note">${flag.level === 'bad' ? '⛔' : '⚠️'} ${esc(flag.reason)}</div>` : ''}
           ${actual}</div>
         <div class="item-tools">
-          <button class="btn btn-sm btn-ghost" data-plan-action="howto" data-name="${esc(i.name)}" aria-label="How to do ${esc(i.name)}">ⓘ</button>
+          <button class="btn btn-sm btn-ghost" data-plan-action="howto" data-name="${esc(i.name)}" aria-label="How to do ${esc(i.name)}" title="Demo and coaching cues">${root.HowTo && root.HowTo.lookup(i.name) ? '▶' : 'ⓘ'}</button>
           ${doing ? `<button class="btn btn-sm btn-ghost" data-plan-action="swap" data-assign="${a.id}" data-item="${i.id}" aria-label="Swap ${esc(i.name)}">⇄</button>` : ''}
           ${lib && lib.form && ctx.role() === 'athlete' ? `<button class="btn btn-sm" data-plan-action="form-check" data-exercise="${lib.form}">📐</button>` : ''}
         </div>

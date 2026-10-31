@@ -1,0 +1,12 @@
+<!doctype html>
+<!-- Dev tool: contact sheet of every exercise demo. Open via file:// ; ?t=0.5 sets the loop phase, ?only=a,b filters. -->
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../src/styles.css">
+<style>body{padding:8px;background:#fff} .g{display:grid;grid-template-columns:repeat(8,1fr);gap:6px} figure{margin:0;font:11px system-ui} canvas{width:100%;height:120px;display:block}</style></head>
+<body><div class="g" id="g"></div>
+<script src="../src/exercise-demo.js"></script>
+<script>
+const q=new URLSearchParams(location.search);const ph=+(q.get('t')||0.45);const only=q.get('only');const phases=(q.get('ph')||String(ph)).split(',').map(Number);if(q.get('cols'))document.getElementById('g').style.gridTemplateColumns=`repeat(${q.get('cols')},1fr)`;
+const ids=only?only.split(','):ExerciseDemo.IDS;
+for(const id of ids)for(const t of phases){const fig=document.createElement('figure');const c=document.createElement('canvas');if(q.get('h'))c.style.height=q.get('h')+'px';fig.append(c,id+' @'+t);document.getElementById('g').append(fig);
+ExerciseDemo.draw(c,ExerciseDemo.frame(id,t*ExerciseDemo.DEMOS[id].sec),{big:true});}
+</script></body></html>

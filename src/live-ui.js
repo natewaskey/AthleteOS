@@ -107,7 +107,9 @@
       sheet.addEventListener('click', (e) => {
         if (e.target === sheet || e.target.closest('[data-close]')) sheet.close();
       });
-      sheet.addEventListener('close', () => cancelAnimationFrame(demoRaf));
+      sheet.addEventListener('close', () => {
+        if (!sheet.open) cancelAnimationFrame(demoRaf); // the close event can arrive after the sheet was reopened
+      });
     }
     sheet.onclick = null;
     return sheet;
@@ -118,15 +120,61 @@
     const lib = C.libraryEntry(name);
     const form = lib && lib.form;
     const m = P.meta(name);
+    const ED = root.ExerciseDemo;
+    const how = root.HowTo && root.HowTo.lookup(name);
+    const demo = how && ED && ED.DEMOS[how.demo] ? how.demo : null;
+    const cues = how ? how.cues : P.cues(name);
     sheet.innerHTML = `<div class="row"><h2 style="margin:0">${esc(name)}</h2><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted small">${m.pattern ? esc(P.PATTERNS[m.pattern].label) : 'Exercise'}${m.equipment.length ? ' · ' + m.equipment.map((e) => esc(P.EQUIPMENT[e])).join(', ') : ' · Bodyweight'}</p>
-      ${form ? '<canvas id="howto-demo" width="480" height="300" aria-label="Animated demo of good form"></canvas><p class="hint">Animated demo of good technique. Film yourself and use 📐 Check form to compare.</p>' : ''}
+      ${
+        demo
+          ? `<canvas class="demo-canvas howto-canvas" role="img" aria-label="Animated demo of ${esc(how.name)}"></canvas>
+            <div class="row howto-controls"><button type="button" class="btn btn-sm" data-howto-play>⏸ Pause</button><div class="segmented" role="group" aria-label="Speed"><button type="button" data-howto-speed="0.5">0.5×</button><button type="button" data-howto-speed="1" aria-pressed="true">1×</button></div>${how.exact ? '' : `<span class="muted small">Closest demo: ${esc(how.name)}</span>`}</div>`
+          : form
+            ? '<canvas id="howto-demo" width="480" height="300" aria-label="Animated demo of good form"></canvas><p class="hint">Animated demo of good technique. Film yourself and use 📐 Check form to compare.</p>'
+            : ''
+      }
+      ${how && how.setup ? `<p class="small" style="margin:.75rem 0 0"><strong>Setup:</strong> ${esc(how.setup)}</p>` : ''}
       <h3>Coaching cues</h3>
-      <ol class="cue-list">${P.cues(name).map((c) => `<li>${esc(c)}</li>`).join('')}</ol>
+      <ol class="cue-list">${cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ol>
+      ${how && how.avoid ? `<p class="small howto-avoid"><strong>Avoid:</strong> ${esc(how.avoid)}</p>` : ''}
+      ${form && demo ? '<p class="hint">Film yourself and use 📐 Check form to compare.</p>' : ''}
       ${root.ScienceUI ? root.ScienceUI.evidenceBlock(name) : ''}
       <a class="btn" href="${P.demoLink(name)}" target="_blank" rel="noopener">▶ Watch video demos</a>`;
     sheet.showModal();
-    if (form && root.Movement) animateDemo($('#howto-demo', sheet), form);
+    if (demo) playDemo($('.howto-canvas', sheet), demo);
+    else if (form && root.Movement) animateDemo($('#howto-demo', sheet), form);
+  }
+
+  // Animated exercise demo inside the how-to sheet, with pause and half speed.
+  function playDemo(canvas, id) {
+    const ED = root.ExerciseDemo;
+    const [x0, x1, y0, y1] = ED.box(id);
+    canvas.style.height = `${Math.round(Math.max(200, Math.min(360, canvas.clientWidth * ((y1 - y0) / (x1 - x0)) + 36)))}px`;
+    const st = { t: 0, last: performance.now(), speed: 1, playing: !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) };
+    if (!st.playing) st.t = ED.DEMOS[id].sec * 0.45;
+    const loop = (now) => {
+      if (!canvas.isConnected || !sheet.open) return;
+      if (st.playing) st.t += ((now - st.last) / 1000) * st.speed;
+      st.last = now;
+      ED.draw(canvas, ED.frame(id, st.t), { big: true });
+      demoRaf = requestAnimationFrame(loop);
+    };
+    const play = $('[data-howto-play]', sheet);
+    if (!st.playing && play) play.textContent = '▶ Play';
+    sheet.onclick = (e) => {
+      const sp = e.target.closest('[data-howto-speed]');
+      if (sp) {
+        st.speed = +sp.dataset.howtoSpeed;
+        sheet.querySelectorAll('[data-howto-speed]').forEach((b) => b.setAttribute('aria-pressed', String(b === sp)));
+      }
+      if (e.target.closest('[data-howto-play]')) {
+        st.playing = !st.playing;
+        play.textContent = st.playing ? '⏸ Pause' : '▶ Play';
+      }
+    };
+    cancelAnimationFrame(demoRaf);
+    demoRaf = requestAnimationFrame(loop);
   }
 
   function animateDemo(canvas, exercise) {

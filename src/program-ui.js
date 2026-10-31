@@ -262,7 +262,7 @@
             ${plan.blocks
               .map(
                 (b) => `<div class="prog-block"><div class="small"><strong>${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</strong></div>
-                <ul class="prog-items">${b.items.map((i) => `<li><span>${i.group ? `<b>${esc(i.group)}</b> ` : ''}${esc(i.name)}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
+                <ul class="prog-items">${b.items.map((i) => `<li><span>${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button></span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
               )
               .join('')}
             <div class="row" style="margin-top:.5rem">
@@ -455,6 +455,8 @@
     const el = e.target.closest('[data-prog-action]');
     if (!el) return;
     switch (el.dataset.progAction) {
+      case 'howto':
+        return root.LiveUI && root.LiveUI.openHowTo(el.dataset.name);
       case 'new':
         form = form || defaults();
         return ctx.go('plan', 'program:new');
