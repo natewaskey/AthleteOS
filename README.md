@@ -73,6 +73,15 @@ The first screen asks how you'll use AthleteOS. You can change it any time in Se
 
 In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
 
+### Camera jump testing
+- Progress (or a coach's athlete page) › Jump testing › **Test with camera**: film a countermovement jump, a single-leg jump on each leg, or a drop jump on any phone. Pose tracking finds the toes, a parabola fitted to each flight gives takeoff and landing to a fraction of a frame, and height comes from flight time (g·t²/8), the same method as jump mats.
+- Drop jumps also give ground contact time and **RSI** (height ÷ contact). Slow-motion clips (×2/×4/×8) are detected from the jump arc and corrected automatically.
+- Results save as CMJ, RSI and single-leg jump metrics, next to CSV-imported force plate data, so they feed normal ranges and the readiness picture. Warnings flag bent-knee landings, missing feet and low frame rates.
+
+### Left vs right (asymmetry)
+- The **Left vs right** card pulls side-to-side numbers from single-leg hop tests (new tests in Progress), camera single-leg jumps and the two-sided movement screen tests, and shows a limb symmetry index for each (weaker ÷ stronger; 90%+ is the usual target, gaps of 10% and 15% are flagged).
+- When the legs or arms have a clear weaker side, programs steer toward it: one extra set on that side is added after each one-sided strength or power exercise when an athlete adds a program, and coaches get a "weak-side set" checkbox when assigning.
+
 ### Pro mode (elite teams)
 - One switch (Settings › Team policy for the head coach; Settings › Preferences when training solo) turns AthleteOS into a data-first tool: no badges, streaks, confetti, challenges, team wall, training partners or recruiting profile, and denser screens. PRs show as a short note instead of a celebration.
 - Turning it on for a team also makes athletes' own workouts and programs need coach approval (the head coach can change that back).
@@ -297,6 +306,9 @@ src/smart-ui.js       why dialogs, 10-second check-in, voice log, adapt/risk/par
 src/science.js        personal baselines, age bands, maturity offset, velocity profiles, GPS weeks
 src/importer.js       CSV import for HRV, jumps, GPS and bar velocity
 src/evidence.js       research grades and citations for exercises and scoring rules
+src/jump.js           camera jump testing: flight time, height, contact time, RSI, slow-motion check
+src/jump-ui.js        jump test dialog, jump testing card, left vs right card
+src/asymmetry.js      limb symmetry from hops, jumps and the screen; weak-side sets in programs
 src/science-ui.js     normal ranges, performance data, age & growth, import, evidence library
 src/live-coach.js     real-time rep counting and cues (engine + camera screen)
 src/summary-ui.js     weekly summary card and recap page

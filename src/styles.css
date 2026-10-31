@@ -2157,3 +2157,18 @@ body.pro .grid { gap: 0.7rem; }
 body.pro .card { padding: 0.85rem 1rem; }
 body.pro .page-title { font-size: 1.5rem; }
 body.pro .stat { font-size: 1.6rem; }
+
+/* Jump testing and left/right asymmetry */
+.jump-tips { margin: 0.2rem 0 0.6rem; padding-left: 1.1rem; }
+.jump-best { display: flex; gap: 1.5rem; align-items: flex-end; margin: 0.6rem 0; }
+.jump-best .big { font-size: 1.8rem; font-weight: 800; font-family: var(--font-mono); }
+.pf-table tr.best td { font-weight: 700; }
+.pf-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.8rem; }
+.asym-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.asym-list li { padding: 0.45rem 0.6rem; border-radius: 10px; background: var(--surface-2); }
+.asym-list .bad-t { color: var(--bad); } .asym-list .warn-t { color: var(--warn); }
+.lsi { display: inline-block; width: 80px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; vertical-align: middle; }
+.lsi i { display: block; height: 100%; background: var(--good); }
+.lsi i.lsi-warn { background: var(--warn); } .lsi i.lsi-bad { background: var(--bad); }
+.jump-table th, .jump-table td { text-align: right; font-family: var(--font-mono); padding: 0.3rem 0.4rem; }
+.jump-table th:first-child, .jump-table td:first-child { text-align: left; }

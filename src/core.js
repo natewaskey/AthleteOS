@@ -685,6 +685,8 @@
     { id: 'cone3', name: '3-cone drill', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'vertical', name: 'Vertical jump', kind: 'power', unit: 'jump', better: 'higher' },
     { id: 'broad', name: 'Broad jump', kind: 'power', unit: 'jump', better: 'higher' },
+    { id: 'hopL', name: 'Single-leg hop (left)', kind: 'power', unit: 'jump', better: 'higher', side: 'left' },
+    { id: 'hopR', name: 'Single-leg hop (right)', kind: 'power', unit: 'jump', better: 'higher', side: 'right' },
     { id: 'squat1rm', name: 'Back squat 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Back squat' },
     { id: 'bench1rm', name: 'Bench press 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Bench press' },
     { id: 'dead1rm', name: 'Deadlift 1RM', kind: 'strength', unit: 'weight', better: 'higher', lift: 'Deadlift' },
@@ -1880,8 +1882,8 @@
 
     // Testing history: a preseason test and a recent retest.
     const tests = {
-      taylor: { dash40: [4.92, 4.81], vertical: [71, 74], broad: [262, 270], squat1rm: [lb(365), lb(385)], bench1rm: [lb(265), lb(275)], clean1rm: [lb(235), lb(245)] },
-      jordan: { dash40: [4.71, 4.66], vertical: [81, 84], proagility: [4.41, 4.32], broad: [272, 277] },
+      taylor: { dash40: [4.92, 4.81], vertical: [71, 74], hopL: [188, 194], hopR: [191, 197], broad: [262, 270], squat1rm: [lb(365), lb(385)], bench1rm: [lb(265), lb(275)], clean1rm: [lb(235), lb(245)] },
+      jordan: { dash40: [4.71, 4.66], vertical: [81, 84], proagility: [4.41, 4.32], broad: [272, 277], hopL: [171, 152], hopR: [176, 179] },
       maya: { dash40: [5.18, 5.12], proagility: [4.62, 4.58], vertical: [52, 54], mile: [372, 361] },
       riley: { mile: [298, 289], dash40: [5.31, 5.28], vertical: [48, 50], pullups: [6, 8] },
       sam: { pullups: [11, 13], pushups: [42, 47], vertical: [58, 60], broad: [228, 233] },
@@ -1940,6 +1942,8 @@
           a.metrics.push({ date: w.date, key: 'gps_total', value: Math.round(w.duration * 78), source: 'demo' }, { date: w.date, key: 'gps_hsr', value: hsr, source: 'demo' }, { date: w.date, key: 'gps_sprint', value: Math.round(hsr * 0.22), source: 'demo' }, { date: w.date, key: 'gps_accel', value: Math.round(w.duration * 0.5), source: 'demo' });
         }
       }
+      // Jordan's camera single-leg jumps show the same left-side drop as the hop test.
+      if (a.id === 'jordan') a.metrics.push({ date: addDays(todayISO, -4), key: 'cmj_l', value: 19.6, source: 'camera' }, { date: addDays(todayISO, -4), key: 'cmj_r', value: 23.4, source: 'camera' }, { date: addDays(todayISO, -4), key: 'rsi', value: 1.84, source: 'camera' });
       a.metrics.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
     });
     if (byId('riley')) {

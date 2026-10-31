@@ -229,10 +229,11 @@
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
+      const extra = root.Asymmetry ? root.Asymmetry.applyToAssignments(list, ctx.athleteById, today()) : 0;
       const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'athlete', assignments: list });
       if (res === 'blocked') return;
       ctx.save();
-      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan`);
+      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan${extra ? ' · extra sets on your weaker side included' : ''}`);
       return ctx.go('plan');
     }
     if (!dialog) {
@@ -245,6 +246,8 @@
     }
     const athletes = ctx.state().athletes;
     const groups = [...new Set(athletes.flatMap((a) => a.groups))].sort();
+    const Asym = root.Asymmetry;
+    const asymCount = Asym ? athletes.filter((a) => { const s = Asym.summary(a, today()); return (s.lower && s.lower.weak) || (s.upper && s.upper.weak); }).length : 0;
     dialog.innerHTML = `<form id="program-assign-form" method="dialog">
       <div class="row"><h2 style="margin:0">Assign “${esc(p.name)}”</h2><div class="spacer"></div><button type="button" class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
       <p class="muted small">${p.weeks} weeks × ${p.sessions.length} sessions, progressed automatically each week.</p>
@@ -253,6 +256,7 @@
       <label style="margin-top:.75rem">Start date <input type="date" name="start" value="${C.addDays(C.startOfWeek(today()), 7)}" required/></label>
       <label>Note to athletes <input name="note" maxlength="300" placeholder="e.g. Summer strength block"/></label>
       <label class="check"><input type="checkbox" name="notify" checked/> Message athletes about it</label>
+      ${asymCount ? `<label class="check"><input type="checkbox" name="asym" checked/> Add a weak-side set for athletes with a left/right gap <span class="muted small">(${asymCount} on the team)</span></label>` : ''}
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${root.StaffUI.assignLabel('Assign program')}</button></div>
     </form>`;
     const f = $('#program-assign-form', dialog);
@@ -267,6 +271,7 @@
       if (!ids.length) return ctx.toast('Pick at least one athlete');
       const saved = savePreview();
       const list = P.expandProgram(saved, f.start.value, ids, { coachNote: f.note.value.trim() });
+      if (f.asym && f.asym.checked) Asym.applyToAssignments(list, ctx.athleteById, today());
       const messages = f.notify.checked ? ids.map((id) => C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` })) : [];
       const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'coach', assignments: list, messages });
       ctx.save();

@@ -48,6 +48,10 @@
       a: 'One missed day is fine. Readiness, baselines and the weekly adapter work best with a check-in most days, so try to make it part of your morning routine.' },
 
     // ---------- training ----------
+    { id: 'jump-test', cat: 'training', for: 'all', q: 'How do I test my jump with my phone camera?', tags: 'jump cmj vertical rsi drop jump camera video force plate', link: ['progress', 'Open Progress'],
+      a: 'Go to **Progress → Jump testing → Test with camera**. Put the phone on a stand side-on about 3 m away with your whole body in frame, then do 3 jumps with hands on hips and land with straight legs. Height comes from flight time, like a jump mat. Slow-motion video is the most precise.' },
+    { id: 'asymmetry', cat: 'training', for: 'all', q: 'What does the left vs right card mean?', tags: 'asymmetry lsi symmetry weak side imbalance single leg hop',
+      a: 'It compares your sides from single-leg hops, single-leg camera jumps and your movement screen. The number is weaker ÷ stronger: **90% or more** is the usual goal. With a clear weaker side, programs add one extra set on that side for one-sided exercises.' },
     { id: 'acwr', cat: 'training', for: 'all', q: 'What is ACWR and what number is good?', tags: 'load acute chronic ratio overtraining',
       a: 'ACWR compares your last 7 days of training load with your last 28. Between **0.8 and 1.3** is the sweet spot, 1.3 to 1.5 is caution and above 1.5 is a spike. It’s a guide, not a predictor; big sudden jumps matter most.' },
     { id: 'overtraining', cat: 'training', for: 'athlete', q: 'Am I overtraining?', tags: 'too much burnout tired load', link: ['progress', 'See my load'],
