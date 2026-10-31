@@ -2284,6 +2284,22 @@ body:has(.auth-wrap) .topbar { display: none !important; }
 .btn-google { gap: .6rem; background: #fff; color: #1f1f1f; border: 1px solid #dadce0; font-weight: 600; }
 .btn-google:hover { background: #f6f7f8; }
 .auth-tabs + .btn-google + .auth-or { margin: 1rem 0; }
+/* getting started */
+.guide-bar { height: 6px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin: .1rem 0 .8rem; }
+.guide-bar span { display: block; height: 100%; background: var(--grad, var(--accent)); border-radius: inherit; transition: width .3s; }
+.guide-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: .25rem; }
+.guide-steps li { display: flex; gap: .75rem; align-items: flex-start; padding: .55rem .4rem; border-radius: 12px; }
+.guide-steps li.next { background: color-mix(in srgb, var(--accent) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+.guide-steps li.done strong { color: var(--muted); text-decoration: line-through; font-weight: 500; }
+.guide-check { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem; font-weight: 700; border: 2px solid var(--border); margin-top: .05rem; }
+.guide-steps li.done .guide-check { background: var(--good); border-color: var(--good); color: #fff; }
+.guide-steps li.next .guide-check { border-color: var(--accent); }
+.guide-body { flex: 1; min-width: 0; }
+.guide-body p { margin: .2rem 0 0; line-height: 1.45; }
+.guide-steps .btn { flex: none; align-self: center; }
+@media (max-width: 560px) { .guide-steps li { flex-wrap: wrap; } .guide-body { flex-basis: calc(100% - 24px - .75rem); } .guide-steps .btn { margin-left: calc(24px + .75rem); align-self: flex-start; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.parent-approve input[type='checkbox'] { width: 20px; height: 20px; flex: none; accent-color: var(--accent); }
 
 /* ---------- Body view (balance map, prevention, timeline, check-ups) ---------- */
 .brief-line { display: flex; align-items: center; gap: 0.55rem; width: 100%; text-align: left; margin: 0 0 1rem; padding: 0.7rem 0.9rem; border-radius: var(--radius, 14px); border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit; }
