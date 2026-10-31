@@ -560,7 +560,7 @@
       return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Summary.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
-        ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}
+        ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a)}
         ${trendCard(a, 'span-8')}
         <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
@@ -1105,7 +1105,7 @@
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
-        ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}
+        ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a, { span: 'span-12' })}
         <section class="card span-6">
           <div class="card-head"><h3>Body map · ${s.checkin ? 'today' : 'no check-in today'}</h3></div>

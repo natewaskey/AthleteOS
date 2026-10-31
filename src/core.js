@@ -763,6 +763,7 @@
       // Wellness logs; their own modules (nutrition.js, mind.js) normalise entries as they're created.
       meals: objList(input.meals, 2000),
       supplements: objList(input.supplements, 100),
+      fvProfiles: objList(input.fvProfiles, 50), // jump force-velocity profiles (fv.js)
       water: objList(input.water, 400).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date || '')),
       journal: objList(input.journal, 1000),
       mindSessions: objList(input.mindSessions, 2000),
@@ -1884,7 +1885,7 @@
     const tests = {
       taylor: { dash40: [4.92, 4.81], vertical: [71, 74], hopL: [188, 194], hopR: [191, 197], broad: [262, 270], squat1rm: [lb(365), lb(385)], bench1rm: [lb(265), lb(275)], clean1rm: [lb(235), lb(245)] },
       jordan: { dash40: [4.71, 4.66], vertical: [81, 84], proagility: [4.41, 4.32], broad: [272, 277], hopL: [171, 152], hopR: [176, 179] },
-      maya: { dash40: [5.18, 5.12], proagility: [4.62, 4.58], vertical: [52, 54], mile: [372, 361] },
+      maya: { dash40: [5.18, 5.12], proagility: [4.62, 4.58], vertical: [52, 54], mile: [372, 361], hopL: [158, 163], hopR: [161, 149] },
       riley: { mile: [298, 289], dash40: [5.31, 5.28], vertical: [48, 50], pullups: [6, 8] },
       sam: { pullups: [11, 13], pushups: [42, 47], vertical: [58, 60], broad: [228, 233] },
     };
@@ -1903,6 +1904,8 @@
     const now2 = Date.now();
     s.injuries = [
       { id: 'inj-jordan', athleteId: 'jordan', type: 'injury', area: 'knee-l', label: 'Left knee pain (patellar tendon)', date: addDays(todayISO, -1), status: 'limited', restrictions: ['no-jumping'], expectedReturn: addDays(todayISO, 10), notes: 'Pain landing from jumps since Friday’s game. Seeing the athletic trainer Wednesday.', stages: [], createdBy: 'Coach Rivera' },
+      // Three weeks into a right ankle sprain: criteria-based return to sport, partly signed off.
+      { id: 'inj-maya', athleteId: 'maya', type: 'injury', area: 'ankle-r', label: 'Right ankle sprain (grade 1)', date: addDays(todayISO, -21), status: 'limited', restrictions: ['no-contact'], expectedReturn: addDays(todayISO, 4), notes: 'Inversion sprain in practice. Balance and calf work daily with the athletic trainer.', stages: [], createdBy: 'Dana Kim, ATC', rts: { signed: { pain: { by: 'Dana Kim, ATC', at: now2 - 26 * 3600000 } }, strength: { left: 28, right: 25, test: 'Single-leg calf raises (reps)', date: addDays(todayISO, -2) } } },
       { id: 'inj-sam', athleteId: 'sam', type: 'concussion', area: 'head', label: 'Concussion (flip-turn wall contact)', date: addDays(todayISO, -4), status: 'limited', restrictions: ['no-contact', 'no-jumping', 'no-lower-load', 'no-upper-load'], notes: 'Symptom-free since Saturday. Cleared by school nurse for light aerobic work.', stages: [{ doneAt: now2 - 50 * 3600000, by: 'Coach Rivera' }, { doneAt: now2 - 20 * 3600000, by: 'Coach Rivera' }, {}, {}, {}, {}], createdBy: 'Coach Rivera' },
     ];
     // Smart features: goals, a training-partner pair and a nudge waiting for Riley.
@@ -1998,6 +2001,8 @@
     const F = { Oatmeal: [166, 6, 28, 4], Banana: [105, 1, 27, 0], 'Greek yogurt': [146, 20, 8, 4], 'Turkey sandwich': [360, 26, 40, 10], Apple: [95, 0, 25, 0], 'Chocolate milk': [208, 8, 26, 8], Eggs: [143, 13, 1, 10], 'Whole-wheat toast': [160, 8, 28, 2], 'Orange juice': [112, 2, 26, 0], 'Burrito bowl': [650, 38, 78, 20], 'Pasta with meat sauce': [620, 32, 80, 18], 'Salad with dressing': [180, 3, 12, 14], Milk: [122, 8, 12, 5], 'Protein shake': [120, 24, 3, 1] };
     for (const m of riley.meals) for (const it of m.items) [it.kcal, it.protein, it.carbs, it.fat] = F[it.name];
     riley.water = [{ date: todayISO, ml: 1250 }, { date: D(-1), ml: 2750 }];
+    // Loaded squat jumps: strong but slow (velocity deficit), so programs lean toward fast, light work.
+    taylor.fvProfiles = [{ id: 'fv-1', date: D(-10), massKg: 102, hpoCm: 43, by: 'Coach Rivera', points: [{ loadKg: 0, heightCm: 33.5 }, { loadKg: 20, heightCm: 28.6 }, { loadKg: 40, heightCm: 24.4 }, { loadKg: 60, heightCm: 20.9 }] }];
     taylor.supplements = [
       { id: 'sup-1', name: 'Creatine monohydrate', brand: 'Thorne', cert: 'nsf', addedAt: hoursAgo(24 * 40) },
       { id: 'sup-2', name: 'Pre-workout', brand: 'Gas station brand', cert: 'none', addedAt: hoursAgo(24 * 3) },

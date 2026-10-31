@@ -26,6 +26,8 @@
       ...((me && me.focus && root.Goals && root.Goals.programDefaults(me.focus)) || { goal: 'general', focus: [], phase: 'general' }),
       sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4,
       equipment: ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'cones', 'kettlebell'], avoidAreas: [], restrictions: [], request: '', engine: 'builtin',
+      // An athlete's own jump force-velocity profile steers the program unless they change it.
+      fv: (me && root.FV && root.FV.bias(me, today())) || '',
     };
   }
 
@@ -76,7 +78,9 @@
           <label>Minutes per session <select name="minutes">${[30, 45, 60, 75, 90, 120].map((n) => `<option ${n === +f.minutes ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Length <select name="weeks">${[2, 3, 4, 6, 8, 10, 12].map((n) => `<option value="${n}" ${n === +f.weeks ? 'selected' : ''}>${n} weeks</option>`).join('')}</select></label>
           <label>Season phase <select name="phase">${Object.entries(P.PHASES).map(([k, v]) => `<option value="${k}" ${k === f.phase ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+          <label>Force-velocity emphasis <select name="fv">${[['', 'Balanced'], ['force', 'Force deficit: heavier strength'], ['velocity', 'Velocity deficit: faster, lighter work']].map(([k, v]) => `<option value="${k}" ${k === (f.fv || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         </div>
+        ${fvHint()}
         <fieldset><legend>Equipment available</legend><div class="row">${Object.entries(P.EQUIPMENT).filter(([k]) => !['none', 'field'].includes(k)).map(([k, v]) => chip('equipment', k, v, f.equipment.includes(k))).join('')}</div>
           <p class="hint" style="margin:.4rem 0 0">Bodyweight and open space (a field or park) are always assumed.</p></fieldset>
         <fieldset><legend>Extra focus</legend><div class="row">${Object.entries(P.FOCUS).map(([k, v]) => chip('focus', k, v, f.focus.includes(k))).join('')}</div></fieldset>
@@ -95,11 +99,19 @@
       </form>`;
   }
 
+  // Where the emphasis came from, for athletes with a jump force-velocity profile.
+  function fvHint() {
+    if (ctx.role() !== 'athlete' || !root.FV) return '<p class="hint" style="margin:.2rem 0 .6rem">Force-velocity emphasis comes from an athlete’s loaded jump profile (Progress → Force-velocity profile). Use it when the whole group shares the same deficit.</p>';
+    const l = root.FV.latest(ctx.me(), today());
+    if (!l) return '<p class="hint" style="margin:.2rem 0 .6rem">Do a force-velocity profile (Progress → Force-velocity profile) and the builder will pick the emphasis for you.</p>';
+    return `<p class="hint" style="margin:.2rem 0 .6rem">From your force-velocity profile on ${esc(ctx.fmtDate(l.profile.date))}: ${l.result.fvImb}% of optimal${l.stale ? ' (over 6 months old, so it isn’t applied; retest)' : ''}.</p>`;
+  }
+
   function readForm(el) {
     const fd = new FormData(el);
     return {
       goal: fd.get('goal'), sport: fd.get('sport'), experience: fd.get('experience'), daysPerWeek: +fd.get('daysPerWeek'), minutes: +fd.get('minutes'), weeks: +fd.get('weeks'), phase: fd.get('phase'),
-      equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin',
+      equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin', fv: fd.get('fv') || '',
       position: ctx.role() === 'athlete' ? ctx.me().position : '',
     };
   }

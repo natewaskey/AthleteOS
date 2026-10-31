@@ -82,6 +82,14 @@ In team mode, the **Athlete / Coach** switch in the top bar shows both sides of 
 - The **Left vs right** card pulls side-to-side numbers from single-leg hop tests (new tests in Progress), camera single-leg jumps and the two-sided movement screen tests, and shows a limb symmetry index for each (weaker ÷ stronger; 90%+ is the usual target, gaps of 10% and 15% are flagged).
 - When the legs or arms have a clear weaker side, programs steer toward it: one extra set on that side is added after each one-sided strength or power exercise when an athlete adds a program, and coaches get a "weak-side set" checkbox when assigning.
 
+### Force-velocity profile
+- Progress › **Force-velocity profile**: enter squat-jump heights at 3–5 loads (from a jump mat, force plate or the camera test). The Samozino method turns them into max force (F0), max velocity (V0), max power and the athlete's profile versus the optimal one for their power and push-off distance.
+- Under 90% of optimal is a force deficit, over 110% a velocity deficit. The program builder uses it: a force deficit makes main lifts heavier (3–4 reps at 85%+), a velocity deficit adds jump squats or ballistic work and moves main lifts lighter and fast. Athletes get it automatically; coaches pick the emphasis in the builder. Profiles older than 6 months stop steering until retested.
+
+### Criteria-based return to sport
+- Every injury (concussions keep their graduated stages) gets a return-to-sport checklist instead of a date: pain-free for 7 days, strength symmetry 90%+, single-leg hop symmetry 90%+, a clean camera landing screen, jump height back to 90% of the pre-injury normal, and full sport training without symptoms. Upper-body injuries use pain, strength and sport.
+- Each criterion is checked against the athlete's own data since the injury where the app has it. Any coach signs criteria off (overriding one that the data doesn't support needs a confirmation and is marked). When all are signed off, **Clear to return** clears the injury and messages the athlete.
+
 ### Pro mode (elite teams)
 - One switch (Settings › Team policy for the head coach; Settings › Preferences when training solo) turns AthleteOS into a data-first tool: no badges, streaks, confetti, challenges, team wall, training partners or recruiting profile, and denser screens. PRs show as a short note instead of a celebration.
 - Turning it on for a team also makes athletes' own workouts and programs need coach approval (the head coach can change that back).
@@ -309,6 +317,8 @@ src/evidence.js       research grades and citations for exercises and scoring ru
 src/jump.js           camera jump testing: flight time, height, contact time, RSI, slow-motion check
 src/jump-ui.js        jump test dialog, jump testing card, left vs right card
 src/asymmetry.js      limb symmetry from hops, jumps and the screen; weak-side sets in programs
+src/fv.js             jump force-velocity profile (F0, V0, Pmax, deficit) for the program builder
+src/rts.js            criteria-based return to sport: data checks and coach sign-offs
 src/science-ui.js     normal ranges, performance data, age & growth, import, evidence library
 src/live-coach.js     real-time rep counting and cues (engine + camera screen)
 src/summary-ui.js     weekly summary card and recap page

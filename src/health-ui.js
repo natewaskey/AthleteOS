@@ -1,5 +1,6 @@
 /*
  * AthleteOS health: injuries & return-to-play (restrictions feed session flags/swaps),
+ * criteria-based return to sport for injuries (rts.js),
  * concussion graduated return-to-sport, recovery & fuelling card, private cycle tracking,
  * and the printable weekly coach report. app.js calls HealthUI.init(ctx).
  */
@@ -104,7 +105,32 @@
       ${i.restrictions.length ? `<div class="chips" style="margin-top:.35rem">${i.restrictions.map((r) => `<span class="chip">${esc(P.RESTRICTIONS[r].label)}</span>`).join('')}</div>` : ''}
       ${i.notes ? `<p class="small" style="margin:.4rem 0 0">${esc(i.notes)}</p>` : ''}
       ${conc ? concussionHTML(i, conc, edit) : ''}
+      ${!conc && i.type === 'injury' && i.status !== 'cleared' && root.RTS ? rtsHTML(i, edit) : ''}
     </article>`;
+  }
+
+  // Criteria-based return to sport: the athlete's data checks each criterion, any coach signs it off.
+  function rtsHTML(i, edit) {
+    const a = ctx.athleteById(i.athleteId);
+    if (!a) return '';
+    const R = root.RTS;
+    const ev = R.evaluate(i, a, { analyses: ctx.state().analyses || [], todayISO: today() });
+    const icon = { met: '✓', not: '✗', none: '•', manual: '✎' };
+    const st = R.normalizeRts(i.rts).strength;
+    const row = (x) => `<li class="rts-item rts-${x.signed ? 'signed' : x.state}">
+        <span class="rts-icon" aria-hidden="true">${x.signed ? '✓' : icon[x.state]}</span>
+        <div class="main"><strong>${esc(x.label)}</strong><div class="muted small">${esc(x.state === 'manual' ? x.target : x.text)}</div>
+          ${x.id === 'strength' && edit && !x.signed ? `<form class="rts-strength row" data-health-form="rts-strength" data-id="${i.id}">
+            <input name="test" maxlength="60" placeholder="Test, e.g. Quad (dynamometer)" value="${esc(st.test)}" style="flex:2;min-width:9rem">
+            <input name="left" type="number" step="0.1" min="0" placeholder="Left" value="${st.left ?? ''}" style="width:5.5rem">
+            <input name="right" type="number" step="0.1" min="0" placeholder="Right" value="${st.right ?? ''}" style="width:5.5rem">
+            <button class="btn btn-sm" type="submit">Save</button></form>` : ''}
+          ${x.signed ? `<div class="small good-text">Signed off by ${esc(x.signed.by)} · ${esc(ctx.relTime(x.signed.at))}${x.signed.override ? ' · <span class="warn-t">overridden</span>' : ''}</div>` : ''}</div>
+        ${edit ? (x.signed ? `<button class="btn btn-sm btn-ghost" data-health="rts-unsign" data-id="${i.id}" data-crit="${x.id}" aria-label="Undo sign-off">Undo</button>` : `<button class="btn btn-sm ${x.state === 'met' || x.state === 'manual' ? 'btn-primary' : 'btn-ghost'}" data-health="rts-sign" data-id="${i.id}" data-crit="${x.id}">${x.state === 'met' || x.state === 'manual' ? 'Sign off' : 'Override'}</button>`) : ''}
+      </li>`;
+    return `<div class="rtp rts"><div class="small"><strong>Return-to-sport criteria</strong> <span class="muted">· ${ev.signedCount}/${ev.total} signed off · ${ev.metCount} met by the data</span></div>
+      <ul class="rts-list">${ev.items.map(row).join('')}</ul>
+      ${edit && ev.ready ? `<div class="row" style="margin-top:.5rem"><button class="btn btn-primary" data-health="rts-clear" data-id="${i.id}">Clear to return</button></div>` : ''}</div>`;
   }
 
   function concussionHTML(i, prog, edit) {
@@ -248,6 +274,22 @@
       if (!(await Dialogs.confirm(`Delete this ${inj.type} record?`, { title: 'Delete record?', ok: 'Delete', danger: true }))) return;
       state.injuries = injuries().filter((i) => i.id !== inj.id);
     }
+    if (act === 'rts-sign') {
+      const ev = root.RTS.evaluate(inj, ctx.athleteById(inj.athleteId), { analyses: state.analyses || [], todayISO: today() });
+      const item = ev.items.find((x) => x.id === el.dataset.crit);
+      if (!item) return;
+      const override = item.state === 'not' || item.state === 'none';
+      if (override && !(await Dialogs.confirm(`“${item.label}” isn’t met by the data (${item.text}). Sign it off anyway on your own judgement?`, { title: 'Override criterion?', ok: 'Sign off anyway' }))) return;
+      root.RTS.signOff(inj, item.id, ctx.role() === 'coach' ? ctx.coachName() : ctx.athleteName(ctx.me()), { override });
+    }
+    if (act === 'rts-unsign') root.RTS.unsign(inj, el.dataset.crit);
+    if (act === 'rts-clear') {
+      inj.status = 'cleared';
+      inj.clearedAt = Date.now();
+      inj.restrictions = [];
+      if (!ctx.solo()) state.messages.push(C.normalizeMessage({ athleteId: inj.athleteId, from: 'coach', text: `You’ve met every return-to-sport criterion for “${inj.label}”. You’re cleared to return. Welcome back! 🎉` }));
+      ctx.toast('Cleared to return');
+    }
     if (act === 'stage') {
       const prog = P.concussionProgress(inj);
       if (!prog.canAdvance) return;
@@ -284,6 +326,15 @@
     if (!f) return;
     e.preventDefault();
     const fd = new FormData(f);
+    if (f.dataset.healthForm === 'rts-strength') {
+      const inj = injuries().find((i) => i.id === f.dataset.id);
+      if (!inj) return;
+      const rts = root.RTS.normalizeRts(inj.rts);
+      rts.strength = { left: Number(fd.get('left')) || null, right: Number(fd.get('right')) || null, test: String(fd.get('test') || '').trim(), date: today() };
+      inj.rts = rts;
+      ctx.save();
+      return ctx.render();
+    }
     const inj = P.normalizeInjury({
       athleteId: fd.get('athleteId'), type: fd.get('type'), area: fd.get('area') || null, label: fd.get('label'), status: fd.get('status'),
       expectedReturn: fd.get('expectedReturn'), restrictions: fd.getAll('restrictions'), notes: fd.get('notes'), createdBy: ctx.role() === 'coach' ? ctx.coachName() : ctx.athleteName(ctx.me()),
