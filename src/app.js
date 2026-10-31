@@ -13,7 +13,8 @@
   // Routes stay the same as before, so every link inside the app keeps working.
   const ATHLETE_SECTIONS = [
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
-    { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'form', 'live', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['form', 'Form check'], ['history', 'History']] },
+    { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History']] },
+    { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
     { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
@@ -53,7 +54,7 @@
     wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
     mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/>',
   };
-  const icon = (n, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+  const icon = (n, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || (window.Icons && window.Icons.paths[n]) || ''}</svg>`;
   const Form = window.FormUI;
   const Plan = window.PlanUI;
   const Programs = window.ProgramUI;
@@ -475,6 +476,134 @@
     return `<button class="brief-line clickable" data-tab="body" aria-label="Morning body brief. Open the body view">${icon('sparkle')}<span>${esc(b.bodyText.charAt(0).toUpperCase() + b.bodyText.slice(1))}</span><span class="muted small">Body ›</span></button>`;
   }
 
+  // ---------- home tiles ----------
+
+  const mmss = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+  function blockSeconds(b) {
+    let sec = 60;
+    for (const i of b.items) {
+      const work = i.measure === 'sec' ? i.amount : i.measure === 'dist' ? Math.max(5, i.amount / 5) : Math.max(15, i.amount * 4);
+      sec += i.sets * (work * (i.eachSide ? 2 : 1) + i.restSec);
+    }
+    return sec;
+  }
+
+  function sessionTile(session, next, t) {
+    if (!session) {
+      return `<section class="tile tile-session">
+        <div class="tile-head"><span class="eyebrow">Up next</span></div>
+        ${next
+          ? `<h2 class="session-name">${esc(next.plan.name)}</h2><div class="tile-meta"><span class="num">${C.estimateMinutes(next.plan)} min</span><span>${esc(relDate(next.date))}</span></div>
+             <div class="tile-actions"><button class="btn" data-tab="plan">View plan</button></div>`
+          : `<h2 class="session-name">Rest or free day</h2><div class="tile-meta"><span>Nothing scheduled</span></div>
+             <div class="tile-actions"><button class="btn btn-primary" data-prog-action="new">${icon('sparkle')}<span>Build a program</span></button></div>`}
+      </section>`;
+    }
+    const p = session.plan;
+    let at = 0;
+    const rows = p.blocks.slice(0, 5).map((b) => {
+      const start = at;
+      at += blockSeconds(b);
+      const names = b.items.map((i) => i.name).filter(Boolean);
+      const what = names.length ? names.slice(0, 2).join(', ') + (names.length > 2 ? ` +${names.length - 2}` : '') : C.BLOCK_TYPES[b.type].label;
+      return `<li><span class="num t">${mmss(start)}</span><span class="what"><b>${esc(C.BLOCK_TYPES[b.type].label)}</b><span>${esc(what)}</span></span><span class="num v">${b.items.length} ex</span></li>`;
+    });
+    const adapted = session.adjusted && /Weekly adapt/.test((session.adjusted.reasons || [])[0] || '');
+    return `<section class="tile tile-session">
+      <div class="tile-head"><span class="eyebrow">${session.date === t ? 'Today’s session' : 'Still to do'}</span>${adapted ? `<button class="adapted-tag" data-smart="why-adapt">${icon('sparkle')} Adapted</button>` : ''}</div>
+      <h2 class="session-name">${esc(p.name)}</h2>
+      <div class="tile-meta"><span class="num">${C.estimateMinutes(p)} min</span><span>${p.blocks.length} block${p.blocks.length === 1 ? '' : 's'}</span></div>
+      <ol class="block-list">${rows.join('')}</ol>
+      <div class="tile-actions">
+        <button class="btn btn-primary" data-plan-open="${session.id}">${icon('play')}<span>${session.startedAt ? 'Continue' : 'Start session'}</span></button>
+        <button class="btn" data-tab-link="form">${icon('video')}<span>Form check</span></button>
+      </div>
+    </section>`;
+  }
+
+  function sparkline(values) {
+    const pts = values.map((v, i) => (v == null ? null : [i, v])).filter(Boolean);
+    if (pts.length < 2) return '<div class="spark-empty muted small">Check in a few days to see your trend.</div>';
+    const W = 200, H = 46, n = values.length - 1;
+    const x = (i) => (i / n) * W;
+    const vs = pts.map((q) => q[1]);
+    const lo = Math.max(0, Math.min(...vs) - 8), hi = Math.min(100, Math.max(...vs) + 8);
+    const y = (v) => H - 4 - ((v - lo) / Math.max(1, hi - lo)) * (H - 8);
+    const line = pts.map(([i, v], k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+    const [li, lv] = pts[pts.length - 1];
+    const area = `${line} L${x(li).toFixed(1)} ${H} L${x(pts[0][0]).toFixed(1)} ${H} Z`;
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="spark-area" d="${area}"/><path class="spark-line" d="${line}"/><circle class="spark-end" cx="${x(li).toFixed(1)}" cy="${y(lv).toFixed(1)}" r="3"/></svg>`;
+  }
+
+  function readyTile(a, ready, t) {
+    const days = Array.from({ length: 7 }, (_, i) => C.addDays(t, i - 6));
+    const vals = days.map((d) => {
+      const c = checkinFor(a, d);
+      const r = c && C.readiness(c, a.checkins, a.workouts, d);
+      return r ? r.score : null;
+    });
+    const c = checkinFor(a, t);
+    const tone = ready ? { go: 'good', steady: 'info', easy: 'warn', rest: 'bad' }[ready.band] || '' : '';
+    const facts = c ? [c.hrv ? `HRV ${c.hrv} ms` : '', c.sleep ? `Sleep ${num(c.sleep, 1)} h` : ''].filter(Boolean).join(' · ') : '';
+    return `<section class="tile tile-ready">
+      <div class="tile-head"><span class="eyebrow">Readiness ${window.Explain ? window.Explain.btn('readiness') : ''}</span>${ready ? `<span class="pill ${tone}">${esc(ready.label)}</span>` : ''}</div>
+      <button class="big-num gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" ${ready ? 'data-smart="why-ready"' : 'data-action="open-checkin"'} aria-label="${ready ? `Readiness ${ready.score} out of 100. Show why` : 'No check-in yet. Check in'}"><strong>${ready ? ready.score : '–'}</strong><small>${ready ? '/100' : 'Check in'}</small></button>
+      ${sparkline(vals)}
+      <div class="tile-scale"><span>7-day</span><span>${esc(facts)}</span></div>
+      <div class="tile-foot">${Smart.riskChip(a)}</div>
+    </section>`;
+  }
+
+  function loadTile(a, t) {
+    const load = C.acwr(a.workouts, t);
+    const tone = { none: '', low: 'info', optimal: 'good', high: 'warn', danger: 'bad' }[load.zone.key];
+    const pos = load.ratio == null ? null : C.clamp((load.ratio / 2) * 100, 0, 100);
+    return `<section class="tile tile-load">
+      <div class="tile-head"><span class="eyebrow">Training load ${window.Explain ? window.Explain.btn('acwr') : ''}</span>${tone ? `<span class="pill ${tone}">${esc(load.zone.label)}</span>` : ''}</div>
+      <button class="big-num" data-smart="why-load" data-athlete="${a.id}" aria-label="Training load. Show why"><strong>${load.ratio == null ? '—' : num(load.ratio, 2)}</strong><small>ACWR</small></button>
+      <div class="zone-bar" aria-hidden="true"><i class="z-low"></i><i class="z-ok"></i><i class="z-high"></i><i class="z-bad"></i>${pos == null ? '' : `<b style="left:${pos}%"></b>`}</div>
+      <div class="tile-scale"><span>0</span><span>0.8</span><span>1.3</span><span>1.5</span><span>2.0</span></div>
+    </section>`;
+  }
+
+  function goalTile(a, t) {
+    const pr = window.Goals ? window.Goals.progress(a, t) : null;
+    if (!pr) {
+      return `<section class="tile tile-goal"><div class="tile-head"><span class="eyebrow">Main goal</span></div>
+        <p class="muted small" style="margin:0">Pick a goal and the app shapes your plan around it.</p>
+        <div class="tile-actions"><button class="btn" data-tab="goals">Choose a goal</button></div></section>`;
+    }
+    const m = pr.metric || {};
+    const countdown = pr.def.metric.type === 'countdown';
+    // "5.28 s" -> big "5.28" with a small "s"
+    const split = (txt) => { const x = /^([\d.:,]+)\s*(.*)$/.exec(txt); return x ? [x[1], x[2]] : [txt, '']; };
+    const [val, unit] = split(Smart.fmtMetric(m.unit, m.value));
+    const big = countdown
+      ? (pr.daysLeft != null ? `<strong>${Math.max(0, pr.daysLeft)}</strong><small>days</small>` : '<strong>—</strong>')
+      : `<strong>${esc(val)}</strong><small>${esc(unit)}${pr.target ? ` → ${esc(Smart.fmtMetric(m.unit, pr.target.value))}` : ''}</small>`;
+    return `<section class="tile tile-goal">
+      <div class="tile-head"><span class="eyebrow">Goal · ${esc(countdown ? pr.def.label : m.label || pr.def.label)}</span></div>
+      <button class="big-num" data-tab="goals" aria-label="Open goal">${big}</button>
+      <div class="meter" aria-hidden="true"><i style="width:${pr.pct || 0}%"></i></div>
+      <div class="tile-scale"><span>${pr.pct != null ? `${pr.pct}% to target` : 'No target yet'}</span><span>${pr.target && pr.target.date ? 'by ' + esc(fmtDate(pr.target.date, { month: 'short', day: 'numeric' })) : ''}</span></div>
+    </section>`;
+  }
+
+  function weekTile(a, t) {
+    const dow = (C.parseISODate(t).getDay() + 6) % 7; // Monday = 0
+    const days = Array.from({ length: 7 }, (_, i) => C.addDays(t, i - dow));
+    const mins = days.map((d) => a.workouts.filter((w) => w.date === d).reduce((s, w) => s + (w.duration || 0), 0));
+    const max = Math.max(60, ...mins);
+    const mine = (state.assignments || []).filter((x) => x.athleteId === a.id && x.date >= days[0] && x.date <= days[6]);
+    const done = mine.filter((x) => x.status === 'completed').length;
+    const total = mins.reduce((s, m) => s + m, 0);
+    return `<section class="tile tile-week">
+      <div class="tile-head"><span class="eyebrow">This week</span><span class="num muted small">${mine.length ? `${done}/${mine.length} done` : C.formatDuration(total)}</span></div>
+      <div class="week-bars" role="img" aria-label="Minutes trained each day this week">${mins.map((m, i) => `<i class="${days[i] === t ? 'today' : ''}${days[i] > t ? ' future' : ''}" style="height:${Math.max(4, Math.round((m / max) * 100))}%" title="${m} min"></i>`).join('')}</div>
+      <div class="week-days">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span>${d}</span>`).join('')}</div>
+    </section>`;
+  }
+
   const athleteViews = {
     today() {
       const a = me();
@@ -492,43 +621,32 @@
       const sub = ready ? `${ready.advice}${gameLine ? ' ' + gameLine : ''}` : `Check in to get today’s readiness score.${gameLine ? ' ' + gameLine : ''}`;
       const qa = (attrs, ic, label) => `<button class="qa" ${attrs}>${icon(ic)}<span>${label}</span></button>`;
 
-      // Home stays to three things: readiness, today's session, and one "what's next" card.
+      // Home: header, one inbox for nudges and plan changes, then a grid of data tiles.
+      const inbox = Smart.nudgeBanner(a) + Smart.adaptBanner(a);
       return `
         ${consentBanner}
         ${guide ? `<div class="grid" style="margin-bottom:1rem">${guide}</div>` : ''}
-        ${Smart.nudgeBanner(a)}
-        ${Smart.adaptBanner(a)}
-        <section class="hero">
-          <div class="hero-main">
+        <header class="home-head">
+          <div class="home-greet">
             <div class="eyebrow">${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))}${a.focus ? ' · ' + Smart.focusTag(a) : ''}</div>
-            <h1 class="hero-title">${esc(greet())}${a.name ? ', <span class="grad-text">' + esc(a.name.split(' ')[0]) + '</span>' : ''}</h1>
+            <h1 class="hero-title">${esc(greet())}${a.name ? ', ' + esc(a.name.split(' ')[0]) : ''}</h1>
             <p class="hero-sub">${esc(sub)}</p>
-            <div class="quick-actions">
-              ${qa('data-action="open-checkin"', 'check', checkin ? 'Edit check-in' : 'Check in')}
-              ${qa('data-smart="voice"', 'mic', 'Voice log')}
-              ${qa('data-tab="help"', 'help', 'Help & FAQ')}
-              ${qa('data-tab-link="live"', 'video', 'Live coach')}
-              ${qa('data-well-tab="mind"', 'wind', 'Breathe')}
-            </div>
           </div>
-          <div class="hero-gauge">
-            <button class="gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" style="--pct:${ready ? ready.score : 0}" ${ready ? 'data-smart="why-ready"' : 'data-action="open-checkin"'} aria-label="${ready ? `Readiness ${ready.score} out of 100. Show why` : 'No check-in yet. Check in'}">
-              <div><strong>${ready ? ready.score : '–'}</strong><span>${ready ? 'Why? ›' : 'Check in'}</span></div>
-            </button>
-            <div class="gauge-label">${ready ? esc(ready.label) : 'How are you feeling?'}${window.Explain ? window.Explain.btn('readiness') : ''}</div>
-            ${Smart.riskChip(a)}
+          <div class="quick-actions">
+            ${qa('data-action="open-checkin"', 'check', checkin ? 'Edit check-in' : 'Check in')}
+            ${qa('data-smart="voice"', 'mic', 'Voice log')}
+            ${qa('data-tab-link="live"', 'video', 'Live coach')}
+            ${qa('data-well-tab="mind"', 'wind', 'Breathe')}
           </div>
-          <div class="hero-session">
-            <div class="eyebrow">${session ? (session.date === t ? 'Today’s session' : 'Still to do') : 'Up next'}</div>
-            ${session
-              ? `<div class="session-name">${esc(session.plan.name)}</div><div class="muted small">${C.estimateMinutes(session.plan)} min · ${esc(session.plan.blocks.map((b) => C.BLOCK_TYPES[b.type].label).slice(0, 3).join(' · '))}</div>
-                 ${session.adjusted && /Weekly adapt/.test((session.adjusted.reasons || [])[0] || '') ? `<button class="adapted-tag" data-smart="why-adapt">${icon('sparkle')} Adapted for you</button>` : ''}
-                 <button class="btn btn-primary btn-glow" data-plan-open="${session.id}">${icon('bolt')}<span>${session.startedAt ? 'Continue' : 'Start session'}</span></button>`
-              : next
-                ? `<div class="session-name">${esc(next.plan.name)}</div><div class="muted small">${esc(relDate(next.date))} · ${C.estimateMinutes(next.plan)} min</div><button class="btn" data-tab="plan">View plan</button>`
-                : `<div class="session-name">Rest or free day</div><div class="muted small">Nothing scheduled.</div><button class="btn" data-prog-action="new">${icon('sparkle')}<span>Build a program</span></button>`}
-          </div>
-        </section>
+        </header>
+        ${inbox ? `<div class="updates" role="region" aria-label="Updates">${inbox}</div>` : ''}
+        <div class="bento">
+          ${sessionTile(session, next, t)}
+          ${readyTile(a, ready, t)}
+          ${loadTile(a, t)}
+          ${goalTile(a, t)}
+          ${weekTile(a, t)}
+        </div>
         ${window.Checkup && window.Balance ? briefCard(a) : ''}
         <div class="grid">${Smart.nextCard(a)}</div>`;
     },
@@ -1226,7 +1344,7 @@
         return `${sep}<div class="bubble ${m.from === mine ? 'mine' : 'theirs'}">
           ${v ? `<video data-video-id="${v.id}" preload="metadata" controls playsinline></video>` : ''}
           ${m.analysisId ? Form.messageCard(m.analysisId) : ''}
-          ${m.text ? `<div>${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}
+          ${m.text ? `<div class="msg-text">${esc(m.text).replace(/\n/g, '<br>')}</div>` : ''}
           <time>${esc(new Date(m.ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}</time></div>`;
       })
       .join('');
@@ -1355,7 +1473,7 @@
     const none = bare || state.mode == null;
     document.body.classList.toggle('no-nav', none);
     if (none) {
-      ['#role-bar', '#tabs', '#side-foot', '#bottombar', '#subnav'].forEach((sel) => ($(sel).innerHTML = ''));
+      ['#role-bar', '#tabs', '#side-foot', '#side-search', '#bottombar', '#subnav'].forEach((sel) => ($(sel).innerHTML = ''));
       return;
     }
     const secs = sections();
@@ -1371,8 +1489,11 @@
     // Role controls live in the sidebar on desktop and the top bar on phones (rendered once to keep ids unique).
     const controls = roleControls();
     const pill = window.Shell ? Shell.syncPill() : '';
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    $('#side-search').innerHTML = isMobile() ? '' : `<button class="side-search" data-action="open-search">${icon('search')}<span>Search</span><kbd>${mac ? '⌘' : 'Ctrl '}K</kbd></button>`;
     $('#side-foot').innerHTML = isMobile() ? '' : `${logBtn}<div class="side-controls">${controls}</div>${pill}`;
-    $('#role-bar').innerHTML = isMobile() ? `${pill}<div class="top-controls">${controls}</div>${isCoach ? '' : `<button class="icon-btn primary" data-action="open-log" aria-label="Log workout">${icon('plus')}</button>`}` : '';
+    // Phones keep the header to the essentials; the athlete/coach switch lives in the More sheet.
+    $('#role-bar').innerHTML = isMobile() ? `${pill}<button class="icon-btn" data-action="open-search" aria-label="Search">${icon('search')}</button>${isCoach ? '' : `<button class="icon-btn primary" data-action="open-log" aria-label="Log workout">${icon('plus')}</button>`}` : '';
     // Bottom bar (phones): four sections + More
     const primary = secs.slice(0, 4);
     const rest = secs.slice(4);
@@ -1388,7 +1509,7 @@
     const sub = active && active.sub;
     const current = active && active.sub ? (active.sub.find(([r]) => r === ui.tab) || (ui.tab === 'live' ? ['form'] : ui.tab === 'summary' ? ['progress'] : [null]))[0] : null;
     $('#subnav').innerHTML = sub ? `<div class="pill-tabs" role="tablist">${sub.map(([r, l]) => `<button role="tab" data-tab="${r}" aria-selected="${r === current}">${l}</button>`).join('')}</div>` : '';
-    $('#more-panel').innerHTML = `<div class="more-grip"></div><div class="more-grid">${rest.map((x) => {
+    $('#more-panel').innerHTML = `<div class="more-grip"></div>${isMobile() ? `<div class="more-controls">${controls}</div>` : ''}<div class="more-grid">${rest.map((x) => {
       const n = badgeFor(x, unread);
       return `<button class="more-item" data-tab="${x.routes[0]}" data-close-more>${icon(x.icon)}<span>${x.label}</span>${n ? `<span class="badge">${n}</span>` : ''}</button>`;
     }).join('')}</div>`;
@@ -2160,6 +2281,101 @@
       if (e.target === d) d.close();
     })
   );
+
+  // ---------- search (⌘K / Ctrl+K, or the search button) ----------
+
+  function searchItems() {
+    const out = [];
+    const isCoach = role() === 'coach';
+    for (const sec of sections()) {
+      out.push({ label: sec.label, hint: 'Page', icon: sec.icon, attrs: { 'data-tab': sec.routes[0] } });
+      for (const [r, l] of sec.sub || []) if (r !== sec.routes[0]) out.push({ label: l, hint: sec.label, icon: sec.icon, attrs: { 'data-tab': r } });
+    }
+    if (!isCoach) {
+      out.push(
+        { label: 'Log workout', hint: 'Action', icon: 'plus', attrs: { 'data-action': 'open-log' } },
+        { label: 'Daily check-in', hint: 'Action', icon: 'check', attrs: { 'data-action': 'open-checkin' } },
+        { label: 'Voice log', hint: 'Action', icon: 'mic', attrs: { 'data-smart': 'voice' } },
+        { label: 'Live coach (camera)', hint: 'Action', icon: 'video', attrs: { 'data-tab-link': 'live' } },
+        { label: 'Breathing session', hint: 'Action', icon: 'wind', attrs: { 'data-well-tab': 'mind' } },
+      );
+    }
+    out.push({ label: 'Build a program', hint: 'Action', icon: 'sparkle', attrs: { 'data-prog-action': 'new' } });
+    for (const x of C.EXERCISE_LIBRARY || []) out.push({ label: x.name, hint: 'Exercise demo', icon: 'play', attrs: { 'data-howto-demo': x.name, 'data-howto-kind': 'name' } });
+    return out;
+  }
+
+  let searchList = [];
+  function renderSearch(q) {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const hits = searchList.filter((x) => words.every((w) => (x.label + ' ' + x.hint).toLowerCase().includes(w))).slice(0, 40);
+    const box = $('#search-results');
+    box.innerHTML = hits.length
+      ? hits.map((x, i) => `<li role="option" id="sr-${i}" aria-selected="${i === 0}" data-i="${searchList.indexOf(x)}">${icon(x.icon)}<span>${esc(x.label)}</span><small>${esc(x.hint)}</small></li>`).join('')
+      : '<li class="empty muted">No matches. Try a page name or an exercise.</li>';
+  }
+  function runSearch(i) {
+    const item = searchList[i];
+    const d = $('#search-dialog');
+    if (d.open) d.close();
+    if (!item) return;
+    const b = document.createElement('button');
+    for (const [k, v] of Object.entries(item.attrs)) b.setAttribute(k, v);
+    b.hidden = true;
+    document.body.appendChild(b);
+    b.click();
+    b.remove();
+  }
+  function openSearch() {
+    if (state.mode == null) return;
+    let d = $('#search-dialog');
+    if (!d) {
+      d = document.createElement('dialog');
+      d.id = 'search-dialog';
+      d.setAttribute('aria-label', 'Search');
+      d.innerHTML = `<div class="search-box">${icon('search')}<input id="search-input" type="search" placeholder="Search pages, actions and exercises" autocomplete="off" aria-controls="search-results" /><kbd>esc</kbd></div><ul id="search-results" role="listbox"></ul>`;
+      document.body.appendChild(d);
+      const input = $('#search-input', d);
+      input.addEventListener('input', () => renderSearch(input.value));
+      input.addEventListener('keydown', (e) => {
+        const opts = $$('#search-results [role=option]');
+        const cur = opts.findIndex((o) => o.getAttribute('aria-selected') === 'true');
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (!opts.length) return;
+          const n = (cur + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length;
+          opts.forEach((o, k) => o.setAttribute('aria-selected', String(k === n)));
+          opts[n].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (cur >= 0) runSearch(Number(opts[cur].dataset.i));
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          d.close();
+        }
+      });
+      $('#search-results', d).addEventListener('click', (e) => {
+        const li = e.target.closest('[role=option]');
+        if (li) runSearch(Number(li.dataset.i));
+      });
+      d.addEventListener('click', (e) => e.target === d && d.close());
+    }
+    searchList = searchItems();
+    const input = $('#search-input', d);
+    input.value = '';
+    renderSearch('');
+    d.showModal();
+    input.focus();
+  }
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openSearch();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="open-search"]')) openSearch();
+  });
 
   // More sheet (phones): tap outside or press Escape to close; re-render the chrome when crossing the phone/desktop breakpoint.
   $('#more-sheet').addEventListener('click', (e) => {

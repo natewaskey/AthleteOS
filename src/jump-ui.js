@@ -221,7 +221,7 @@
   function resultHTML(res) {
     const drop = res.test === 'drop';
     const b = res.best;
-    const head = b ? `<div class="jump-best"><div><div class="muted small">${drop ? 'Best RSI' : 'Best jump'}</div><div class="big">${drop ? b.rsi.toFixed(2) : cm(b.heightCm)}</div></div>${drop ? `<div><div class="muted small">Height · contact</div><div>${cm(b.heightCm)} · ${b.contactMs} ms</div></div>` : `<div><div class="muted small">Flight time</div><div>${b.flightMs} ms</div></div>`}</div>` : '';
+    const head = b ? `<div class="jump-best hud"><div><div class="muted small">${drop ? 'Best RSI' : 'Best jump'}</div><div class="big">${drop ? b.rsi.toFixed(2) : cm(b.heightCm)}</div></div>${drop ? `<div><div class="muted small">Height · contact</div><div>${cm(b.heightCm)} · ${b.contactMs} ms</div></div>` : `<div><div class="muted small">Flight time</div><div>${b.flightMs} ms</div></div>`}</div>` : '';
     const rows = res.jumps.map((j, i) => `<tr${j === b ? ' class="best"' : ''}><td>${i + 1}</td><td>${cm(j.heightCm)}</td><td>${j.flightMs} ms</td>${drop ? `<td>${j.contactMs != null ? j.contactMs + ' ms' : '—'}</td><td>${j.rsi != null ? j.rsi.toFixed(2) : '—'}</td>` : ''}</tr>`).join('');
     return `${head}${res.jumps.length ? `<table class="pf-table jump-table"><thead><tr><th>#</th><th>Height</th><th>Flight</th>${drop ? '<th>Contact</th><th>RSI</th>' : ''}</tr></thead><tbody>${rows}</tbody></table>` : ''}
       ${res.warnings.map((w) => `<p class="banner" style="margin:.4rem 0 0">${esc(w)}</p>`).join('')}

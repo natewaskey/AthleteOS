@@ -9,7 +9,7 @@
   const M = root.Movement;
   let ctx = null;
 
-  const COLORS = { good: '#22c55e', warn: '#f59e0b', bad: '#ef4444', none: 'rgba(255,255,255,0.92)', ghost: '#22c55e' };
+  const COLORS = { good: '#22c55e', warn: '#f59e0b', bad: '#ef4444', none: '#38f2ff', ghost: '#22c55e' };
   const JOINT_BONES = {
     hip: [['sh', 'hip'], ['hip', 'kn']],
     sh: [['sh', 'hip']],
@@ -388,7 +388,7 @@
   }
 
   function playerCard(an, result) {
-    return `<div class="player" id="form-player" style="aspect-ratio:${an.aspect}"></div>
+    return `<div class="player hud" id="form-player" style="aspect-ratio:${an.aspect}"></div>
       <div class="player-controls">
         <div class="segmented small-seg" role="group" aria-label="Playback speed">
           ${[0.25, 0.5, 1].map((r) => `<button data-form-action="rate" data-rate="${r}" aria-pressed="${r === 0.5}">${r}×</button>`).join('')}
@@ -739,12 +739,12 @@
       const degrees = !['clean', 'cut', 'landing'].includes(result.exercise) && !(result.view === 'front' && ['squat', 'bss'].includes(result.exercise));
       if (degrees && val != null && J[lab] && J[lab].v >= 0.45) {
         const p = P(J[lab]);
-        g.font = `600 ${Math.round(lw * 4)}px system-ui, sans-serif`;
+        g.font = `600 ${Math.round(lw * 4)}px 'Geist Mono', ui-monospace, monospace`;
         const txt = `${Math.round(val)}°`;
         const tw = g.measureText(txt).width;
-        g.fillStyle = 'rgba(0,0,0,0.65)';
+        g.fillStyle = 'rgba(2,4,7,0.78)';
         g.fillRect(p.x + lw * 2, p.y - lw * 4, tw + lw * 2, lw * 5);
-        g.fillStyle = '#fff';
+        g.fillStyle = '#38f2ff';
         g.fillText(txt, p.x + lw * 3, p.y);
       }
     }
