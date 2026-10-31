@@ -2223,3 +2223,7 @@ body.pro .stat { font-size: 1.6rem; }
 .cloud-codes > div { display: flex; flex-direction: column; }
 .cloud-codes code, .cloud-invites code { font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; letter-spacing: .08em; font-weight: 700; }
 .cloud-invites summary { cursor: pointer; font-weight: 600; margin: .4rem 0; }
+.auth-screen { max-width: 26rem; }
+.auth-card { display: grid; gap: .7rem; text-align: left; margin: 1.25rem 0 1rem; }
+.btn-block { width: 100%; justify-content: center; }
+.mode-card.primary form input { font: inherit; }

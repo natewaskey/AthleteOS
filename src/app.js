@@ -779,6 +779,10 @@
   }
 
   function welcomeView() {
+    // With accounts on, signing in comes first; choosing how you use the app comes after.
+    const step = window.CloudUI ? window.CloudUI.firstRun() : null;
+    if (step === 'login') return window.CloudUI.loginScreen();
+    if (step === 'start') return window.CloudUI.startScreen();
     return `<div class="welcome">
       <h1 class="page-title">Welcome to AthleteOS</h1>
       <p class="muted">Train smarter on your own, or with your team. No coach needed.</p>
@@ -794,7 +798,7 @@
           <span>Add your certifications, set up your team roster and prescribe training, testing and return-to-play.</span></button>
       </div>
       <p class="muted small" style="text-align:center">You can switch any time in Settings. Or <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
-      ${window.CloudUI && window.Cloud.enabled() ? `<h2 class="section-title" style="text-align:center">Have an account or a code from your coach?</h2><div class="welcome-cloud">${window.CloudUI.card()}</div>` : ''}
+      ${window.CloudUI && window.Cloud.enabled() ? '<p class="muted small" style="text-align:center">Have an account or a code from your coach? <button class="btn-link" data-cloud="back-to-login">Sign in</button></p>' : ''}
     </div>`;
   }
 
@@ -2205,7 +2209,7 @@
 
   // Accounts and sync. Runs before routing so an email sign-in link's hash is read first.
   if (window.Cloud && window.CloudUI) {
-    CloudUI.init({ C, state: () => state, save, render, toast, esc, role, me, sportOptions });
+    CloudUI.init({ C, state: () => state, save, render, go, toast, esc, role, me, sportOptions });
     state = CloudUI.applySession(state);
     Cloud.init({
       getState: () => state,

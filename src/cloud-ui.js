@@ -107,8 +107,84 @@
   }
 
   function refresh() {
+    // On the first-run screens the whole view is the sign-in flow, so redraw it.
+    if (ctx.state().mode == null) return ctx.render();
     const el = document.getElementById('cloud-card');
     if (el) el.innerHTML = inner();
+  }
+
+  // ---------- first run: sign in first, then pick how you use the app ----------
+
+  const SKIP = 'athleteos:skip-login';
+  const skipped = () => {
+    try {
+      return localStorage.getItem(SKIP) === '1';
+    } catch {
+      return false;
+    }
+  };
+
+  // What the first-run screen should be: 'login', 'start' (signed in, no team yet), or null (role cards).
+  function firstRun() {
+    if (!Cloud() || !Cloud().enabled()) return null;
+    const st = Cloud().status();
+    if (!st.signedIn) return skipped() ? null : 'login';
+    return st.team ? null : 'start';
+  }
+
+  function loginScreen() {
+    const st = Cloud().status();
+    return `<div class="welcome auth-screen">
+      <h1 class="page-title">Welcome to AthleteOS</h1>
+      <p class="muted">Sign in to keep your training on every device and connect with your team.</p>
+      <form data-cloud-form="auth" class="card auth-card">
+        <label>Email <input type="email" name="email" autocomplete="email" required/></label>
+        <label>Password <input type="password" name="password" autocomplete="current-password" minlength="6" required/></label>
+        <button class="btn btn-primary btn-block" type="submit" name="mode" value="in" ${busy ? 'disabled' : ''}>Sign in</button>
+        <button class="btn btn-block" type="submit" name="mode" value="up" ${busy ? 'disabled' : ''}>Create account</button>
+        <button class="btn-link small" type="button" data-cloud="forgot">Forgot password?</button>
+        ${st.error ? `<p class="pain-text small" style="margin:0">${esc(st.error)}</p>` : ''}
+      </form>
+      <p class="muted small"><button class="btn-link" data-cloud="skip-login">Continue without an account</button> · <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
+    </div>`;
+  }
+
+  function startScreen() {
+    const st = Cloud().status();
+    if (teams == null) {
+      teams = [];
+      Cloud()
+        .memberships()
+        .then((list) => {
+          teams = list || [];
+          // An account that's already on a team opens it straight away on a new device.
+          if (teams.length === 1) return run(() => Cloud().resume(teams[0]), 'Welcome back');
+          refresh();
+        })
+        .catch((e) => ctx.toast(e.message));
+      return `<div class="welcome"><p class="muted">Checking your account…</p></div>`;
+    }
+    return `<div class="welcome">
+      <h1 class="page-title">You’re signed in</h1>
+      <p class="muted">${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
+      ${teams.length > 1 ? `<div class="row" style="justify-content:center;margin:1rem 0">${teams.map((m, k) => `<button class="btn btn-primary" data-cloud="resume" data-k="${k}">Open ${esc((m.teams && m.teams.name) || (m.teams && m.teams.solo ? 'my training' : 'team'))} (${m.role})</button>`).join('')}</div>` : ''}
+      <div class="mode-grid">
+        <div class="mode-card primary">
+          <span class="mode-icon">👥</span><strong>Join my team</strong>
+          <span>Enter the code from your coach. Coaches joining a staff use the coach code.</span>
+          <form data-cloud-form="join" class="row" style="flex-wrap:nowrap;margin-top:.4rem">
+            <input name="code" placeholder="Code" autocapitalize="characters" maxlength="12" required style="flex:1;min-width:0" aria-label="Team code"/>
+            <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>Join</button>
+          </form>
+        </div>
+        <button class="mode-card" data-cloud="start-coach" ${busy ? 'disabled' : ''}>
+          <span class="mode-icon">📋</span><strong>I’m a coach</strong>
+          <span>Set up your team. You’ll get a code to share with your athletes.</span></button>
+        <button class="mode-card" data-cloud="start-solo" ${busy ? 'disabled' : ''}>
+          <span class="mode-icon">🏃</span><strong>I train on my own</strong>
+          <span>No coach needed. Your training is backed up and on every device you sign in to.</span></button>
+      </div>
+    </div>`;
   }
 
   // Apply who this login is to the device: role, athlete and mode follow the team membership.
@@ -149,6 +225,29 @@
         if (!email) return ctx.toast('Type your email first');
         return run(() => Cloud().resetPassword(email), 'Check your email for a reset link');
       }
+      case 'skip-login':
+        try {
+          localStorage.setItem(SKIP, '1');
+        } catch {}
+        return ctx.render();
+      case 'back-to-login':
+        try {
+          localStorage.removeItem(SKIP);
+        } catch {}
+        return ctx.render();
+      case 'sign-out-now':
+        teams = null;
+        return run(() => Cloud().signOut());
+      case 'start-coach':
+        s.mode = 'team';
+        s.session.role = 'coach';
+        ctx.save();
+        return run(() => Cloud().createTeam(s.team.name || 'My team'), 'Your team is online. Set it up, then share the athlete code from Settings.');
+      case 'start-solo':
+        s.mode = 'solo';
+        s.session.role = 'athlete';
+        ctx.save();
+        return run(() => Cloud().createTeam('', { solo: true, athleteId: ctx.me().id }), 'All set. Your training is backed up.');
       case 'sign-out':
         if (!(await root.Dialogs.confirm('Your data stays on this device. Sign back in any time to keep syncing.', { title: 'Sign out?', ok: 'Sign out' }))) return;
         teams = null;
@@ -156,7 +255,7 @@
         return run(() => Cloud().signOut(), 'Signed out');
       case 'resume': {
         const m = teams[+el.dataset.k];
-        if (!(await root.Dialogs.confirm('This device’s data will be replaced by the team’s.', { title: 'Open this team?', ok: 'Open team' }))) return;
+        if (s.mode != null && !(await root.Dialogs.confirm('This device’s data will be replaced by the team’s.', { title: 'Open this team?', ok: 'Open team' }))) return;
         return run(() => Cloud().resume(m), 'Team opened');
       }
       case 'create-team':
@@ -197,8 +296,13 @@
         }, (msg) => msg);
       }
       case 'join': {
-        if (!(await root.Dialogs.confirm('This device’s data will be replaced by the team’s. Export it first in Settings if you need a copy.', { title: 'Join this team?', ok: 'Join' }))) return;
-        return run(() => Cloud().joinTeam(d.code), (t) => `Joined ${t.name || 'the team'}`);
+        // A brand-new device has nothing to lose; otherwise make sure replacing the data is wanted.
+        if (ctx.state().mode != null && !(await root.Dialogs.confirm('This device’s data will be replaced by the team’s. Export it first in Settings if you need a copy.', { title: 'Join this team?', ok: 'Join' }))) return;
+        await run(() => Cloud().joinTeam(d.code), (t) => `Joined ${t.name || 'the team'}`);
+        // Joined with the team code: they still need to add themselves (on the Settings card).
+        const t = Cloud().team();
+        if (t && t.role === 'athlete' && !t.athleteId) ctx.go('settings');
+        return;
       }
       case 'self':
         return run(async () => {
@@ -219,5 +323,5 @@
     document.addEventListener('submit', onSubmit);
   }
 
-  root.CloudUI = { init, card, refresh, applySession };
+  root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen };
 })(window);
