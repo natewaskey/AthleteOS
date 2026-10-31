@@ -359,8 +359,11 @@
       }
       <section class="card span-3"><h3>Weekly load</h3><div class="stat">${num(thisWeek.load)}<small>AU</small></div>
         <div class="muted">${weekDelta == null ? 'no data last week' : `${weekDelta >= 0 ? '▲' : '▼'} ${Math.abs(weekDelta)}% vs last week`}</div></section>
-      <section class="card span-3"><h3>Streak</h3><div class="stat">${streak}<small>${streak === 1 ? 'day' : 'days'}</small></div>
-        <div class="muted">${streak ? 'Keep it rolling' : 'Start one today'}</div></section>`;
+      ${pro()
+        ? `<section class="card span-3"><h3>Training days</h3><div class="stat">${new Set(a.workouts.filter((w) => C.daysBetween(w.date, t) < 28 && w.date <= t).map((w) => w.date)).size}<small>/ 28</small></div>
+        <div class="muted">last 4 weeks</div></section>`
+        : `<section class="card span-3"><h3>Streak</h3><div class="stat">${streak}<small>${streak === 1 ? 'day' : 'days'}</small></div>
+        <div class="muted">${streak ? 'Keep it rolling' : 'Start one today'}</div></section>`}`;
   }
 
   function trendCard(a, span = 'span-8') {
@@ -559,12 +562,12 @@
         ${Sci.ageCard(a)}
         ${trendCard(a, 'span-8')}
         <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
-        ${Smart.partnerCard(a, { span: 'span-6' })}
+        ${pro() ? '' : Smart.partnerCard(a, { span: 'span-6' })}
         ${Screens.card(a, { span: 'span-6' })}
         <section class="card span-6"><div class="card-head"><h3>🏅 Personal records</h3><button class="btn btn-sm btn-ghost" data-tab-link="records">All records</button></div>
           <p class="muted" style="margin:0">${prs ? `${prs} records across your lifts and endurance efforts.` : 'Log lifts and timed efforts to start setting records.'}</p></section>
         <section class="card span-12 sci-cta"><div class="row"><div class="main"><strong>🔬 The science behind your numbers</strong><div class="muted small">Every score, warning and exercise choice, with the research and how strong it is.</div></div><button class="btn" data-sci="library">Open evidence library</button></div></section>
-        ${solo() ? '' : Progress.wallCard()}`);
+        ${solo() || pro() ? '' : Progress.wallCard()}`);
     },
 
     screen() {
@@ -868,6 +871,8 @@
       const alerts = statuses.flatMap((s) => s.flags.filter((f) => f.level !== 'info').map((f) => ({ ...f, a: s.athlete })));
       for (const x of [...Health.alerts(), ...Plan.alerts()]) if (athleteById(x.athleteId)) alerts.push({ ...x, a: athleteById(x.athleteId) });
       for (const a of state.athletes) {
+        const risky = consentLocked(a) ? [] : (a.supplements || []).filter((x) => window.Nutrition.supplementRisk(x).level === 'bad');
+        if (risky.length) alerts.push({ level: 'warn', text: `Supplement to check: ${risky.map((x) => x.name).join(', ')}`, a });
         const r = SM.injuryRisk(state, a, t);
         if (r.level !== 'low' && !consentLocked(a)) alerts.push({ level: r.level === 'high' ? 'bad' : 'warn', text: `${r.label} injury risk: ${r.factors.slice(0, 2).map((f) => f.label.toLowerCase()).join(', ')}`, a });
       }
@@ -1250,10 +1255,21 @@
 
   // ---------- chrome ----------
 
+  // Pro mode hides challenges and the recruiting profile from the navigation.
+  const PRO_HIDDEN = ['challenges', 'profile'];
+  const pro = () => !!state.settings.proMode;
+  function withoutPro(list) {
+    if (!pro()) return list;
+    return list.map((x) => {
+      if (x.id === 'me') return { ...x, label: 'Settings', icon: 'gear', routes: ['settings'], sub: null };
+      const sub = x.sub && x.sub.filter(([r]) => !PRO_HIDDEN.includes(r));
+      return { ...x, routes: x.routes.filter((r) => r !== 'challenges'), sub };
+    });
+  }
   function sections() {
     if (state.mode == null) return [];
-    if (role() === 'coach') return COACH_SECTIONS;
-    return ATHLETE_SECTIONS.filter((x) => !(x.team && solo()));
+    if (role() === 'coach') return withoutPro(COACH_SECTIONS);
+    return withoutPro(ATHLETE_SECTIONS.filter((x) => !(x.team && solo())));
   }
   // [firstRoute, label] per section (kept for callers that only need the landing routes).
   const tabsFor = () => sections().map((x) => [x.routes[0], x.label]);
@@ -1335,6 +1351,7 @@
   }
 
   function render() {
+    document.body.classList.toggle('pro', pro() && state.mode != null);
     if (state.mode == null) {
       renderChrome();
       $('#view').innerHTML = welcomeView();
@@ -1395,7 +1412,9 @@
 
   function prefsFields() {
     const theme = document.documentElement.dataset.theme || 'system';
-    return `<div class="grid-2">
+    // On a team the head coach sets Pro mode (in the prescribing policy card); solo athletes set it here.
+    const proField = solo() ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="proMode" ${pro() ? 'checked' : ''}/> <span><strong>Pro mode</strong>: no badges, streaks, confetti, challenges or recruiting profile. Denser, data-first screens.</span></label>` : '';
+    return `<div class="grid-2">${proField}
       <label>Units <select name="units">
         <option value="imperial" ${units() === 'imperial' ? 'selected' : ''}>Imperial (mi, lb, ft, yd)</option>
         <option value="metric" ${units() === 'metric' ? 'selected' : ''}>Metric (km, kg, m)</option></select></label>
@@ -2005,6 +2024,7 @@
 
   function savePrefs(d) {
     state.settings.units = C.unitSystem(d.units);
+    if (solo()) state.settings.proMode = !!d.proMode;
     save();
     applyTheme(d.theme);
     toast('Saved');

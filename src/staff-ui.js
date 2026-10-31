@@ -187,11 +187,12 @@
     const p = policy();
     const head = isHead();
     const dis = head ? '' : 'disabled';
-    return `<section class="card span-6"><div class="card-head"><h3>Team prescribing policy</h3>${head ? '' : '<span class="muted small">set by the head coach</span>'}</div>
+    return `<section class="card span-6"><div class="card-head"><h3>Team policy</h3>${head ? '' : '<span class="muted small">set by the head coach</span>'}</div>
       <form id="team-policy-form">
         <fieldset><legend>Certifications that let staff prescribe (once verified)</legend>
           <div class="chips">${Object.entries(C.CERTIFICATIONS).map(([k, v]) => `<label class="check" style="margin:0 .6rem .3rem 0"><input type="checkbox" name="cert" value="${k}" ${p.prescribingCerts.includes(k) ? 'checked' : ''} ${dis}/> ${esc(v.split(' · ')[0])}</label>`).join('')}</div>
         </fieldset>
+        <label class="check"><input type="checkbox" name="proMode" ${state().settings.proMode ? 'checked' : ''} ${dis}/> <span><strong>Pro mode</strong>: no badges, streaks, confetti, challenges, team wall or recruiting profile. Denser, data-first screens. Turning it on also makes athletes’ own programs need approval.</span></label>
         <label>Athletes’ own workouts and programs <select name="athletePrograms" ${dis}>${Object.entries(C.ATHLETE_PROGRAMMING).map(([k, v]) => `<option value="${k}" ${k === p.athletePrograms ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
         ${head ? '<button class="btn" type="submit">Save policy</button>' : ''}
       </form>
@@ -434,7 +435,10 @@
       e.preventDefault();
       if (!isHead()) return;
       const fd = new FormData(f);
-      state().policy = C.normalizePolicy({ prescribingCerts: fd.getAll('cert'), athletePrograms: fd.get('athletePrograms') });
+      const proOn = fd.get('proMode') === 'on';
+      const turningOn = proOn && !state().settings.proMode;
+      state().settings.proMode = proOn;
+      state().policy = C.normalizePolicy({ prescribingCerts: fd.getAll('cert'), athletePrograms: turningOn && fd.get('athletePrograms') === 'allowed' ? 'approval' : fd.get('athletePrograms') });
       ctx.save();
       ctx.toast('Policy saved');
       ctx.render();

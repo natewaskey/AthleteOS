@@ -827,6 +827,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
 .dot.bad { background: var(--bad); }
 .dot.warn { background: var(--warn); }
+.dot.ok { background: var(--good); }
+.dot.info { background: var(--info); }
 
 .flag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
 
@@ -2149,3 +2151,9 @@ button.focus-tag:hover { border-color: var(--accent); }
 .staff-ctl select, .staff-ctl .btn { width: auto; margin: 0; }
 .chip.cert { flex-wrap: wrap; row-gap: 0.15rem; }
 .chip.cert .small { white-space: nowrap; }
+
+/* Pro mode: denser, data-first */
+body.pro .grid { gap: 0.7rem; }
+body.pro .card { padding: 0.85rem 1rem; }
+body.pro .page-title { font-size: 1.5rem; }
+body.pro .stat { font-size: 1.6rem; }

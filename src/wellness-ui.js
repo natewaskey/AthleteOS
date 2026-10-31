@@ -89,7 +89,33 @@
           ${photo ? photoReview() : ''}
         </section>
         ${sweatCard()}
+        ${supplementsCard(a)}
       </div>`;
+  }
+
+  // Supplements with a third-party certification check and anti-doping reminders.
+  function supplementsCard(a) {
+    const age = C.ageOn ? C.ageOn(a, today()) : null;
+    const minor = age != null && age < 18;
+    const list = (a.supplements || []).map(N.normalizeSupplement);
+    const PILL = { ok: 'good', warn: 'warn', bad: 'bad' };
+    return `<section class="card span-12"><div class="card-head"><h3>💊 Supplements & anti-doping</h3></div>
+      <p class="muted small" style="margin-top:0">Supplements aren’t approved by anti-doping agencies, and athletes are responsible for anything found in their body, even from a contaminated product. Third-party certification lowers that risk but doesn’t remove it. Check prescriptions and over-the-counter medicines too.</p>
+      <div class="row" style="gap:.4rem;margin-bottom:.6rem">${N.CHECK_LINKS.map((l) => `<a class="btn btn-sm" href="${l.url}" target="_blank" rel="noopener">Check on ${esc(l.label)} ↗</a>`).join('')}</div>
+      ${list.length ? `<ul class="list">${list.map((x) => {
+        const r = N.supplementRisk(x, { minor });
+        return `<li style="align-items:flex-start"><span class="dot ${r.level === 'ok' ? 'ok' : r.level}"></span><div class="main"><strong>${esc(x.name)}</strong>${x.brand ? ` <span class="muted small">· ${esc(x.brand)}</span>` : ''} <span class="pill ${PILL[r.level]}">${esc(N.SUPPLEMENT_CERTS[x.cert])}</span>
+          ${r.reasons.length ? `<div class="small muted">${r.reasons.map(esc).join(' ')}</div>` : ''}</div>
+          <button class="btn btn-sm btn-ghost btn-danger" data-supp-del="${x.id}" aria-label="Remove ${esc(x.name)}">✕</button></li>`;
+      }).join('')}</ul>` : '<p class="muted small">No supplements listed.</p>'}
+      <form id="supp-form" class="grid-4" style="margin-top:.6rem;align-items:end">
+        <label>Product <input name="name" required maxlength="80" placeholder="e.g. Creatine monohydrate"/></label>
+        <label>Brand <input name="brand" maxlength="80" placeholder="optional"/></label>
+        <label>Certified? <select name="cert">${Object.entries(N.SUPPLEMENT_CERTS).map(([k, v]) => `<option value="${k}" ${k === 'unsure' ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+        <button class="btn" type="submit">+ Add</button>
+      </form>
+      ${minor ? '<p class="hint">You’re under 18: talk with a doctor or registered dietitian before taking any supplement.</p>' : ''}
+    </section>`;
   }
 
   function photoReview() {
@@ -213,6 +239,13 @@
   async function onClick(e) {
     const tab = e.target.closest('[data-well-tab]');
     if (tab) return ctx.go('wellness', tab.dataset.wellTab);
+    const sd = e.target.closest('[data-supp-del]');
+    if (sd) {
+      const a = ctx.me();
+      a.supplements = (a.supplements || []).filter((x) => x.id !== sd.dataset.suppDel);
+      ctx.save();
+      return ctx.render();
+    }
     const d = e.target.closest('[data-fuel-day]');
     if (d) {
       day = C.addDays(day || today(), +d.dataset.fuelDay);
@@ -358,6 +391,18 @@
       e.preventDefault();
       const d = Object.fromEntries(new FormData(f));
       return addItems([{ name: d.name, qty: 1, kcal: d.kcal, protein: d.protein, carbs: d.carbs, fat: d.fat }]);
+    }
+    if (f.id === 'supp-form') {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(f));
+      const x = N.normalizeSupplement(d);
+      if (!x.name) return;
+      const a = ctx.me();
+      a.supplements = [...(a.supplements || []), x];
+      ctx.save();
+      const r = N.supplementRisk(x);
+      ctx.toast(r.level === 'bad' ? `${x.name} added. Check it before you take it.` : `${x.name} added`);
+      return ctx.render();
     }
     if (f.id === 'sweat-form') {
       e.preventDefault();

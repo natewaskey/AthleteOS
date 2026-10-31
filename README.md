@@ -73,6 +73,15 @@ The first screen asks how you'll use AthleteOS. You can change it any time in Se
 
 In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
 
+### Pro mode (elite teams)
+- One switch (Settings › Team policy for the head coach; Settings › Preferences when training solo) turns AthleteOS into a data-first tool: no badges, streaks, confetti, challenges, team wall, training partners or recruiting profile, and denser screens. PRs show as a short note instead of a celebration.
+- Turning it on for a team also makes athletes' own workouts and programs need coach approval (the head coach can change that back).
+
+### Supplements & anti-doping
+- Wellness › Fuel has a supplement list. Each product is marked NSF Certified for Sport, Informed Sport, not certified, or not sure, with links to check it on NSF Certified for Sport, Informed Sport and Global DRO (medications).
+- Products in high-risk categories (pre-workout, weight loss, muscle building / hormone, known banned stimulants) are flagged, and under-18s are told to check with a doctor or registered dietitian.
+- Uncertified or high-risk products show on the coach's Needs attention list.
+
 ### Staff certifications and who can prescribe
 - **The rule:** only the head coach, or a staff member with a current certification the head coach has verified, can give athletes workouts and programs. Everyone else can still build them; theirs go to **Training › Approvals** instead of straight to athletes.
 - **What counts as prescribing:** assigning a workout or program, applying an AI-built program, editing an assigned session, and coach-assigned movement prep. Messages, form cues, test results and calendar events are open to all staff.

@@ -84,6 +84,8 @@
       a: 'Teen athletes need about **8 to 10 hours**, adults 7 to 9. Keep the same bedtime every night, a cool dark room and no screens for 30 minutes before bed. Sleep counts for 35% of readiness.' },
     { id: 'supplements', cat: 'fuel', for: 'all', q: 'Should I take supplements or cut weight?', tags: 'supplement creatine weight cut diet lose',
       a: 'Food first. Talk to a doctor or registered dietitian before taking supplements or trying to lose weight, especially if you’re under 18. Never cut weight fast with fasting, dehydration or sweat suits.' },
+    { id: 'supplement-check', cat: 'fuel', for: 'all', q: 'How do I know a supplement is safe to take if I get drug tested?', tags: 'supplement anti-doping drug test nsf informed sport banned wada usada', link: ['wellness', 'Open Fuel'],
+      a: 'Add it under **Wellness → Fuel → Supplements**. Only products certified by **NSF Certified for Sport** or **Informed Sport** are tested for banned substances, and even then you are responsible for what you take. Pre-workouts, fat burners and muscle builders are the riskiest. Check medicines on Global DRO.' },
 
     // ---------- mind ----------
     { id: 'nerves', cat: 'mind', for: 'all', q: 'How do I calm my nerves before competing?', tags: 'nervous anxious pressure scared choke', link: ['wellness', 'Open Mind'],

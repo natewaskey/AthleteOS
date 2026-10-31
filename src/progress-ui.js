@@ -114,13 +114,14 @@
     const trainStreak = C.streak(a.workouts, t);
     const checkStreak = P.checkinStreak(a, t);
     const recs = ctx.recordsTables(a);
+    const pro = !!ctx.state().settings.proMode;
     return `<h1 class="page-title">Progress</h1>
       <div class="grid">${lead}
-        <section class="card span-3"><h3>Training streak</h3><div class="stat">${trainStreak}<small>days</small></div><div class="muted">${trainStreak ? 'Keep it rolling 🔥' : 'Train today to start one'}</div></section>
-        <section class="card span-3"><h3>Check-in streak</h3><div class="stat">${checkStreak}<small>days</small></div><div class="muted">${checkStreak >= 7 ? 'Consistency pays 🌅' : 'Check in daily'}</div></section>
-        <section class="card span-3"><h3>Workouts logged</h3><div class="stat">${a.workouts.length}</div><div class="muted">all time</div></section>
-        <section class="card span-3"><h3>Tests recorded</h3><div class="stat">${a.tests.length}</div><div class="muted">${testIds.length} different tests</div></section>
-        ${badgesHTML(a)}
+        ${pro ? '' : `<section class="card span-3"><h3>Training streak</h3><div class="stat">${trainStreak}<small>days</small></div><div class="muted">${trainStreak ? 'Keep it rolling 🔥' : 'Train today to start one'}</div></section>
+        <section class="card span-3"><h3>Check-in streak</h3><div class="stat">${checkStreak}<small>days</small></div><div class="muted">${checkStreak >= 7 ? 'Consistency pays 🌅' : 'Check in daily'}</div></section>`}
+        <section class="card ${pro ? 'span-6' : 'span-3'}"><h3>Workouts logged</h3><div class="stat">${a.workouts.length}</div><div class="muted">all time</div></section>
+        <section class="card ${pro ? 'span-6' : 'span-3'}"><h3>Tests recorded</h3><div class="stat">${a.tests.length}</div><div class="muted">${testIds.length} different tests</div></section>
+        ${pro ? '' : badgesHTML(a)}
         <section class="card span-6"><div class="card-head"><h3>Strength trend · estimated 1RM</h3>
           ${lifts.length ? `<select data-prog-ui="lift" style="width:auto">${lifts.map((l) => `<option ${l === ui.lift ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}</div>
           ${ui.lift ? lineChart(e1rmSeries(a, ui.lift).map((p) => ({ ...p, value: C.kgToDisplay(p.value, ctx.units()) })), { fmt: (v) => `${Math.round(v)} ${ctx.U().weight}` }) : '<p class="muted">Log lifts with weights to see your strength trend.</p>'}</section>
@@ -164,13 +165,13 @@
         <section class="card span-6"><div class="card-head"><h3>Leaderboard</h3>
           <select data-prog-ui="board" style="width:auto">${C.TESTS.filter((x) => x.better !== 'none').map((x) => `<option value="${x.id}" ${x.id === ui.board ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
           ${leaderboardHTML(shown, ui.board)}</section>
-        <section class="card span-12"><div class="card-head"><h3>Shout-outs</h3></div>
+        ${ctx.state().settings.proMode ? '' : `<section class="card span-12"><div class="card-head"><h3>Shout-outs</h3></div>
           <form data-prog-form="shoutout" class="row" style="align-items:flex-end">
             <label style="margin:0">Athlete <select name="athlete">${athletes.map((a) => `<option value="${a.id}">${esc(ctx.athleteName(a))}</option>`).join('')}</select></label>
             <label style="margin:0;flex:1;min-width:14rem">Message <input name="text" maxlength="280" placeholder="e.g. Huge week, 5 for 5 sessions and a squat PR 💪" required/></label>
             <button class="btn btn-primary" type="submit">👏 Post to team wall</button>
           </form>
-          ${wallHTML(10)}</section>
+          ${wallHTML(10)}</section>`}
       </div>`;
   }
 
@@ -239,6 +240,8 @@
   // ---------- celebrations ----------
 
   function celebrate(title, lines = []) {
+    // Pro mode: a quiet note instead of the confetti card.
+    if (ctx.state().settings.proMode) return ctx.toast(lines.length ? `${title} ${lines[0]}` : title);
     const el = document.createElement('div');
     el.className = 'celebrate';
     el.setAttribute('role', 'status');
@@ -282,6 +285,7 @@
   }
 
   function checkBadges(athlete, show) {
+    if (ctx.state().settings.proMode) return;
     const earned = P.badges(athlete, ctx.state(), today()).filter((b) => b.earned);
     const fresh = earned.filter((b) => !athlete.badgesSeen.includes(b.id));
     if (!fresh.length) return;

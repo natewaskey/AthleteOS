@@ -760,6 +760,7 @@
       tests: Array.isArray(input.tests) ? input.tests.map(normalizeTestResult) : [],
       // Wellness logs; their own modules (nutrition.js, mind.js) normalise entries as they're created.
       meals: objList(input.meals, 2000),
+      supplements: objList(input.supplements, 100),
       water: objList(input.water, 400).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date || '')),
       journal: objList(input.journal, 1000),
       mindSessions: objList(input.mindSessions, 2000),
@@ -1280,7 +1281,7 @@
   function emptyState() {
     return {
       version: SCHEMA_VERSION,
-      settings: { units: 'imperial' },
+      settings: { units: 'imperial', proMode: false },
       session: { role: 'athlete', athleteId: 'me' },
       coach: { name: '' },
       athletes: [normalizeAthlete({ id: 'me', name: '', sport: 'run' })],
@@ -1509,7 +1510,7 @@
     const session = raw.session || {};
     return {
       version: SCHEMA_VERSION,
-      settings: { units: unitSystem(raw.settings && raw.settings.units) },
+      settings: { units: unitSystem(raw.settings && raw.settings.units), proMode: !!(raw.settings && raw.settings.proMode) },
       session: {
         role: session.role === 'coach' ? 'coach' : 'athlete',
         athleteId: ids.has(session.athleteId) ? session.athleteId : athletes[0].id,
@@ -1993,6 +1994,10 @@
     const F = { Oatmeal: [166, 6, 28, 4], Banana: [105, 1, 27, 0], 'Greek yogurt': [146, 20, 8, 4], 'Turkey sandwich': [360, 26, 40, 10], Apple: [95, 0, 25, 0], 'Chocolate milk': [208, 8, 26, 8], Eggs: [143, 13, 1, 10], 'Whole-wheat toast': [160, 8, 28, 2], 'Orange juice': [112, 2, 26, 0], 'Burrito bowl': [650, 38, 78, 20], 'Pasta with meat sauce': [620, 32, 80, 18], 'Salad with dressing': [180, 3, 12, 14], Milk: [122, 8, 12, 5], 'Protein shake': [120, 24, 3, 1] };
     for (const m of riley.meals) for (const it of m.items) [it.kcal, it.protein, it.carbs, it.fat] = F[it.name];
     riley.water = [{ date: todayISO, ml: 1250 }, { date: D(-1), ml: 2750 }];
+    taylor.supplements = [
+      { id: 'sup-1', name: 'Creatine monohydrate', brand: 'Thorne', cert: 'nsf', addedAt: hoursAgo(24 * 40) },
+      { id: 'sup-2', name: 'Pre-workout', brand: 'Gas station brand', cert: 'none', addedAt: hoursAgo(24 * 3) },
+    ];
     riley.journal = [
       { id: uid(), date: D(-1), kind: 'daily', confidence: 4, focus: 4, energy: 4, answers: ['Hit all my tempo splits', 'Coach’s feedback on my stride', 'Arm swing'], shared: false, ts: now },
       { id: uid(), date: D(-3), kind: 'pre', confidence: 3, focus: 4, energy: 3, answers: ['My pacing in the first mile', 'Relaxed and fast', 'Smooth'], shared: false, ts: now },
