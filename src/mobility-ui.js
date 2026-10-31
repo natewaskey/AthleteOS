@@ -111,7 +111,7 @@
     root.Dialogs.html(
       `<h2 id="app-dialog-title">📹 ${esc(t.label)}</h2>
       <div class="film-guide">${filmDiagram(f.view, f)}<p class="small" style="margin:0">${esc(t.film)}</p></div>
-      ${root.ScreenDemo && root.ScreenDemo.TESTS[testId] ? `<button type="button" class="btn btn-sm btn-ghost" data-mob="demo" data-test="${testId}">▶ Watch how it’s done</button>` : ''}
+      ${root.ScreenDemo && root.ScreenDemo.TESTS[testId] ? `<button type="button" class="btn btn-sm btn-ghost" data-mob="demo" data-test="${testId}">▶ Watch how it’s done</button>` : root.ExerciseDemo && root.ExerciseDemo.button ? root.ExerciseDemo.button('test', testId) : ''}
       <label style="margin-top:.6rem">Video <input type="file" accept="video/*" capture="environment" data-mob-file></label>
       <div data-mob-progress hidden><div class="progress"><i style="width:0%"></i></div><p class="muted small" data-status></p></div>
       <p class="banner bad" data-mob-error hidden></p>

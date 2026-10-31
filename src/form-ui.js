@@ -997,7 +997,8 @@
       const MU = root.MobilityUI;
       const v = (e.views || ['side'])[0];
       const guide = MU && MU.filmDiagram ? `<details class="film-guide-wrap"${uiState.guideOpen ? ' open' : ''}><summary class="small">📐 Where to put the phone</summary><div class="film-guide">${MU.filmDiagram(v, { distance: e.custom === 'sprintstart' ? 9 : e.gait ? 6 : e.custom === 'cut' ? 6 : 3, height: ['pushup', 'bench', 'hipthrust'].includes(form.exercise.value) ? 'knee' : 'hip' })}<p class="small" style="margin:0">${esc(e.views && e.views.length > 1 ? `Best from the ${e.views[0]}. Film from the ${e.views[1]} as well and the app combines both angles into one report.` : `Film from the ${v}.`)} Put the phone on something steady, landscape, with a metre of space above your head and below your feet.</p></div></details>` : '';
-      $('#analyze-setup', d).innerHTML = guide + (live ? `<button type="button" class="btn btn-sm btn-ghost" data-form-action="setup-check" data-exercise="${form.exercise.value}">📷 Check your camera setup live first</button>` : '');
+      const demo = root.ExerciseDemo && root.ExerciseDemo.button ? root.ExerciseDemo.button('form', form.exercise.value, '▶ Watch good form') : '';
+      $('#analyze-setup', d).innerHTML = guide + demo + (live ? `<button type="button" class="btn btn-sm btn-ghost" data-form-action="setup-check" data-exercise="${form.exercise.value}">📷 Check your camera setup live first</button>` : '');
     };
     syncTip();
     form.addEventListener('change', (e) => {

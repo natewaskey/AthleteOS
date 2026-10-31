@@ -220,7 +220,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 ### Smarter sessions
 - **Auto-adjust:** when readiness is low or pain is reported, the session offers a reduced or recovery version (fewer sets, lighter %1RM) with the reasons. The athlete can apply it or keep the plan.
 - **Exercise swaps:** ⇄ offers alternatives that fit the athlete's equipment and avoid sore or injured areas. Items that conflict with an injury restriction are flagged.
-- **How-to:** ⓘ shows coaching cues, an animated demo and a video search link.
+- **How-to:** ▶ next to any exercise (in workouts, the workout builder and program previews) plays an animated demo of that exercise with setup, three coaching cues and the most common mistake, plus a video search link. All 122 library exercises have one; custom names get the closest match ("DB bench press" plays the bench press). Form checks, camera tests and jump tests have a ▶ Watch how it's done button too.
 - **Live workout mode:** full-screen, one exercise at a time with big set buttons, a **plate calculator** (lb or kg plates per side), rest timer and **interval timer** (work/rest/rounds with beeps).
 - **Coaches can edit** any assigned session (date, exercises, note to the athlete), filter the calendar by **group** and assign to groups.
 - **Deleting and removing:**
@@ -341,6 +341,8 @@ src/timeline.js       lifetime body record, export, pattern finder, long-range t
 src/checkup.js        report cards, health maintenance, energy check, morning brief, season yearbook
 src/body-ui.js        Body screens: Balance, Prevention, Timeline, Check-ups
 src/explain.js        "What is this?" glossary and animated demos
+src/exercise-demo.js  animated how-to demos for every exercise: posable figure, props, agility courses, player
+src/exercise-howto.js setup, cues and common mistake for every exercise, and name matching to the demos
 src/tours.js          first-visit screen tours, replay from Help
 src/demo-rich.js      six months of history for the demo team's linebacker
 src/accuracy.js       form checker accuracy: labelled cases, noise, per-check report, pose-data export format
@@ -402,3 +404,6 @@ tools/accuracy.js     command-line form checker accuracy report
 - **Readiness** = sleep 35%, body-map soreness 20%, stress 15%, mood 15%, load balance 15%, minus a penalty when resting HR is more than 3 bpm above your 14-day baseline. Any area marked "pain" caps readiness at 54 ("Keep it easy").
 
 These are training guides, not medical advice.
+
+## License
+Proprietary. All rights reserved; see LICENSE. Third-party code in vendor/ keeps its own license.
