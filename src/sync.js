@@ -220,6 +220,8 @@
     enabled: enabled(),
     signedIn: !!(mem.auth && mem.auth.access_token),
     email: mem.auth ? mem.auth.email : '',
+    userId: mem.auth ? mem.auth.userId || '' : '',
+    name: mem.auth ? mem.auth.name || '' : '',
     team: mem.team || null,
     pending: !!pushTimer,
     syncing: !!busy,
@@ -263,7 +265,7 @@
   // ---------- auth ----------
 
   function setAuth(a, email) {
-    mem.auth = { access_token: a.access_token, refresh_token: a.refresh_token, expires_at: Date.now() + (a.expires_in || 3600) * 1000, email: (a.user && a.user.email) || email || (mem.auth && mem.auth.email) || '', userId: (a.user && a.user.id) || (mem.auth && mem.auth.userId) || '' };
+    mem.auth = { access_token: a.access_token, refresh_token: a.refresh_token, expires_at: Date.now() + (a.expires_in || 3600) * 1000, email: (a.user && a.user.email) || email || (mem.auth && mem.auth.email) || '', userId: (a.user && a.user.id) || (mem.auth && mem.auth.userId) || '', name: (a.user && a.user.user_metadata && a.user.user_metadata.name) || (mem.auth && mem.auth.name) || '' };
     saveMem();
   }
 
@@ -285,8 +287,8 @@
 
   const redirectTo = () => location.origin + location.pathname;
 
-  async function signUp(email, password) {
-    const a = await http(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo())}`, { method: 'POST', body: { email, password }, auth: false });
+  async function signUp(email, password, name = '') {
+    const a = await http(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo())}`, { method: 'POST', body: { email, password, data: { name } }, auth: false });
     if (a && a.access_token) {
       setAuth(a, email);
       await afterSignIn();
@@ -329,6 +331,7 @@
     const me = await http('/auth/v1/user');
     mem.auth.userId = me.id;
     mem.auth.email = me.email;
+    mem.auth.name = (me.user_metadata && me.user_metadata.name) || mem.auth.name || '';
     saveMem();
     notify();
   }

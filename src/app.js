@@ -838,6 +838,7 @@
             <label>Default group <input name="group" maxlength="30" placeholder="e.g. Varsity" /></label>
           </div>
           <label>Names, one per line <textarea name="names" rows="5" placeholder="Riley Chen&#10;Jordan Price&#10;Maya Okafor"></textarea></label>
+          ${window.Cloud && Cloud.status().signedIn ? '<p class="hint">Optional. Athletes who join with your team code add themselves, so you can leave this empty. Anyone you add here gets a personal code later so their login links to this profile.</p>' : ''}
         </fieldset>
         <fieldset><legend>3 · Staff (optional)</legend>
           <label>Other coaches, one per line as “Name, role” <textarea name="staff" rows="3" placeholder="Dana Kim, trainer&#10;Marcus Lee, strength"></textarea></label>
@@ -897,6 +898,7 @@
         <h1 class="page-title">${esc(greet())}, ${esc(coachName())}</h1>
         <p class="muted" style="margin-top:0">${state.team.name ? esc(state.team.name) + ' · ' : ''}${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))} · ${state.athletes.length} athletes</p>
         <div class="grid">
+          ${window.CloudUI ? CloudUI.coachSteps() : ''}
           <section class="card span-3"><h3>Checked in</h3><div class="stat">${checkedIn}<small>/ ${state.athletes.length}</small></div>
             <div class="muted">${state.athletes.length - checkedIn ? `${state.athletes.length - checkedIn} still to check in` : 'Everyone is in'}</div></section>
           <section class="card span-3"><h3>Team readiness</h3><div class="stat">${avgReady.length ? Math.round(avgReady.reduce((s, v) => s + v, 0) / avgReady.length) : '—'}<small>avg</small></div>
@@ -1317,11 +1319,11 @@
       ${isCoach && state.staff.length > 1 ? `<select id="staff-switch" aria-label="Signed in as">${state.staff.map((x) => `<option value="${x.id}" ${x.id === (activeStaff() || {}).id ? 'selected' : ''}>${esc(x.name || 'Unnamed')} · ${esc(roleLabel(x).split(' ')[0])}</option>`).join('')}</select>` : ''}`;
   }
 
-  function renderChrome() {
+  function renderChrome(bare = false) {
     const isCoach = role() === 'coach';
     const a = me();
     const unread = isCoach ? C.unreadCount(state.messages, 'coach') : C.unreadCount(state.messages, 'athlete', a.id);
-    const none = state.mode == null;
+    const none = bare || state.mode == null;
     document.body.classList.toggle('no-nav', none);
     if (none) {
       ['#role-bar', '#tabs', '#side-foot', '#bottombar', '#subnav'].forEach((sel) => ($(sel).innerHTML = ''));
@@ -1373,6 +1375,13 @@
     if (state.mode == null) {
       renderChrome();
       $('#view').innerHTML = welcomeView();
+      return;
+    }
+    // A coach who just joined a team adds themselves to the staff before anything else.
+    const step = window.CloudUI ? window.CloudUI.gate() : '';
+    if (step) {
+      renderChrome(true);
+      $('#view').innerHTML = step;
       return;
     }
     const views = role() === 'coach' ? coachViews : athleteViews;
@@ -2025,6 +2034,8 @@
         state.staff.push(C.normalizeStaff([{ name, role: key }])[0]);
       }
       state.team.onboarded = true;
+      // Signed in: this account is this coach, and the team goes online.
+      if (window.CloudUI) CloudUI.onCoachSetup(st);
       save();
       toast(names.length ? `Team ready with ${names.length} athletes` : 'Team ready');
       go('team');
@@ -2209,7 +2220,7 @@
 
   // Accounts and sync. Runs before routing so an email sign-in link's hash is read first.
   if (window.Cloud && window.CloudUI) {
-    CloudUI.init({ C, state: () => state, save, render, go, toast, esc, role, me, sportOptions });
+    CloudUI.init({ C, state: () => state, save, render, go, firstTab, toast, esc, role, me, sportOptions });
     state = CloudUI.applySession(state);
     Cloud.init({
       getState: () => state,

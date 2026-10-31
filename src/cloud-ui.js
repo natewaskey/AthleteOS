@@ -31,17 +31,7 @@
     if (!st.signedIn) {
       return `${head()}
         <p class="muted" style="margin-top:0">Sign in to keep your data on every device and share it between coaches and athletes. The app still works offline.</p>
-        <form data-cloud-form="auth" class="grid-2">
-          <label>Email <input type="email" name="email" autocomplete="email" required/></label>
-          <label>Password <input type="password" name="password" autocomplete="current-password" minlength="6" required/></label>
-          <div class="row" style="grid-column:1/-1">
-            <button class="btn btn-primary" type="submit" name="mode" value="in" ${busy ? 'disabled' : ''}>Sign in</button>
-            <button class="btn" type="submit" name="mode" value="up" ${busy ? 'disabled' : ''}>Create account</button>
-            <div class="spacer"></div>
-            <button class="btn btn-ghost btn-sm" type="button" data-cloud="forgot">Forgot password?</button>
-          </div>
-        </form>
-        ${st.error ? `<p class="pain-text small">${esc(st.error)}</p>` : ''}`;
+        ${authForms()}`;
     }
     const team = st.team;
     if (!team) {
@@ -63,6 +53,7 @@
           : coach ? `<button class="btn ${teams.length ? '' : 'btn-primary'}" data-cloud="create-team" ${busy ? 'disabled' : ''}>Put ${esc(s.team.name || 'this team')} online</button>
             <p class="hint">Uploads this device’s roster and data. You’ll get a code for athletes and one for other coaches.</p>` : ''}
         <form data-cloud-form="join" class="row" style="margin-top:.75rem;flex-wrap:nowrap">
+          ${st.name ? '' : '<input name="name" placeholder="Your name" maxlength="60" required style="flex:1;min-width:0" aria-label="Your name"/>'}
           <input name="code" placeholder="Team or invite code" autocapitalize="characters" maxlength="12" required style="flex:1;min-width:0" aria-label="Code"/>
           <button class="btn" type="submit" ${busy ? 'disabled' : ''}>Join</button>
         </form>
@@ -132,20 +123,66 @@
     return st.team ? null : 'start';
   }
 
-  function loginScreen() {
+  // Sign in and Create account are separate forms; one shows at a time.
+  let authView = 'in';
+  let authError = ''; // why the last sign in or sign up failed, shown under the form
+  const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L11 10 L16 18 L21 8 L28 22"/></svg>';
+  const pw = (name, auto, label) => `<label class="auth-field">${label}
+      <span class="pw-wrap"><input type="password" name="${name}" autocomplete="${auto}" minlength="6" required ${auto === 'new-password' ? 'data-pw-meter' : ''}/>
+      <button type="button" class="pw-peek" data-cloud="peek" aria-label="Show password">Show</button></span></label>`;
+
+  function authForms() {
     const st = Cloud().status();
-    return `<div class="welcome auth-screen">
-      <h1 class="page-title">Welcome to AthleteOS</h1>
-      <p class="muted">Sign in to keep your training on every device and connect with your team.</p>
-      <form data-cloud-form="auth" class="card auth-card">
-        <label>Email <input type="email" name="email" autocomplete="email" required/></label>
-        <label>Password <input type="password" name="password" autocomplete="current-password" minlength="6" required/></label>
-        <button class="btn btn-primary btn-block" type="submit" name="mode" value="in" ${busy ? 'disabled' : ''}>Sign in</button>
-        <button class="btn btn-block" type="submit" name="mode" value="up" ${busy ? 'disabled' : ''}>Create account</button>
-        <button class="btn-link small" type="button" data-cloud="forgot">Forgot password?</button>
-        ${st.error ? `<p class="pain-text small" style="margin:0">${esc(st.error)}</p>` : ''}
-      </form>
-      <p class="muted small"><button class="btn-link" data-cloud="skip-login">Continue without an account</button> · <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
+    const up = authView === 'up';
+    const err = authError || st.error ? `<p class="auth-error" role="alert">${esc(authError || st.error)}</p>` : '';
+    const tabs = `<div class="auth-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="${!up}" data-cloud="auth-view" data-view="in">Sign in</button>
+        <button type="button" role="tab" aria-selected="${up}" data-cloud="auth-view" data-view="up">Create account</button>
+      </div>`;
+    if (up) {
+      return `${tabs}<form data-cloud-form="signup" class="auth-form">
+          <label class="auth-field">Full name <input name="name" autocomplete="name" maxlength="60" required placeholder="e.g. Jordan Price"/></label>
+          <label class="auth-field">Email <input type="email" name="email" autocomplete="email" required placeholder="you@example.com"/></label>
+          ${pw('password', 'new-password', 'Password')}
+          <div class="pw-meter" aria-hidden="true"><span></span></div>
+          <p class="hint" style="margin:0" data-pw-hint>At least 6 characters.</p>
+          <button class="btn btn-primary btn-block btn-lg" type="submit" ${busy ? 'disabled' : ''}>${busy ? 'Creating account…' : 'Create account'}</button>
+          ${err}
+          <p class="auth-switch">Already have an account? <button type="button" class="btn-link" data-cloud="auth-view" data-view="in">Sign in</button></p>
+        </form>`;
+    }
+    return `${tabs}<form data-cloud-form="signin" class="auth-form">
+        <label class="auth-field">Email <input type="email" name="email" autocomplete="email" required placeholder="you@example.com"/></label>
+        ${pw('password', 'current-password', 'Password')}
+        <button type="button" class="btn-link small auth-forgot" data-cloud="forgot">Forgot password?</button>
+        <button class="btn btn-primary btn-block btn-lg" type="submit" ${busy ? 'disabled' : ''}>${busy ? 'Signing in…' : 'Sign in'}</button>
+        ${err}
+        <p class="auth-switch">New to AthleteOS? <button type="button" class="btn-link" data-cloud="auth-view" data-view="up">Create an account</button></p>
+      </form>`;
+  }
+
+  function loginScreen() {
+    return `<div class="auth-wrap">
+      <section class="auth-hero">
+        <div class="auth-brand">${LOGO}<span>Athlete<strong>OS</strong></span></div>
+        <h1 class="auth-title">Train smarter.<br/><span>Together.</span></h1>
+        <p class="auth-lead">Programs built around you, form checks from your phone camera, and your whole team in one place.</p>
+        <ul class="auth-points">
+          <li><span class="auth-dot">⚡</span><div><strong>AI program builder</strong><small>Periodized plans that adapt to how you recover.</small></div></li>
+          <li><span class="auth-dot">🎯</span><div><strong>Form checker</strong><small>Rep-by-rep feedback from a quick video.</small></div></li>
+          <li><span class="auth-dot">👥</span><div><strong>Built for teams</strong><small>Coaches prescribe, athletes train, everything syncs.</small></div></li>
+        </ul>
+      </section>
+      <section class="auth-panel card">
+        <h2 class="auth-panel-title">${authView === 'up' ? 'Create your account' : 'Welcome back'}</h2>
+        <p class="muted small" style="margin:0 0 1rem">${authView === 'up' ? 'Free for athletes and coaches. Takes a minute.' : 'Sign in to pick up where you left off.'}</p>
+        ${authForms()}
+        <div class="auth-or"><span>or</span></div>
+        <div class="auth-alt">
+          <button class="btn btn-ghost btn-block" data-action="load-sample">Explore with a demo team</button>
+          <button class="btn-link small" data-cloud="skip-login">Continue without an account</button>
+        </div>
+      </section>
     </div>`;
   }
 
@@ -164,27 +201,93 @@
         .catch((e) => ctx.toast(e.message));
       return `<div class="welcome"><p class="muted">Checking your account…</p></div>`;
     }
+    const first = (st.name || '').split(' ')[0];
     return `<div class="welcome">
-      <h1 class="page-title">You’re signed in</h1>
-      <p class="muted">${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
+      <h1 class="page-title">${first ? `Welcome, ${esc(first)}` : 'You’re signed in'}</h1>
+      <p class="muted">How will you use AthleteOS? · ${esc(st.email)} · <button class="btn-link" data-cloud="sign-out-now">Sign out</button></p>
       ${teams.length > 1 ? `<div class="row" style="justify-content:center;margin:1rem 0">${teams.map((m, k) => `<button class="btn btn-primary" data-cloud="resume" data-k="${k}">Open ${esc((m.teams && m.teams.name) || (m.teams && m.teams.solo ? 'my training' : 'team'))} (${m.role})</button>`).join('')}</div>` : ''}
       <div class="mode-grid">
         <div class="mode-card primary">
           <span class="mode-icon">👥</span><strong>Join my team</strong>
-          <span>Enter the code from your coach. Coaches joining a staff use the coach code.</span>
-          <form data-cloud-form="join" class="row" style="flex-wrap:nowrap;margin-top:.4rem">
-            <input name="code" placeholder="Code" autocapitalize="characters" maxlength="12" required style="flex:1;min-width:0" aria-label="Team code"/>
-            <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>Join</button>
+          <span>Enter the code your coach gave you. Coaches joining a staff use the coach code. You’re in straight away.</span>
+          <form data-cloud-form="join" class="join-form">
+            ${st.name ? '' : '<input name="name" placeholder="Your name" maxlength="60" required aria-label="Your name"/>'}
+            <div class="row" style="flex-wrap:nowrap">
+              <input name="code" placeholder="Code" autocapitalize="characters" maxlength="12" required style="flex:1;min-width:0" aria-label="Team code"/>
+              <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>Join</button>
+            </div>
           </form>
         </div>
         <button class="mode-card" data-cloud="start-coach" ${busy ? 'disabled' : ''}>
           <span class="mode-icon">📋</span><strong>I’m a coach</strong>
-          <span>Set up your team. You’ll get a code to share with your athletes.</span></button>
+          <span>Set up a new team. You’ll get codes to share with your athletes and staff.</span></button>
         <button class="mode-card" data-cloud="start-solo" ${busy ? 'disabled' : ''}>
           <span class="mode-icon">🏃</span><strong>I train on my own</strong>
           <span>No coach needed. Your training is backed up and on every device you sign in to.</span></button>
       </div>
     </div>`;
+  }
+
+  // ---------- after joining: who you are on the team ----------
+
+  const myStaff = (state) => {
+    const uid = Cloud() && Cloud().status().userId;
+    return uid ? (state.staff || []).find((x) => x.userId === uid) : null;
+  };
+
+  // A coach on a synced team who isn't on the staff list yet finishes joining before anything else.
+  function gate() {
+    if (!Cloud() || !Cloud().enabled()) return '';
+    const t = Cloud().team();
+    const s = ctx.state();
+    if (!t || t.solo || t.role !== 'coach' || s.mode == null || !s.team.onboarded || myStaff(s)) return '';
+    const open = (s.staff || []).filter((x) => !x.userId);
+    const name = Cloud().status().name || '';
+    return `<div class="welcome" style="max-width:620px">
+      <p class="eyebrow">Step 2 of 2</p>
+      <h1 class="page-title">Finish joining ${esc(t.name || s.team.name || 'the team')}</h1>
+      <p class="muted">Tell the team who you are. This is how your name shows on programs and messages.</p>
+      ${open.length ? `<div class="card" style="text-align:left;margin:1rem 0">
+          <h3 style="margin-top:0">Already on the staff list?</h3>
+          <p class="hint" style="margin-top:0">Your head coach may have added you. Tap your name.</p>
+          <div class="row">${open.map((x) => `<button class="btn" data-cloud="claim-staff" data-id="${esc(x.id)}">${esc(x.name || 'Unnamed')} · ${esc(C().STAFF_ROLES[x.role] || x.role)}</button>`).join('')}</div>
+        </div>` : ''}
+      <form data-cloud-form="staff-self" class="card" style="text-align:left">
+        <h3 style="margin-top:0">${open.length ? 'Or add yourself' : 'About you'}</h3>
+        <div class="grid-2">
+          <label>Your name <input name="name" required maxlength="60" value="${esc(name)}" placeholder="e.g. Coach Rivera"/></label>
+          <label>Your role <select name="role">${Object.entries(C().STAFF_ROLES).filter(([k]) => k !== 'head').map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
+        </div>
+        <p class="small" style="margin:.6rem 0 .3rem"><strong>Your certification</strong> <span class="muted">(optional)</span></p>
+        <p class="hint" style="margin-top:0">Staff with a certification the head coach verifies can assign programs. Without one, your programs go to the head coach to approve.</p>
+        ${root.StaffUI ? root.StaffUI.certFields() : ''}
+        <button class="btn btn-primary btn-block" type="submit" style="margin-top:.8rem">Finish joining</button>
+      </form>
+    </div>`;
+  }
+
+  // Next steps for a coach whose team is online, on the team page until they hide it.
+  const HIDE_STEPS = 'athleteos:coach-steps-hidden';
+  function coachSteps() {
+    if (!Cloud() || !Cloud().enabled()) return '';
+    const t = Cloud().team();
+    if (!t || t.solo || t.role !== 'coach') return '';
+    try {
+      if (localStorage.getItem(HIDE_STEPS) === t.id) return '';
+    } catch {}
+    const s = ctx.state();
+    const linked = new Set((logins || []).filter((l) => l.athlete_id).map((l) => l.athlete_id));
+    const waiting = s.athletes.filter((a) => a.name && !linked.has(a.id)).length;
+    if (!logins) Cloud().logins().then((l) => ((logins = l || []), ctx.render()), () => {});
+    return `<section class="card span-12 coach-steps">
+      <div class="card-head"><h3>🚀 Get your team on AthleteOS</h3><button class="btn btn-ghost btn-sm" data-cloud="hide-steps">Hide</button></div>
+      <ol class="steps">
+        <li><strong>Athletes:</strong> they create an account in the app and enter <code class="big-code">${esc(t.joinCode || '—')}</code>. They’re on your roster straight away.</li>
+        <li><strong>Other coaches:</strong> same thing with the coach code <code class="big-code">${esc(t.staffCode || '—')}</code>. They add their name and role when they join.</li>
+        ${waiting ? `<li><strong>${waiting} athlete${waiting === 1 ? ' is' : 's are'} already on your roster.</strong> Give ${waiting === 1 ? 'them a personal code' : 'each one a personal code'} in <button class="btn-link" data-cloud="go-settings">Settings › Account</button> so their history links to their login.</li>` : ''}
+        <li><strong>Build your first program</strong> with the AI program builder in Training.</li>
+      </ol>
+    </section>`;
   }
 
   // Apply who this login is to the device: role, athlete and mode follow the team membership.
@@ -194,6 +297,9 @@
     state.mode = t.solo ? 'solo' : 'team';
     // A coach opening the team on a new device starts in the coach view.
     if (fresh && t.role === 'coach') state.session = { ...state.session, role: 'coach' };
+    // Each coach's device acts as that coach on the staff list.
+    const mine = t.role === 'coach' && myStaff(state);
+    if (mine) state.activeStaffId = mine.id;
     if (t.role === 'athlete') {
       state.session = { ...state.session, role: 'athlete', athleteId: t.athleteId && state.athletes.some((a) => a.id === t.athleteId) ? t.athleteId : state.session.athleteId };
     }
@@ -207,6 +313,7 @@
     try {
       const r = await fn();
       if (done) ctx.toast(typeof done === 'function' ? done(r) : done);
+      return r;
     } catch (e) {
       ctx.toast(e.message || 'Something went wrong');
     } finally {
@@ -225,6 +332,34 @@
         if (!email) return ctx.toast('Type your email first');
         return run(() => Cloud().resetPassword(email), 'Check your email for a reset link');
       }
+      case 'auth-view':
+        authView = el.dataset.view === 'up' ? 'up' : 'in';
+        authError = '';
+        return refresh();
+      case 'peek': {
+        const input = el.parentElement.querySelector('input');
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        el.textContent = show ? 'Hide' : 'Show';
+        el.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        return;
+      }
+      case 'claim-staff': {
+        const st = s.staff.find((x) => x.id === el.dataset.id);
+        if (!st) return;
+        st.userId = Cloud().status().userId;
+        s.activeStaffId = st.id;
+        ctx.save();
+        ctx.toast(`Welcome, ${(st.name || 'coach').split(' ')[0]}`);
+        return ctx.go('team');
+      }
+      case 'hide-steps':
+        try {
+          localStorage.setItem(HIDE_STEPS, Cloud().team().id);
+        } catch {}
+        return ctx.render();
+      case 'go-settings':
+        return ctx.go('settings');
       case 'skip-login':
         try {
           localStorage.setItem(SKIP, '1');
@@ -239,10 +374,12 @@
         teams = null;
         return run(() => Cloud().signOut());
       case 'start-coach':
+        // The setup wizard comes next; finishing it puts the team online (onCoachSetup).
         s.mode = 'team';
         s.session.role = 'coach';
+        s.team.onboarded = false;
         ctx.save();
-        return run(() => Cloud().createTeam(s.team.name || 'My team'), 'Your team is online. Set it up, then share the athlete code from Settings.');
+        return ctx.go('team');
       case 'start-solo':
         s.mode = 'solo';
         s.session.role = 'athlete';
@@ -283,45 +420,104 @@
     e.preventDefault();
     const d = Object.fromEntries(new FormData(f));
     switch (f.dataset.cloudForm) {
-      case 'auth': {
-        const up = e.submitter && e.submitter.value === 'up';
+      case 'signin':
+        authError = '';
         return run(async () => {
-          if (up) {
-            const r = await Cloud().signUp(d.email.trim(), d.password);
-            return r.confirm ? 'Check your email to confirm, then sign in' : 'Account created';
-          }
-          await Cloud().signIn(d.email.trim(), d.password);
+          await Cloud().signIn(d.email.trim(), d.password).catch(authFailed);
           teams = null;
           return 'Signed in';
         }, (msg) => msg);
-      }
+      case 'signup':
+        authError = '';
+        return run(async () => {
+          const r = await Cloud().signUp(d.email.trim(), d.password, d.name.trim()).catch(authFailed);
+          teams = null;
+          if (r.confirm) authView = 'in';
+          return r.confirm ? 'Check your email to confirm, then sign in' : 'Account created';
+        }, (msg) => msg);
       case 'join': {
         // A brand-new device has nothing to lose; otherwise make sure replacing the data is wanted.
         if (ctx.state().mode != null && !(await root.Dialogs.confirm('This device’s data will be replaced by the team’s. Export it first in Settings if you need a copy.', { title: 'Join this team?', ok: 'Join' }))) return;
-        await run(() => Cloud().joinTeam(d.code), (t) => `Joined ${t.name || 'the team'}`);
-        // Joined with the team code: they still need to add themselves (on the Settings card).
-        const t = Cloud().team();
-        if (t && t.role === 'athlete' && !t.athleteId) ctx.go('settings');
+        const name = (d.name || Cloud().status().name || '').trim();
+        const t = await run(async () => {
+          const t = await Cloud().joinTeam(d.code);
+          // Joined with the team code: they're added to the roster right away under their account name.
+          if (t.role === 'athlete' && !t.athleteId) await addSelf(name || Cloud().status().email.split('@')[0], teamSport());
+          return t;
+        }, (t) => (t.role === 'coach' ? `Joined ${t.name || 'the team'}` : `You’re on ${t.name || 'the team'}`));
+        if (t) ctx.go(ctx.firstTab());
         return;
       }
+      case 'staff-self': {
+        const s = ctx.state();
+        const st = C().normalizeStaff([{ name: d.name.trim(), role: d.role, userId: Cloud().status().userId }])[0];
+        const cert = root.StaffUI && root.StaffUI.readCert(d);
+        if (cert) st.certs = [cert];
+        s.staff.push(st);
+        s.activeStaffId = st.id;
+        ctx.save();
+        ctx.toast(`Welcome to ${s.team.name || 'the team'}, ${st.name.split(' ')[0]}`);
+        return ctx.go('team');
+      }
       case 'self':
-        return run(async () => {
-          const id = C().uid();
-          await Cloud().claimNewAthlete(id);
-          const st = ctx.state();
-          st.athletes = st.athletes.filter((a) => a.id !== 'me' || a.name);
-          st.athletes.push(C().normalizeAthlete({ id, name: d.name.trim(), sport: d.sport }));
-          st.session = { ...st.session, role: 'athlete', athleteId: id };
-          ctx.save();
-        }, 'You’re on the team');
+        return run(() => addSelf(d.name.trim(), d.sport), 'You’re on the team');
     }
+  }
+
+  function authFailed(e) {
+    authError = e.message || 'Something went wrong';
+    throw e;
+  }
+
+  // Create this account's athlete on the team and switch the device to it.
+  async function addSelf(name, sport) {
+    const id = C().uid();
+    await Cloud().claimNewAthlete(id);
+    const st = ctx.state();
+    st.athletes = st.athletes.filter((a) => a.id !== 'me' || a.name);
+    st.athletes.push(C().normalizeAthlete({ id, name, sport }));
+    st.session = { ...st.session, role: 'athlete', athleteId: id };
+    ctx.save();
+    // Upload now so the coach sees them on the roster straight away.
+    await Cloud().syncNow();
+  }
+
+  // The sport most of the roster plays (athletes can change theirs in Profile).
+  function teamSport() {
+    const n = {};
+    for (const a of ctx.state().athletes) if (a.name && a.sport) n[a.sport] = (n[a.sport] || 0) + 1;
+    return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || 'football';
+  }
+
+  // The coach setup wizard just finished: mark this account as that coach and put the team online.
+  async function onCoachSetup(staff) {
+    if (!Cloud() || !Cloud().enabled() || !Cloud().status().signedIn) return;
+    if (staff && !staff.userId) staff.userId = Cloud().status().userId;
+    if (Cloud().team()) return;
+    const s = ctx.state();
+    const t = await run(() => Cloud().createTeam(s.team.name || 'My team'), 'Your team is online');
+    if (t) ctx.go('team');
+  }
+
+  // Password strength bar on Create account.
+  function onInput(e) {
+    const el = e.target;
+    if (!el.matches || !el.matches('[data-pw-meter]')) return;
+    const v = el.value;
+    const score = (v.length >= 6) + (v.length >= 10) + (/[A-Z]/.test(v) && /[a-z]/.test(v)) + /\d/.test(v) + /[^A-Za-z0-9]/.test(v);
+    const form = el.closest('form');
+    const bar = form.querySelector('.pw-meter');
+    const hint = form.querySelector('[data-pw-hint]');
+    if (bar) bar.dataset.level = v ? String(Math.min(4, score)) : '';
+    if (hint) hint.textContent = !v ? 'At least 6 characters.' : v.length < 6 ? `${6 - v.length} more character${v.length === 5 ? '' : 's'}` : ['Weak', 'Weak', 'Okay', 'Good', 'Strong'][Math.min(4, score)] + ' password';
   }
 
   function init(c) {
     ctx = c;
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
+    document.addEventListener('input', onInput);
   }
 
-  root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen };
+  root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen, gate, coachSteps, onCoachSetup };
 })(window);
