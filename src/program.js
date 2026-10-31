@@ -78,7 +78,7 @@
     'Pull-up': ['pull-v', 'pullup-bar'], 'Chin-up': ['pull-v', 'pullup-bar'], 'Barbell row': ['pull-h', 'barbell'], 'Dumbbell row': ['pull-h', 'dumbbell'], 'Lat pulldown': ['pull-v', 'machine'],
     'Split squat': ['lunge'], 'Bulgarian split squat': ['lunge', 'bench'], 'Walking lunge': ['lunge'], 'Step-up': ['lunge', 'box'], 'Hip thrust': ['hinge', 'barbell', 'bench'],
     'Single-leg RDL': ['hinge', 'dumbbell'], 'Nordic hamstring curl': ['hamstring-iso'], 'Copenhagen plank': ['adductor', 'bench'], 'Push-up': ['push-h'], Dips: ['push-h', 'bench'],
-    'Face pull': ['pull-h', 'band'], 'Farmer carry': ['carry', 'dumbbell'], 'Calf raise': ['calf'],
+    'Face pull': ['pull-h', 'band'], 'Band external rotation': ['mobility', 'band'], 'Single-leg balance': ['mobility'], 'Tibialis raise': ['calf'], 'Eccentric wrist extension': ['mobility'], 'Neck isometrics': ['mobility'], 'Farmer carry': ['carry', 'dumbbell'], 'Calf raise': ['calf'],
     Plank: ['core'], 'Side plank': ['core'], 'Dead bug': ['core'], 'Bird dog': ['core'], 'Pallof press': ['core-rot', 'band'], 'Hanging leg raise': ['core', 'pullup-bar'],
     'Ab wheel rollout': ['core'], 'Hollow hold': ['core'], 'Russian twist': ['core-rot'],
     'Tempo runs (110s)': ['run', 'field'], '300-yard shuttle': ['run', 'field'], 'Bike intervals': ['bike', 'bike'], 'Row intervals': ['row', 'rower'], 'Assault bike sprint': ['bike', 'bike'],
@@ -128,6 +128,12 @@
     'Dowel hip hinge': ['Stick touches head, upper back and tailbone', 'Hinge until you feel the hamstrings', 'Keep all three contacts'],
     'Split squat hold': ['Hold the bottom, back knee just off the floor', 'Front knee over the toes', 'Torso tall, breathe'],
     'Scapular push-up': ['Arms straight in a plank', 'Let the shoulder blades pinch, then push apart', 'Body stays rigid'],
+    'Band external rotation': ['Elbow pinned to your side, towel under it', 'Rotate the hand out slowly', '3 seconds back in'],
+    'Single-leg balance': ['Soft knee, hips level', 'Eyes on a point ahead', 'Progress: eyes closed or on a pillow'],
+    'Sleeper stretch': ['Lie on the side being stretched', 'Elbow at shoulder height', 'Gently press the forearm down, no pain'],
+    'Tibialis raise': ['Back against a wall, heels out front', 'Lift your toes as high as you can', 'Lower slowly'],
+    'Eccentric wrist extension': ['Forearm on your thigh, palm down', 'Help the weight up with the other hand', 'Lower slowly over 3 seconds'],
+    'Neck isometrics': ['Hand on your forehead, then each side, then the back of the head', 'Push gently into the hand, no movement', 'Hold 10 seconds each way'],
     'Wall slide': ['Back, head and arms against the wall', 'Slide arms up without arching', 'Ribs stay down'],
   };
   const PATTERN_CUES = {

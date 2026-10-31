@@ -14,14 +14,14 @@
   const ATHLETE_SECTIONS = [
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'form', 'live', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['form', 'Form check'], ['history', 'History']] },
-    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
+    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
     { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
     { id: 'help', label: 'Help & FAQ', icon: 'help', routes: ['help'] },
   ];
   const COACH_SECTIONS = [
-    { id: 'team', label: 'Team', icon: 'users', routes: ['team'] },
+    { id: 'team', label: 'Team', icon: 'users', routes: ['team', 'body'] },
     { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
@@ -72,6 +72,7 @@
   const SM = window.Smart;
   const Sci = window.ScienceUI;
   const JumpUI = window.JumpUI;
+  const BodyUI = window.BodyUI;
   const LiveCam = window.LiveCoach;
   const P = window.Platform;
 
@@ -313,12 +314,12 @@
     const ready = C.readiness(checkin, a.checkins, a.workouts, t);
     const action = `${ready ? `<button class="btn btn-sm btn-ghost" data-smart="why-ready" data-athlete="${a.id}">Why?</button>` : ''}${coach ? '' : `<button class="btn btn-sm" data-action="open-checkin">${checkin ? 'Edit check-in' : 'Check in'}</button>`}`;
     if (!ready) {
-      return `<section class="card span-6"><div class="card-head"><h3>Readiness</h3>${action}</div>
+      return `<section class="card span-6"><div class="card-head"><h3>Readiness ${window.Explain ? window.Explain.btn('readiness') : ''}</h3>${action}</div>
         <div class="readiness"><div class="ring" style="--pct:0"><span>–</span></div>
         <div><h2>${coach ? 'No check-in yet today' : 'How are you feeling?'}</h2>
         <p class="muted" style="margin:0">${coach ? 'Readiness appears once the athlete checks in.' : 'A quick check-in with the body map gives you (and your coach) a readiness score.'}</p></div></div></section>`;
     }
-    return `<section class="card span-6"><div class="card-head"><h3>Readiness</h3>${action}</div>
+    return `<section class="card span-6"><div class="card-head"><h3>Readiness ${window.Explain ? window.Explain.btn('readiness') : ''}</h3>${action}</div>
       <div class="readiness">
         <div class="ring band-${ready.band}" style="--pct:${ready.score}"><span>${ready.score}</span></div>
         <div><h2>${esc(ready.label)}</h2><p class="muted" style="margin:0">${esc(ready.advice)}</p>
@@ -336,7 +337,7 @@
     const ratioPct = load.ratio == null ? null : C.clamp((load.ratio / 2) * 100, 0, 100);
     const zonePill = { none: '', low: 'info', optimal: 'good', high: 'warn', danger: 'bad' }[load.zone.key];
     return `<section class="card span-6">
-      <div class="card-head"><h3>Training load</h3><div class="row" style="gap:.4rem">${zonePill ? `<span class="pill ${zonePill}">${esc(load.zone.label)}</span>` : ''}<button class="btn btn-sm btn-ghost" data-smart="why-load" data-athlete="${a.id}">Why?</button></div></div>
+      <div class="card-head"><h3>Training load ${window.Explain ? window.Explain.btn('acwr') : ''}</h3><div class="row" style="gap:.4rem">${zonePill ? `<span class="pill ${zonePill}">${esc(load.zone.label)}</span>` : ''}<button class="btn btn-sm btn-ghost" data-smart="why-load" data-athlete="${a.id}">Why?</button></div></div>
       <div class="row" style="align-items:baseline">
         <div class="stat">${load.ratio == null ? '—' : num(load.ratio, 2)}<small>ACWR</small></div>
         <div class="spacer"></div>
@@ -467,6 +468,13 @@
 
   // ---------- athlete views ----------
 
+  // One line each morning that ties the body picture together (Checkup.morningBrief).
+  function briefCard(a) {
+    const b = window.Checkup.morningBrief(state, a, today());
+    if (!b.bodyParts.length) return '';
+    return `<button class="brief-line clickable" data-tab="body" aria-label="Morning body brief. Open the body view">${icon('sparkle')}<span>${esc(b.bodyText.charAt(0).toUpperCase() + b.bodyText.slice(1))}</span><span class="muted small">Body ›</span></button>`;
+  }
+
   const athleteViews = {
     today() {
       const a = me();
@@ -505,7 +513,7 @@
             <button class="gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" style="--pct:${ready ? ready.score : 0}" ${ready ? 'data-smart="why-ready"' : 'data-action="open-checkin"'} aria-label="${ready ? `Readiness ${ready.score} out of 100. Show why` : 'No check-in yet. Check in'}">
               <div><strong>${ready ? ready.score : '–'}</strong><span>${ready ? 'Why? ›' : 'Check in'}</span></div>
             </button>
-            <div class="gauge-label">${ready ? esc(ready.label) : 'How are you feeling?'}</div>
+            <div class="gauge-label">${ready ? esc(ready.label) : 'How are you feeling?'}${window.Explain ? window.Explain.btn('readiness') : ''}</div>
             ${Smart.riskChip(a)}
           </div>
           <div class="hero-session">
@@ -519,6 +527,7 @@
                 : `<div class="session-name">Rest or free day</div><div class="muted small">Nothing scheduled.</div><button class="btn" data-prog-action="new">${icon('sparkle')}<span>Build a program</span></button>`}
           </div>
         </section>
+        ${window.Checkup && window.Balance ? briefCard(a) : ''}
         <div class="grid">${Smart.nextCard(a)}</div>`;
     },
 
@@ -564,6 +573,7 @@
       const prs = C.strengthRecords(a.workouts).length + C.enduranceRecords(a.workouts).length;
       return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Summary.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
+        ${BodyUI.summaryCard(a, { span: 'span-12' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a)}
@@ -579,6 +589,10 @@
 
     screen() {
       return Screens.view(ui.id);
+    },
+
+    body() {
+      return BodyUI.view(ui.id);
     },
 
     health() {
@@ -874,6 +888,10 @@
   // ---------- coach views ----------
 
   const coachViews = {
+    body() {
+      return BodyUI.view(ui.id);
+    },
+
     team() {
       if (!state.team.onboarded) return coachWizard();
       if (ui.id && athleteById(ui.id)) return coachAthleteDetail(athleteById(ui.id));
@@ -1118,6 +1136,7 @@
         ${Smart.goalCard(a, { compact: true })}
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
+        ${BodyUI.summaryCard(a, { span: 'span-12' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a, { span: 'span-12' })}
@@ -1401,6 +1420,7 @@
     Form.mount($('#view'));
     Plan.mount();
     Screens.mount();
+    if (window.Tours) window.Tours.maybeStart(ui.tab, role());
     const th = $('#thread');
     if (th) th.scrollTop = th.scrollHeight;
   }
@@ -1876,6 +1896,7 @@
       case 'load-sample':
         if (hasData() && !(await Dialogs.confirm('Replace your current data with the demo team?', { title: 'Load demo team?', ok: 'Replace' }))) return;
         state = C.sampleState(today());
+        if (window.DemoRich) window.DemoRich.enrich(state, today());
         save();
         Media.clear().catch(() => {});
         Form.clearCaches();
@@ -2168,6 +2189,7 @@
     athleteName,
     coachName,
     relTime,
+    fmtDate,
     units,
     U,
     storeVideo,
@@ -2179,6 +2201,9 @@
   Cal.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
+  BodyUI.init(shared);
+  if (window.MobilityUI) window.MobilityUI.init(shared);
+  if (window.Tours) window.Tours.init({ go });
   Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
   Chal.init(shared);

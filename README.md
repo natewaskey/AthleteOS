@@ -73,6 +73,24 @@ The first screen asks how you'll use AthleteOS. You can change it any time in Se
 
 In team mode, the **Athlete / Coach** switch in the top bar shows both sides of the same data on one device.
 
+### Whole-body view (Progress › Body, and each athlete on a coach's Team page)
+One place that looks at the body as a whole over months and years, built to keep athletes healthy rather than just track workouts.
+
+- **Balance map:** a front/back body map coloured by findings from every source: pain and soreness, injuries, left/right gaps, screen results, form-check faults, load spikes and training gaps. Tap an area to see why. **Connected findings** link areas where two or more sources point to the same root cause (for example a stiff ankle, knees caving in the squat video and knee soreness).
+- **Training balance:** push vs pull, knee- vs hip-dominant, single-leg vs two-leg, planes of movement, and missing patterns (Nordics, adductors, calves, rotation) over 4 and 12 weeks, from the lifts actually logged.
+- **Load by body area:** the 7-day vs 4-week load for knees, hamstrings, lower back, shoulders and more, so a spike in one area shows up even when total load looks normal.
+- **Prevention:** an injury-risk profile and prevention plan for each sport (FIFA 11+ style warm-up, Nordics, Copenhagen planks, landing and ankle work, the thrower's routine, neck work…) with weekly targets and compliance; **strength ratios** (hamstring:quad, adductor:abductor, shoulder ER:IR, pull:push) against published thresholds; and **pain monitoring** with the 0–10 pain-monitoring model (green/amber/red).
+- **Prevention autopilot:** programs (self-assigned or from a coach) get balance fixes, the sport's prevention warm-up and "your prep" drills for the top two priority areas added automatically.
+- **Timeline:** a lifetime body record (injuries, pain, screens, tests, jumps, form checks, programs) filterable by area, exportable as text or CSV for a physio, plus a **pattern finder** that spots repeat trouble in the same area and what came before it (load jumps, short sleep, games), 2-year trends and season-vs-season comparison.
+- **Check-ups:** a body report card every 10 weeks with targets for the next block, health maintenance (sleep consistency, illness, a RED-S energy check), camera mobility tests, the body blueprint, and a **season yearbook**. Home shows a one-line **morning body brief**.
+
+### Camera tests (mobility and the movement screen)
+- **Mobility by camera:** knee-to-wall ankle bend, straight-leg raise and shoulder flexion measured in degrees from a short clip, left and right, with norms and tighter-side flags.
+- **Camera-scored screen:** the overhead squat, step-down, single-leg balance (time and sway), knee-to-wall and a **LESS** drop-landing score (front and side clips combine) can be scored by the camera and fill the screen form.
+- **Extra screen tests:** Y-balance reach (with a calculator from the three reaches and leg length) and the LESS landing test.
+- **Real change vs noise:** rescreens mark each change as a real gain, a real drop or within normal test-to-test noise (minimal detectable change).
+- **Tester mode** for coaches: run one station for the whole team, then the next; results land in each athlete's screen for the day.
+
 ### Camera jump testing
 - Progress (or a coach's athlete page) › Jump testing › **Test with camera**: film a countermovement jump, a single-leg jump on each leg, or a drop jump on any phone. Pose tracking finds the toes, a parabola fitted to each flight gives takeoff and landing to a fraction of a frame, and height comes from flight time (g·t²/8), the same method as jump mats.
 - Drop jumps also give ground contact time and **RSI** (height ÷ contact). Slow-motion clips (×2/×4/×8) are detected from the jump arc and corrected automatically.
@@ -117,6 +135,11 @@ In team mode, the **Athlete / Coach** switch in the top bar shows both sides of 
 - **Approvals:** the head coach or any certified coach reviews what's in it, approves it or sends it back with a note. AI-built programs are labelled. Athletes see their own pending items on My plan.
 - **Prescribed by:** every session shows who prescribed it and who approved it, with their verified credentials.
 - **Staff PIN:** each coach can set a 4-digit PIN that's needed to switch to them on a shared device. It's a speed bump, not security: real enforcement needs accounts and server-side checks.
+
+### Help, tours and "What is this?"
+- Tap **ⓘ** next to any score (readiness, load, ratios, form checks, bar path, confidence, screen changes) for a plain-language explanation, what good looks like, and for form checks a short animated good-vs-fault demo.
+- Each main screen has a short **tour** the first time it opens; replay any of them from Help.
+- The demo team's linebacker (Taylor) has six months of history: a preseason load spike and hamstring strain, pain monitoring through the return, Nordics bringing the hamstring:quad ratio back up, three screens, mobility tests, report cards and a first form check for then-vs-now.
 
 ### Help & FAQ
 - About 35 fixed, reviewed answers in eight topics: getting started, readiness, training and load, soreness and injuries, food/water/sleep, nerves, coaching and privacy.
@@ -230,7 +253,7 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 ### Form analysis (movement tracking)
 Record a set on your phone and AthleteOS analyses it **on-device**. The video never leaves the phone.
 
-- **Exercises:** squat, deadlift, Romanian deadlift, lunge, Bulgarian split squat, bench press, push-up, overhead press, **jump-landing screen** (knee valgus, soft landing, symmetry), and running form.
+- **Exercises:** squat, deadlift, Romanian deadlift, lunge, Bulgarian split squat, bench press, push-up, overhead press, bent-over row, pull-up, hip thrust, power clean, **jump-landing screen** (knee valgus, soft landing, symmetry), **cutting** (knee and trunk on the plant), **sprint start** (drive angle, shin angle, rising too early, arm drive) and running form.
 - **How it works:** [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) tracks 33 body points in every frame. `src/movement.js` turns those into joint angles and positions, counts reps, and scores each rep's key moment (bottom of a squat, start of a deadlift, lockout of a press, foot strike for running) against form rules.
 - **What it checks:**
   - **Squat:** depth, torso angle, heels, knee tracking and hip shift (front view), tempo
@@ -241,12 +264,20 @@ Record a set on your phone and AthleteOS analyses it **on-device**. The video ne
   - **Bench:** bar to chest, wrists over elbows, touch point, lockout, glutes staying down
   - **Push-up:** depth, body line (sag or pike), lockout
   - **Overhead press:** lockout, bar over mid-foot, back lean
+  - **Row:** torso angle, body swing, range of motion · **Pull-up:** chin over the bar, full hang, kipping · **Hip thrust:** lockout, shin angle, lower-back arch · **Power clean:** full extension, bar close, elbows in the catch
+  - **Cutting:** knee caving on the plant, trunk lean, plant width, sinking the hips · **Sprint start:** drive-phase lean, rising too early, shin angle, arm drive
   - **Running:** cadence, overstriding, knee bend at landing, forward lean, vertical bounce, foot strike, arm carriage
 - **You vs target:** a target figure (green dashed) is built from *your own limb lengths*, anchored at your feet, in the ideal key position. It is drawn over your actual position as an overlay or side by side, with numbered markers on the joints that need work. The same target ghost appears on the video at each rep's key moment.
 - **Video player** with a live skeleton overlay (colour-coded problem areas, live joint angle, rep counter), 0.25×/0.5×/1× speed, and an angle-over-time chart with a rep strip (tap to jump).
 - **Recording quality:** each analysis warns when the body was out of frame for much of the clip (and says what to change) or when the camera moved. The Analyze dialog links to a live setup check before you film.
 - **Form check shapes the program:** a failed check (for example knees caving on squats) adds the matching corrective drill to the warm-up of upcoming sessions that include that lift, and holds the weight on it at the last load you trained. Both come off automatically once a re-check of the lift passes, or when the athlete or coach taps **Mark as fixed**. Sessions already under way are never changed, and faults older than 6 weeks stop counting. Logic in `src/formplan.js`.
 - **Accuracy testing:** `npm run accuracy` scores the checker against simulated reps with known faults, clean and with tracking noise. **⬇ Pose data** on any form check downloads the tracked movement with blank labels; a coach marks each check good or bad and `node tools/accuracy.js <folder>` reports accuracy, faults caught and false alarms per check on real footage.
+- **Video quality layer** (`src/vision.js`): short tracking dropouts are filled, jitter is smoothed, and a tilted phone is detected from the floor line and straightened before measuring. Every check gets a **confidence** (how clearly the joint was seen, whether reps agreed, framing, camera angle); a low-confidence fault is shown as "check again" and never changes the program.
+- **Real units:** with the athlete's height, rep speed is shown in m/s and the **bar path** (from the hands) in centimetres, drawn on the video.
+- **Two angles:** film the same lift side-on and front-on and the two are combined into one report, each check taken from the angle that sees it best.
+- **Body blueprint:** limb proportions from side-on clips; long thighs relax the squat lean target so the targets fit the athlete's build.
+- **Then vs now:** a ghost replay of the best rep from the first check and the latest, aligned at the feet and scaled to the same leg length.
+- **Filming guide:** a phone-placement diagram for each exercise, and a body outline on the live camera until you're framed.
 - **Suggestions:** a coaching cue and a drill for every issue, ordered by severity. Coaches can add their own cues, which appear first and also go to the athlete's messages.
 - **Input:** athletes log the weight, reps and how it felt, and anyone can post comments pinned to a moment in the video. You can re-run the analysis as a different exercise or camera angle, then send it to the coach.
 - **Rep speed:** bars show how fast each rep came up, and a large slowdown is flagged (a sign of a grinding set).
@@ -299,6 +330,19 @@ src/core.js           pure logic: sports catalog, load, ACWR, readiness, body ar
 src/body.js           clickable front/back body map (inline SVG)
 src/media.js          video storage (IndexedDB)
 src/movement.js       form analysis engine: angles, rep detection, exercise rules, target poses, camera setup, simulator
+src/vision.js         video quality: gap filling, smoothing, tilt correction, confidence, height calibration, bar path,
+                      two-angle combine, body blueprint
+src/camtests.js       camera-scored mobility and screen tests (knee-to-wall, leg raise, shoulder, OHS, step-down,
+                      balance, LESS)
+src/mobility-ui.js    camera test dialog, mobility and blueprint cards, filming diagrams
+src/balance.js        whole-body map, training balance, body-area load, prevention autopilot for programs
+src/prevention.js     sport injury-prevention plans, strength ratios, pain monitoring
+src/timeline.js       lifetime body record, export, pattern finder, long-range trends, season compare
+src/checkup.js        report cards, health maintenance, energy check, morning brief, season yearbook
+src/body-ui.js        Body screens: Balance, Prevention, Timeline, Check-ups
+src/explain.js        "What is this?" glossary and animated demos
+src/tours.js          first-visit screen tours, replay from Help
+src/demo-rich.js      six months of history for the demo team's linebacker
 src/accuracy.js       form checker accuracy: labelled cases, noise, per-check report, pose-data export format
 src/formplan.js       form-check faults -> corrective warm-up drills and held weights on upcoming sessions
 src/pose.js           on-device pose detection (MediaPipe) over a video

@@ -207,7 +207,7 @@
     const xs = Object.values(best).map((p) => p[0] * aspect), ys = Object.values(best).map((p) => p[1]);
     if (nose && (nose[3] ?? 1) >= VIS_MIN) (xs.push(nose[0] * aspect), ys.push(nose[1]));
     const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-    if (size < 0.38) return { ok: false, id: 'far', text: 'You’re small in the picture. Move the phone a little closer.' };
+    if (size < (exercise === 'sprintstart' ? 0.3 : 0.38)) return { ok: false, id: 'far', text: 'You’re small in the picture. Move the phone a little closer.' };
     if (vis.reduce((s, v) => s + v, 0) / vis.length < 0.6) return { ok: false, id: 'light', text: 'It’s hard to see you clearly. Add light or film against a plainer background.' };
     return { ok: true, id: 'ok', text: 'Camera setup looks good.' };
   }
@@ -387,8 +387,10 @@
             drill: 'Pause squats to a box at parallel, then goblet squats with a 3-second hold at the bottom.',
           }));
           const lean = fromVertical(k.hip, k.sh);
-          out.push(check('lean', 'Torso angle', lean, grade(lean, [0, 45], [0, 55]), {
-            display: `${r0(lean)}° lean`, target: '≤ 45° from vertical', joint: 'sh', weight: 1.5,
+          // Long thighs compared with the torso need more forward lean to stay balanced (body blueprint).
+          const leanMax = (ctx.limits && ctx.limits.squatLean) || 45;
+          out.push(check('lean', 'Torso angle', lean, grade(lean, [0, leanMax], [0, leanMax + 10]), {
+            display: `${r0(lean)}° lean`, target: `≤ ${leanMax}° from vertical${leanMax !== 45 ? ' (set for your build)' : ''}`, joint: 'sh', weight: 1.5,
             cue: 'Keep your chest up and brace your core. Think “proud chest” as you sit down between your hips.',
             drill: 'Front squats or goblet squats to train an upright torso; thoracic spine mobility.',
           }));
@@ -952,6 +954,206 @@
       },
     },
 
+    row: {
+      label: 'Bent-over row',
+      icon: '🚣',
+      views: ['side'],
+      signalLabel: 'Elbow angle',
+      keyLabel: 'Top of the pull',
+      keyIs: 'min',
+      target: { value: 90, label: 'Elbow ≈ 90° or less at the top' },
+      tips: 'Film side-on with your whole body and the bar in frame, phone at hip height.',
+      signal: (j) => (visible(j.sh, j.el, j.wr) ? angle3(j.sh, j.el, j.wr) : null),
+      evaluate(ctx, rep) {
+        const k = ctx.J[rep.key];
+        const s0 = ctx.J[rep.start];
+        const out = [];
+        const torso = fromVertical(k.hip, k.sh);
+        out.push(check('torso', 'Torso angle', torso, grade(torso, [45, 88], [35, 95]), {
+          display: `${r0(torso)}° from upright`, target: 'Hinged over, about 45–80° from upright', joint: 'sh', weight: 1.5,
+          cue: 'Hinge further: push your hips back until your torso is well bent over, then keep it there.',
+          drill: 'Chest-supported rows to learn the pull, and RDL holds for the hinge.',
+        }));
+        const swing = s0 && visible(s0.hip, s0.sh) ? Math.abs(fromVertical(s0.hip, s0.sh) - torso) : null;
+        if (swing != null) {
+          out.push(check('swing', 'Body swing', swing, grade(swing, [0, 10], [0, 18]), {
+            display: swing <= 10 ? 'Torso stays still' : `Torso rises ${r0(swing)}°`, target: 'Torso angle changes less than 10°', joint: 'hip', weight: 1.5,
+            cue: 'Keep your torso still and pull with your back. If you have to swing, the weight is too heavy.',
+            drill: 'Lighter sets with a 1-second squeeze at the top, or chest-supported rows.',
+          }));
+        }
+        const pull = angle3(k.sh, k.el, k.wr);
+        out.push(check('pull', 'Range of motion', pull, grade(pull, [0, 95], [0, 115]), {
+          display: `${r0(pull)}° at the top`, target: 'Pull the bar to your lower ribs', joint: 'el', weight: 1,
+          cue: 'Pull all the way: drive your elbows back until the bar touches your lower ribs.',
+          drill: 'Rows with a pause at the top and band pull-aparts.',
+        }));
+        return out.concat(tempoChecks(ctx, rep));
+      },
+    },
+
+    pullup: {
+      label: 'Pull-up / chin-up',
+      icon: '🧗',
+      views: ['front', 'side'],
+      signalLabel: 'Elbow angle',
+      keyLabel: 'Top',
+      keyIs: 'min',
+      target: { value: 60, label: 'Chin over the bar' },
+      tips: 'Film from the front or side with the bar, your hands and your feet in frame.',
+      signal: (j) => (visible(j.sh, j.el, j.wr) ? angle3(j.sh, j.el, j.wr) : null),
+      evaluate(ctx, rep) {
+        const { L } = ctx;
+        const k = ctx.J[rep.key];
+        const s0 = ctx.J[rep.start];
+        const out = [];
+        const handY = visible(k.owr) ? Math.min(k.wr.y, k.owr.y) : k.wr.y;
+        const over = k.nose && visible(k.nose) ? (handY - k.nose.y) / (L.torso || 1) : null;
+        if (over != null) {
+          out.push(check('top', 'Chin over the bar', over, grade(over, [-0.02, 9], [-0.15, 9]), {
+            display: over >= -0.02 ? 'Chin clears the bar' : 'Stops short of the bar', target: 'Chin above your hands at the top', joint: 'el', weight: 2,
+            cue: 'Pull until your chin clears the bar. Think “elbows down to your back pockets”.',
+            drill: 'Slow negatives from the top and band-assisted pull-ups.',
+          }));
+        }
+        const hang = s0 && visible(s0.sh, s0.el, s0.wr) ? angle3(s0.sh, s0.el, s0.wr) : null;
+        if (hang != null) {
+          out.push(check('hang', 'Full hang', hang, grade(hang, [155, 180], [140, 180]), {
+            display: `${r0(hang)}° at the bottom`, target: 'Arms straight at the bottom of each rep', joint: 'el', weight: 1.5,
+            cue: 'Lower all the way to straight arms before the next rep.',
+            drill: 'Dead hangs and scapular pull-ups.',
+          }));
+        }
+        const xs = ctx.J.slice(rep.start, rep.end + 1).map((j) => (visible(j.hip) ? j.hip.x : null)).filter((x) => x != null);
+        const swing = xs.length ? (Math.max(...xs) - Math.min(...xs)) / (L.leg || 1) : null;
+        if (swing != null) {
+          out.push(check('kip', 'Body swing', swing, grade(swing, [0, 0.15], [0, 0.3]), {
+            display: swing <= 0.15 ? 'Strict' : 'Swinging / kipping', target: 'Legs stay still under you', joint: 'hip', weight: 1,
+            cue: 'Squeeze your glutes and brace your abs so your legs stay still. Strict reps build more strength.',
+            drill: 'Hollow-body holds and pull-ups with a pause at the top.',
+          }));
+        }
+        return out;
+      },
+    },
+
+    hipthrust: {
+      label: 'Hip thrust',
+      icon: '🍑',
+      views: ['side'],
+      signalLabel: 'Hip angle',
+      keyLabel: 'Lockout',
+      keyIs: 'max',
+      target: { value: 170, label: 'Hips fully extended ≈ 170°+' },
+      tips: 'Film side-on with your shoulders on the bench, hips, knees and feet in frame.',
+      signal: (j) => (visible(j.sh, j.hip, j.kn) ? angle3(j.sh, j.hip, j.kn) : null),
+      evaluate(ctx, rep) {
+        const { L } = ctx;
+        const k = ctx.J[rep.key];
+        const out = [];
+        const lock = angle3(k.sh, k.hip, k.kn);
+        out.push(check('lockout', 'Lockout', lock, grade(lock, [165, 180], [150, 180]), {
+          display: `${r0(lock)}° at the top`, target: 'Hips fully extended, knees to shoulders in a line', joint: 'hip', weight: 2,
+          cue: 'Finish every rep: squeeze your glutes hard until your hips are level with your knees and shoulders.',
+          drill: 'Glute bridges with a 2-second squeeze at the top.',
+        }));
+        const shin = fromVertical(k.an, k.kn);
+        out.push(check('shin', 'Shin angle', shin, grade(shin, [0, 15], [0, 25]), {
+          display: `${r0(shin)}° from vertical`, target: 'Shins about vertical at the top', joint: 'kn', weight: 1,
+          cue: 'Set your feet so your shins are vertical at the top. Too far out works the hamstrings, too close works the quads.',
+          drill: 'Adjust foot position with light glute bridges first.',
+        }));
+        // Hips pushed above the shoulder-knee line = arching the lower back instead of extending the hips.
+        // Use the frame with the hips highest (the angle reads ≤ 180°, so overextension hides at the peak).
+        let hi = k;
+        for (let i = rep.start; i <= rep.end; i++) { const j = ctx.J[i]; if (visible(j.hip, j.sh, j.kn) && j.hip.y < hi.hip.y) hi = j; }
+        const t = (hi.hip.x - hi.sh.x) / ((hi.kn.x - hi.sh.x) || 1e-6);
+        const lineY = hi.sh.y + (hi.kn.y - hi.sh.y) * t;
+        const arch = (lineY - hi.hip.y) / (L.thigh || 1);
+        out.push(check('arch', 'Lower back', arch, grade(arch, [-9, 0.1], [-9, 0.18]), {
+          display: arch <= 0.1 ? 'Neutral' : 'Arching at the top', target: 'Ribs down, no extra arch at the top', joint: 'hip', weight: 1,
+          cue: 'Tuck your chin and keep your ribs down. The movement should come from the hips, not the lower back.',
+          drill: 'Dead bugs and posterior-pelvic-tilt glute bridges.',
+        }));
+        return out.concat(tempoChecks(ctx, rep, { upOnly: true }));
+      },
+    },
+
+    clean: {
+      label: 'Power clean',
+      icon: '🏋️',
+      views: ['side'],
+      signalLabel: 'Bar (hand) height',
+      keyLabel: 'Catch',
+      keyIs: 'max',
+      target: null,
+      tips: 'Film side-on from about 4 m away, whole body and the bar in frame, from the floor to the catch.',
+      signal: (j, ctx) => (ctx && visible(j.wr, j.an) ? (100 * (j.an.y - j.wr.y)) / (ctx.L.leg || 1) : null),
+      evaluate(ctx, rep) {
+        const { L } = ctx;
+        const out = [];
+        let best = null;
+        for (let i = rep.start; i <= rep.key; i++) {
+          const j = ctx.J[i];
+          if (!visible(j.sh, j.hip, j.kn)) continue;
+          const a = angle3(j.sh, j.hip, j.kn);
+          if (!best || a > best.a) best = { a, i };
+        }
+        if (best) {
+          out.push(check('extension', 'Full extension', best.a, grade(best.a, [168, 180], [155, 180]), {
+            display: `${r0(best.a)}° at the top of the pull`, target: 'Hips fully open before you pull under', joint: 'hip', weight: 2,
+            cue: 'Finish the pull: drive through the floor until your hips are fully open, then pull yourself under.',
+            drill: 'Clean pulls and jump shrugs to feel the full extension.',
+          }));
+          const j = ctx.J[best.i];
+          const away = visible(j.wr, j.hip) ? Math.abs(j.wr.x - j.hip.x) / (L.leg || 1) : null;
+          if (away != null) {
+            out.push(check('barclose', 'Bar close', away, grade(away, [0, 0.12], [0, 0.2]), {
+              display: away <= 0.12 ? 'Bar stays close' : 'Bar swings away', target: 'Bar brushes the hips at extension', joint: 'wr', weight: 1.5,
+              cue: 'Keep the bar close: lats tight, sweep it into your hips instead of letting it swing out.',
+              drill: 'Hang cleans from mid-thigh focusing on bar contact.',
+            }));
+          }
+        }
+        const k = ctx.J[rep.key];
+        if (visible(k.sh, k.el)) {
+          const elbow = fromVertical(k.sh, k.el);
+          out.push(check('elbows', 'Elbows in the catch', elbow, grade(elbow, [55, 120], [40, 130]), {
+            display: elbow >= 55 ? 'Elbows high and forward' : 'Elbows low', target: 'Elbows up and forward, bar on the shoulders', joint: 'el', weight: 1.5,
+            cue: 'Whip your elbows around and up fast so the bar lands on your shoulders, not your wrists.',
+            drill: 'Front rack holds and muscle cleans.',
+          }));
+        }
+        return out;
+      },
+    },
+
+    sprintstart: {
+      label: 'Sprint start (acceleration)',
+      icon: '💨',
+      views: ['side'],
+      signalLabel: 'Torso lean',
+      keyLabel: 'First steps',
+      keyIs: 'min',
+      custom: 'sprintstart',
+      target: null,
+      tips: 'Film side-on from 8–10 m away so the start and the first 5 steps are in frame. Phone at hip height, still.',
+      signal: (j) => (visible(j.hip, j.sh) ? fromVertical(j.hip, j.sh) : null),
+    },
+
+    cut: {
+      label: 'Cutting test (change of direction)',
+      icon: '↪️',
+      views: ['front'],
+      signalLabel: 'Hip height',
+      keyLabel: 'Plant',
+      keyIs: 'min',
+      custom: 'cut',
+      target: null,
+      tips: 'Run toward the camera, plant and cut 45° to one side, then repeat to the other side. Film from the front, whole body in frame.',
+      signal: (j, ctx) => hipHeight(j, ctx),
+    },
+
     running: {
       label: 'Running form',
       icon: '🏃',
@@ -1023,7 +1225,7 @@
   // ---------- rep speed ----------
 
   // Point whose travel best tracks the bar/body for each lift.
-  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', rdl: 'hip', lunge: 'hip', bss: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr' };
+  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', rdl: 'hip', lunge: 'hip', bss: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr', row: 'wr', pullup: 'sh', hipthrust: 'hip' };
 
   /*
    * Concentric speed per rep (body-lengths per second from the tracked point), and speed loss
@@ -1157,6 +1359,111 @@
 
   // ---------- main entry ----------
 
+  // ---------- sprint start and cutting ----------
+
+  // Sprint start: the drive phase from the first movement through the first ~1.2 s.
+  function analyzeStart(ctx) {
+    const { J, frames, L } = ctx;
+    const hx = J.map((j) => (visible(j.hip) ? j.hip.x : null));
+    const x0 = hx.find((x) => x != null);
+    if (x0 == null) return { error: 'Couldn’t find your hips. Film side-on with your whole body in frame.' };
+    let i0 = hx.findIndex((x) => x != null && Math.abs(x - x0) > 0.05 * (L.leg || 0.4));
+    if (i0 < 0) return { error: 'No start found. Film the start and the first few steps side-on.' };
+    i0 = Math.max(0, i0 - 2);
+    const t0 = frames[i0].t;
+    const win = (a, b) => J.map((j, i) => ({ j, t: frames[i].t - t0 })).filter((x) => x.t >= a && x.t <= b).map((x) => x.j);
+    const lean = (js) => median(js.map((j) => (visible(j.hip, j.sh) ? fromVertical(j.hip, j.sh) : null)));
+    const early = lean(win(0, 0.5));
+    const late = lean(win(0.9, 1.3));
+    const out = [];
+    if (early != null) {
+      out.push(check('lean', 'Drive-phase lean', early, grade(early, [38, 68], [28, 75]), {
+        display: `${r0(early)}° forward`, target: 'Body leaning about 45° forward in the first steps', joint: 'sh', weight: 2,
+        cue: 'Stay low and push: lean your whole body forward from the ankles for the first 3–5 steps.',
+        drill: 'Wall drives, sled sprints and falling starts.',
+      }));
+    }
+    if (early != null && late != null) {
+      const rise = early - late;
+      out.push(check('rise', 'Rising too early', rise, grade(rise, [-9, 25], [-9, 38]), {
+        display: rise <= 25 ? 'Gradual rise' : 'Pops up early', target: 'Rise gradually over the first 10 m', joint: 'sh', weight: 1.5,
+        cue: 'Don’t stand up straight away. Let each step bring you a little more upright.',
+        drill: 'Resisted sprints (sled or partner) to hold the drive angle.',
+      }));
+    }
+    const shins = win(0, 0.8).flatMap((j) => [visible(j.kn, j.an) ? signedLean(j.an, j.kn, ctx.facing) : null, visible(j.okn, j.oan) ? signedLean(j.oan, j.okn, ctx.facing) : null]).filter((x) => x != null);
+    if (shins.length) {
+      const shin = Math.max(...shins);
+      out.push(check('shin', 'Shin angle', shin, grade(shin, [35, 80], [25, 85]), {
+        display: `${r0(shin)}° forward`, target: 'Shins angled forward ≈ 45° when pushing', joint: 'kn', weight: 1.5,
+        cue: 'Push the ground back behind you with a forward-angled shin. Don’t reach out in front.',
+        drill: 'A-marches and wall drives with a forward shin.',
+      }));
+    }
+    const arm = win(0, 1).map((j) => (visible(j.wr, j.sh) ? (j.wr.x - j.sh.x) * ctx.facing : null)).filter((x) => x != null);
+    if (arm.length) {
+      const range = (Math.max(...arm) - Math.min(...arm)) / ((L.upper + L.fore) || 1);
+      out.push(check('arms', 'Arm drive', range, grade(range, [0.9, 9], [0.6, 9]), {
+        display: range >= 0.9 ? 'Big arm swing' : 'Short arm swing', target: 'Hands from hip to face height', joint: 'wr', weight: 1,
+        cue: 'Drive your arms hard: hands from your hip pocket to your chin.',
+        drill: 'Seated arm-drive drills.',
+      }));
+    }
+    return { checks: out, keyIndex: i0 };
+  }
+
+  // Cutting: the plant on the outside leg (front view). Knee collapse and trunk lean are ACL risk signs.
+  function analyzeCut(ctx) {
+    const { J, L } = ctx;
+    const hh = J.map((j) => hipHeight(j, ctx));
+    let key = -1;
+    hh.forEach((h, i) => {
+      if (h != null && (key < 0 || h < hh[key])) key = i;
+    });
+    if (key < 0) return { error: 'Couldn’t track your hips and ankles. Film from the front with your whole body in frame.' };
+    const k = J[key];
+    if (!visible(k.hip, k.ohip, k.kn, k.okn, k.an, k.oan)) return { error: 'Your legs weren’t clear at the plant. Film from the front, whole body in frame.' };
+    const hipMid = mid(k.hip, k.ohip);
+    // Plant leg: the ankle farther out from under the hips.
+    const near = Math.abs(k.an.x - hipMid.x) >= Math.abs(k.oan.x - hipMid.x);
+    const P = near ? { hip: k.hip, kn: k.kn, an: k.an } : { hip: k.ohip, kn: k.okn, an: k.oan };
+    const out = [];
+    // Knee distance inside the hip-ankle line, toward the body's midline.
+    const t = (P.kn.y - P.hip.y) / ((P.an.y - P.hip.y) || 1e-6);
+    const lineX = P.hip.x + (P.an.x - P.hip.x) * t;
+    const inward = ((lineX - P.kn.x) * Math.sign(P.an.x - hipMid.x || 1)) / (L.leg || 1);
+    out.push(check('valgus', 'Knee on the plant', inward, grade(inward, [-9, 0.05], [-9, 0.1]), {
+      display: inward <= 0.05 ? 'Knee over the foot' : 'Knee caves inward', target: 'Knee stays in line over the foot', joint: 'kn', weight: 3,
+      cue: 'Plant with your knee over your toes. Push the knee out and sink the hips, don’t let it fall inward.',
+      drill: 'Lateral bounds with a stick, banded lateral walks and single-leg squats. Knee collapse on cuts is a key ACL risk sign.',
+    }));
+    const shMid = visible(k.sh, k.osh) ? mid(k.sh, k.osh) : null;
+    if (shMid) {
+      const lean = fromVertical(hipMid, shMid);
+      out.push(check('trunk', 'Trunk lean', lean, grade(lean, [0, 12], [0, 20]), {
+        display: `${r0(lean)}° to the side`, target: 'Chest stays over the hips', joint: 'sh', weight: 2,
+        cue: 'Keep your chest over your hips as you plant. Leaning sideways puts more load on the knee.',
+        drill: 'Side planks and Pallof presses for trunk control.',
+      }));
+    }
+    const width = Math.abs(P.an.x - hipMid.x) / (L.leg || 1);
+    out.push(check('wide', 'Plant width', width, grade(width, [0, 0.5], [0, 0.65]), {
+      display: width <= 0.5 ? 'Controlled' : 'Very wide plant', target: 'Foot not too far outside the hips', joint: 'an', weight: 1,
+      cue: 'Plant a little closer under you. A very wide plant is harder to control.',
+      drill: '45° cuts at half speed, building up.',
+    }));
+    const standing = percentile(hh, 0.9);
+    const drop = standing ? (standing - hh[key]) / 100 : null;
+    if (drop != null) {
+      out.push(check('sink', 'Sink the hips', drop, grade(drop, [0.08, 9], [0.04, 9]), {
+        display: `Hips dropped ${Math.round(drop * 100)}% of leg length`, target: 'Bend hips and knees into the plant', joint: 'hip', weight: 1,
+        cue: 'Lower your hips into the cut. A stiff, straight plant leg takes the load in the knee.',
+        drill: 'Deceleration drills: sprint, stop in 3 steps and hold low.',
+      }));
+    }
+    return { checks: out, keyIndex: key };
+  }
+
   function scoreOf(checks) {
     let w = 0, s = 0;
     for (const c of checks) {
@@ -1190,7 +1497,7 @@
    * analyze(frames, { exercise, aspect, view?: 'auto'|'side'|'front' })
    * -> { exercise, view, side, facing, reps, checks, score, suggestions, series, keyIndex }
    */
-  function analyze(frames, { exercise, aspect = 16 / 9, view = 'auto' } = {}) {
+  function analyze(frames, { exercise, aspect = 16 / 9, view = 'auto', limits = null } = {}) {
     const ex = EXERCISES[exercise];
     if (!ex) throw new Error('Unknown exercise: ' + exercise);
     const good = frames.filter((f) => f && f.lm && f.lm.length >= 33);
@@ -1201,13 +1508,19 @@
     const facing = detectFacing(good, side, aspect);
     const J = good.map((f) => joints(f, side, aspect));
     const L = segmentLengths(good, side, aspect);
-    const ctx = { frames: good, J, L, side, facing, view: v, aspect, screenRight: 1 };
+    const ctx = { frames: good, J, L, side, facing, view: v, aspect, screenRight: 1, limits };
     const series = J.map((j) => ex.signal(j, ctx));
     const warnings = [];
     if (detected === 'angled') warnings.push('The camera looks angled. Film straight side-on (or straight from the front) for the most accurate numbers.');
     if (!ex.views.includes(v)) warnings.push(`${ex.label} is best analysed from the ${ex.views.join(' or ')}. Some checks were skipped.`);
     const quality = recordingQuality(good, aspect, exercise);
     for (const q of quality.issues) warnings.push(q.text);
+
+    if (ex.custom) {
+      const c = (ex.custom === 'cut' ? analyzeCut : analyzeStart)(ctx);
+      if (c.error) return { exercise, label: ex.label, view: v, side, facing, L, reps: [], checks: [], series, times: good.map((f) => f.t), keyIndex: 0, error: c.error, warnings, quality };
+      return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: [], checks: c.checks, series, keyIndex: c.keyIndex, warnings, quality, frames: good });
+    }
 
     if (ex.gait) {
       const g = analyzeGait(ctx);
@@ -1262,12 +1575,12 @@
    * opts: { reps, fps, aspect, facing, depth, lean, heelLift, valgus, sag, hipsFirst, overstride, cadence, seconds }
    */
   function simulate(exercise, opts = {}) {
-    const o = { reps: 5, fps: 15, aspect: 16 / 9, facing: 1, repSeconds: exercise === 'landing' ? 1.6 : 2.4, ...(exercise === 'landing' && !opts.view ? { view: 'front' } : {}), ...opts };
+    const o = { reps: 5, fps: 15, aspect: 16 / 9, facing: 1, repSeconds: exercise === 'landing' ? 1.6 : 2.4, ...((exercise === 'landing' || exercise === 'cut') && !opts.view ? { view: 'front' } : {}), ...(exercise === 'cut' ? { reps: 1 } : {}), ...opts };
     const A = o.aspect;
     const S = { shin: 0.2, thigh: 0.21, torso: 0.26, upper: 0.15, fore: 0.14, foot: 0.07, heelAnkle: 0.035, head: 0.085 };
     const f = o.facing;
     const frames = [];
-    const total = exercise === 'running' ? o.seconds || 8 : o.reps * o.repSeconds + 0.6;
+    const total = exercise === 'running' || exercise === 'sprintstart' ? o.seconds || (exercise === 'sprintstart' ? 2 : 8) : o.reps * o.repSeconds + 0.6;
     const n = Math.round(total * o.fps);
     const ease = (x) => 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0, Math.min(1, x)));
     for (let i = 0; i < n; i++) {
@@ -1296,6 +1609,12 @@
       else if (exercise === 'bench') pose = simBench(p, S, o, f);
       else if (exercise === 'ohp') pose = simOHP(p, S, o, f);
       else if (exercise === 'running') pose = simRun(t, S, o, f);
+      else if (exercise === 'row') pose = simRow(p, S, o, f);
+      else if (exercise === 'pullup') pose = simPullup(p, S, o, f);
+      else if (exercise === 'hipthrust') pose = simHipThrust(p, S, o, f);
+      else if (exercise === 'clean') pose = simClean(p, S, o, f);
+      else if (exercise === 'sprintstart') pose = simStart(t, S, o, f);
+      else if (exercise === 'cut') pose = simFrontSquat(p, S, { ...o, depth: o.depth ?? -70 });
       frames.push({ t: +t.toFixed(3), lm: toLandmarks(pose, A, o.view === 'front') });
     }
     return { frames, aspect: A, width: 1280, height: Math.round(1280 / A), duration: total };
@@ -1529,6 +1848,87 @@
   }
 
   // Joints object -> 33 BlazePose landmarks (normalised). Side view mirrors missing far-side joints.
+  function simRow(p, S, o, f) {
+    const an = { x: 0.85, y: 0.86, v: 1 };
+    const kn = add(an, dir(15, f), S.shin);
+    const hip = add(kn, dir(-20, f), S.thigh);
+    const torsoA = (o.torso ?? 65) - (o.swing || 0) * p;
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const el = add(sh, dir(lerp(180, o.pull ?? 272, p), f), S.upper);
+    const wr = add(el, dir(180, f), S.fore);
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(torsoA + 10, f), S.head) };
+  }
+
+  function simPullup(p, S0, o, f) {
+    // Scaled down so a full hang still fits in the frame.
+    const S = Object.fromEntries(Object.entries(S0).map(([k, v]) => [k, v * 0.85]));
+    const wr = { x: 0.7, y: 0.06, v: 1 };
+    const arm = S.upper + S.fore;
+    const sh = { x: wr.x - f * 0.02, y: lerp(wr.y + arm * (o.hang ?? 0.995), wr.y + (o.top ?? 0.04), p), v: 1 };
+    const el = ik2(sh, wr, S.upper, S.fore, -f);
+    const kip = (o.kip || 0) * Math.sin(Math.PI * p);
+    const hip = { x: sh.x + f * kip, y: sh.y + S.torso, v: 1 };
+    const kn = { x: hip.x + f * kip * 0.8, y: hip.y + S.thigh, v: 1 };
+    const an = { x: kn.x + f * kip * 0.5, y: kn.y + S.shin, v: 1 };
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: { x: sh.x + f * 0.01, y: sh.y - S.head, v: 1 } };
+  }
+
+  function simHipThrust(p, S, o, f) {
+    const an = { x: 0.9, y: 0.86, v: 1 };
+    const kn = add(an, dir(o.shin ?? 5, f), S.shin);
+    const thighA = lerp(-130, -90, p);
+    const hipAngle = lerp(100, o.lockout ?? 176, p);
+    const hip = add(kn, dir(thighA, f), S.thigh);
+    const torsoA = thighA + (180 - hipAngle);
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const el = add(sh, dir(160, f), S.upper * 0.6);
+    const wr = add(el, dir(60, f), S.fore * 0.6);
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  // p 0 -> 0.6: pull from the floor to full extension; 0.6 -> 1: pull under into the rack.
+  function simClean(p, S, o, f) {
+    const an = { x: 0.85, y: 0.86, v: 1 };
+    const q = Math.min(1, p / 0.6), r = Math.max(0, (p - 0.6) / 0.4);
+    const shinA = lerp(25, 0, q) + 20 * r;
+    const kn = add(an, dir(shinA, f), S.shin);
+    const thighA = lerp(-60, o.extension ? -o.extension : 0, q) - 35 * r;
+    const hip = add(kn, dir(thighA, f), S.thigh);
+    const torsoA = lerp(55, 0, q) + 8 * r;
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const arm = S.upper + S.fore;
+    let el, wr;
+    if (r === 0) {
+      wr = { x: lerp(an.x + f * 0.03, hip.x + f * (o.barAway || 0.01), q), y: sh.y + arm * 0.97, v: 1 };
+      wr.y = Math.min(wr.y, Math.sqrt(Math.max(0, arm * arm - (wr.x - sh.x) ** 2)) + sh.y);
+      el = ik2(sh, wr, S.upper, S.fore, f);
+    } else {
+      el = add(sh, dir(lerp(180, o.elbows ?? 80, r), f), S.upper);
+      wr = { x: lerp(hip.x + f * 0.01, sh.x + f * 0.04, r), y: lerp(sh.y + arm * 0.9, sh.y - 0.01, r), v: 1 };
+    }
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  function simStart(t, S, o, f) {
+    const go = Math.max(0, t - 0.4);
+    const x0 = 0.4 + f * 0.25 * go * go;
+    const lean = go === 0 ? (o.lean ?? 50) : lerp(o.lean ?? 50, o.endLean ?? 30, Math.min(1, go / 1.3));
+    const ph = go * 2 * Math.PI * 2.2;
+    const hip = { x: x0, y: 0.86 - (S.thigh + S.shin) * 0.95, v: 1 };
+    const sh = add(hip, dir(lean, f), S.torso);
+    const leg = (s) => {
+      const kn = add(hip, dir(lean - 110 + 60 * Math.sin(ph + s) + 180, f), S.thigh);
+      const an = add(kn, dir(o.shin ?? 45, f), -S.shin);
+      return { kn, an: { x: an.x, y: Math.min(0.88, an.y), v: 1 } };
+    };
+    const a = leg(0), b = leg(Math.PI);
+    const el = add(sh, dir(180 + 70 * Math.sin(ph), f), S.upper);
+    const wr = add(el, dir(120 + 70 * Math.sin(ph), f), S.fore);
+    const oel = add(sh, dir(180 - 70 * Math.sin(ph), f), S.upper);
+    const owr = add(oel, dir(120 - 70 * Math.sin(ph), f), S.fore);
+    return { an: a.an, kn: a.kn, oan: b.an, okn: b.kn, hip, ohip: hip, sh, osh: sh, el, wr, oel, owr, ...feet(a.an, S, f), nose: add(sh, dir(lean, f), S.head) };
+  }
+
   function toLandmarks(pose, aspect, front) {
     const lm = Array.from({ length: 33 }, () => [0, 0, 0, 0]);
     const set = (i, p, vis = 0.98) => {

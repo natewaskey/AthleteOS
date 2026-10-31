@@ -133,8 +133,62 @@
       drills: ['Dead bug', 'Plank', 'Side plank', 'Pallof press'],
       why: 'Core endurance helps keep the spine steady under load and when tired.',
     },
+    // Optional extra tests: not needed for a complete screen, used by teams that want them.
+    {
+      id: 'ybalance',
+      label: 'Y-balance reach',
+      category: 'stability',
+      type: 'percent',
+      bilateral: true,
+      optional: true,
+      area: 'Single-leg reach and control (lower quarter)',
+      how: 'Stand on one leg at the centre of three tapes (forward, back-inside, back-outside). Reach as far as you can along each with the free foot, touching lightly, and return without falling. Measure each reach and your leg length (hip bone to inner ankle). Best of 3 per direction.',
+      thresholds: [94, 89], // composite % of leg length (Plisky 2006: < 94% linked to more injuries)
+      asym: 4,
+      drills: ['Single-leg RDL', 'Single-leg balance', 'Step-up', 'Lateral band walk'],
+      why: 'A low reach score, or a big difference between legs, is linked to more lower-body injuries in team sports.',
+    },
+    {
+      id: 'landing',
+      label: 'Drop landing (LESS)',
+      category: 'stability',
+      type: 'errors',
+      optional: true,
+      area: 'Landing technique (ACL risk)',
+      how: 'Drop off a 30 cm (12 in) box to land with both feet just in front of it, then jump straight up as high as you can. Film from the front and the side. Count the landing errors, or let the camera score it.',
+      thresholds: [4, 6], // LESS errors: ≤ 4 excellent/good, 5–6 moderate, > 6 poor (Padua 2009)
+      lowerBetter: true,
+      max: 17,
+      formExercise: 'landing',
+      drills: ['Drop landing (stick it)', 'Mini-band squat', 'Lateral band walk', 'Single-leg RDL'],
+      why: 'Stiff, knock-kneed landings are the main movement risk for ACL injuries. The LESS counts the common landing errors.',
+    },
   ];
   const BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
+  const CORE = ITEMS.filter((i) => !i.optional);
+
+  // Smallest change that is more than test-to-test noise (MDC95), in each test's unit.
+  // Sources: knee-to-wall ~1.5 cm (Powden 2015), eyes-closed balance ~5 s, push-ups ~3 reps, plank ~15 s,
+  // Y-balance composite ~4% (Plisky 2009), LESS ~1 error (Padua 2009), graded tests 1 grade.
+  const MDC = { ankle: 1.5, balance: 5, pushups: 3, plank: 15, ybalance: 4, landing: 1 };
+
+  // Is the change between two raw values bigger than the noise? -> { real, direction: 'better'|'worse'|null, mdc }
+  function realChange(itemId, before, after) {
+    const item = BY_ID[itemId];
+    if (!item || before == null || after == null) return { real: false, direction: null, mdc: null };
+    const mdc = item.type === 'grade' ? 1 : MDC[itemId] || 0;
+    let d = after - before;
+    if (item.lowerBetter) d = -d;
+    const real = Math.abs(d) >= mdc && d !== 0;
+    return { real, direction: real ? (d > 0 ? 'better' : 'worse') : null, mdc, delta: +(after - before).toFixed(1) };
+  }
+
+  // Y-balance composite: (forward + back-inside + back-outside) / (3 × leg length) × 100.
+  function yComposite({ ant, pm, pl, leg } = {}) {
+    const a = Number(ant), b = Number(pm), c = Number(pl), l = Number(leg);
+    if (!(a > 0 && b > 0 && c > 0 && l > 30)) return null;
+    return Math.round(((a + b + c) / (3 * l)) * 1000) / 10;
+  }
 
   const num = (v) => (v === '' || v == null || !isFinite(Number(v)) ? null : Number(v));
 
@@ -142,6 +196,7 @@
     if (v == null) return null;
     if (item.type === 'grade') return Math.max(1, Math.min(3, Math.round(v)));
     const [a, b] = item.thresholds;
+    if (item.lowerBetter) return v <= a ? 3 : v <= b ? 2 : 1;
     return v >= a ? 3 : v >= b ? 2 : 1;
   }
 
@@ -151,7 +206,7 @@
       if (n == null) return null;
       n = Math.max(0, n);
       if (item.max) n = Math.min(item.max, n);
-      return item.type === 'grade' ? Math.max(1, Math.min(3, Math.round(n))) : Math.round(n * 10) / 10;
+      return item.type === 'grade' ? Math.max(1, Math.min(3, Math.round(n))) : item.type === 'errors' ? Math.round(n) : Math.round(n * 10) / 10;
     };
     const out = { pain: !!input.pain };
     if (item.bilateral) {
@@ -159,6 +214,7 @@
       out.right = clean(input.right);
     } else out.value = clean(input.value);
     if (item.id === 'pushups' && input.knees) out.knees = true;
+    if (input.camera) out.camera = true; // scored by the camera (screen camera scoring)
     return out;
   }
 
@@ -188,7 +244,7 @@
       const bothRaw = r.left != null && r.right != null;
       const diff = bothRaw ? Math.abs(r.left - r.right) : 0;
       const gap = bothRaw && (diff >= item.asym || left !== right);
-      const weak = !bothRaw || r.left === r.right ? null : r.left < r.right ? 'left' : 'right'; // higher is better for every test
+      const weak = !bothRaw || r.left === r.right ? null : (r.left < r.right) !== !!item.lowerBetter ? 'left' : 'right';
       return { score: Math.min(...scores), left, right, gap, weak: gap ? weak : null, diff, pain: false };
     }
     let score = scoreValue(item, r.value);
@@ -235,7 +291,7 @@
     const pct = max ? Math.round((total / max) * 100) : null;
     const band = pct == null ? null : pain.length ? 'pain' : pct >= 85 ? 'great' : pct >= 65 ? 'good' : pct >= 45 ? 'fair' : 'limited';
     const BAND_LABEL = { great: 'Moving well', good: 'Solid base', fair: 'Some limits to work on', limited: 'Build the basics first', pain: 'Pain found: check it first' };
-    return { id: s.id, date: s.date, items, total, max, pct, band, bandLabel: band ? BAND_LABEL[band] : '', categories, pain, gaps, priorities, complete: items.length === ITEMS.length };
+    return { id: s.id, date: s.date, items, total, max, pct, band, bandLabel: band ? BAND_LABEL[band] : '', categories, pain, gaps, priorities, complete: CORE.every((i) => items.some((x) => x.item.id === i.id)) };
   }
 
   const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
@@ -244,6 +300,8 @@
     if (item.type === 'grade') return `${v}/3`;
     if (item.type === 'measure') return units === 'imperial' ? `${(v / 2.54).toFixed(1)} in` : `${v} cm`;
     if (item.type === 'time') return `${v} s`;
+    if (item.type === 'percent') return `${v}%`;
+    if (item.type === 'errors') return `${v} error${v === 1 ? '' : 's'}`;
     return `${v} reps`;
   }
 
@@ -253,7 +311,14 @@
     const b = summarize(cur);
     const byId = (s) => Object.fromEntries(s.items.map((x) => [x.item.id, x]));
     const pa = byId(a), pb = byId(b);
-    const items = ITEMS.filter((i) => pa[i.id] && pb[i.id]).map((i) => ({ id: i.id, label: i.label, before: pa[i.id].score, after: pb[i.id].score, delta: pb[i.id].score - pa[i.id].score }));
+    // Raw value (weaker side for two-sided tests) for the noise check.
+    const raw = (i, x) => {
+      const r = x.result || {};
+      if (!i.bilateral) return r.value;
+      const vs = [r.left, r.right].filter((v) => v != null);
+      return vs.length ? (i.lowerBetter ? Math.max(...vs) : Math.min(...vs)) : null;
+    };
+    const items = ITEMS.filter((i) => pa[i.id] && pb[i.id]).map((i) => ({ id: i.id, label: i.label, before: pa[i.id].score, after: pb[i.id].score, delta: pb[i.id].score - pa[i.id].score, change: realChange(i.id, raw(i, pa[i.id]), raw(i, pb[i.id])) }));
     return { before: a.pct, after: b.pct, delta: a.pct != null && b.pct != null ? b.pct - a.pct : null, items, improved: items.filter((x) => x.delta > 0), worse: items.filter((x) => x.delta < 0) };
   }
 
@@ -295,7 +360,7 @@
     return ((athlete && athlete.screens) || []).map((x, i) => [x, i]).sort((a, b) => (a[0].date < b[0].date ? 1 : a[0].date > b[0].date ? -1 : b[1] - a[1])).map(([x]) => x);
   }
 
-  const Screen = { chronological, latestList, CATEGORIES, ITEMS, BY_ID, normalizeScreen, normalizeResult, scoreItem, summarize, compare, correctivePlan, latest, fmtRaw };
+  const Screen = { CORE, MDC, realChange, yComposite, chronological, latestList, CATEGORIES, ITEMS, BY_ID, normalizeScreen, normalizeResult, scoreItem, summarize, compare, correctivePlan, latest, fmtRaw };
   if (typeof module !== 'undefined' && module.exports) module.exports = Screen;
   else root.Screen = Screen;
 })(typeof window !== 'undefined' ? window : globalThis);
