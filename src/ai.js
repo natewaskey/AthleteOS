@@ -31,9 +31,12 @@
     clientPromise = null;
   }
 
-  const hasKey = () => !!getKey();
+  // Signed in to a team: requests go through the team's server (supabase/functions/claude), no key needed.
+  const viaCloud = () => !getKey() && !!(root.Cloud && root.Cloud.team());
+  const hasKey = () => !!getKey() || viaCloud();
 
   function client() {
+    if (viaCloud()) return cloudClient();
     const key = getKey();
     if (!key) return Promise.reject(new Error('Add your Anthropic API key in Settings to use Claude.'));
     if (!clientPromise || clientKey !== key) {
@@ -43,6 +46,14 @@
       );
     }
     return clientPromise;
+  }
+
+  // A fresh client each time so the sign-in token is current.
+  async function cloudClient() {
+    const auth = await root.Cloud.aiAuth();
+    if (!auth) throw new Error('Sign in to your team to use Claude.');
+    const { Anthropic } = await import(new URL('vendor/anthropic/anthropic-sdk.mjs', document.baseURI).href);
+    return new Anthropic({ apiKey: 'team-proxy', baseURL: auth.baseURL, dangerouslyAllowBrowser: true, defaultHeaders: { Authorization: `Bearer ${auth.token}`, apikey: auth.key, 'x-athleteos-team': auth.team } });
   }
 
   function friendlyError(err, Anthropic) {
@@ -175,5 +186,5 @@
     }
   }
 
-  root.AI = { getKey, setKey, hasKey, generateProgram, editProgram, chat, estimateMeal, MODEL };
+  root.AI = { getKey, setKey, hasKey, viaCloud, generateProgram, editProgram, chat, estimateMeal, MODEL };
 })(window);

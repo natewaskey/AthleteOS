@@ -95,6 +95,11 @@
   }
 
   function save() {
+    store();
+    if (window.Cloud) window.Cloud.changed();
+  }
+
+  function store() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
@@ -691,6 +696,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
           ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard())}
@@ -788,6 +794,7 @@
           <span>Add your certifications, set up your team roster and prescribe training, testing and return-to-play.</span></button>
       </div>
       <p class="muted small" style="text-align:center">You can switch any time in Settings. Or <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
+      ${window.CloudUI && window.Cloud.enabled() ? `<h2 class="section-title" style="text-align:center">Have an account or a code from your coach?</h2><div class="welcome-cloud">${window.CloudUI.card()}</div>` : ''}
     </div>`;
   }
 
@@ -1028,6 +1035,7 @@
           ${certsCard()}
           ${staffCard()}
           ${Staff.policyCard()}
+          ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${advanced(aiCard() + dataCard())}
         </div>`;
@@ -1294,6 +1302,9 @@
     const isCoach = role() === 'coach';
     const a = me();
     if (solo()) return '<span class="pill info">Training on my own</span>';
+    // Signed in to a team as an athlete: this device is that athlete.
+    const cloudTeam = window.Cloud && window.Cloud.team();
+    if (cloudTeam && cloudTeam.role === 'athlete') return `<span class="pill info">${esc(athleteName(a))}</span>`;
     return `<div class="segmented" role="group" aria-label="Perspective">
         <button data-action="set-role" data-role="athlete" aria-pressed="${!isCoach}">Athlete</button>
         <button data-action="set-role" data-role="coach" aria-pressed="${isCoach}">Coach</button>
@@ -1428,7 +1439,9 @@
   }
 
   function aiCard() {
-    const has = window.AI && window.AI.hasKey();
+    if (window.AI && window.AI.viaCloud()) return `<section class="card span-6"><div class="card-head"><h3>✨ Claude (AI program design)</h3><span class="pill good">Included with your team</span></div>
+      <p class="muted" style="margin:0">Claude runs through your team’s account, so there’s no key to add. Teams have a daily limit.</p></section>`;
+    const has = window.AI && window.AI.getKey();
     return `<section class="card span-6"><div class="card-head"><h3>✨ Claude (AI program design)</h3>${has ? '<span class="pill good">Connected</span>' : ''}</div>
       <p class="muted" style="margin-top:0">Optional. With an Anthropic API key, the program generator can use Claude (${esc(window.AI ? window.AI.MODEL : '')}) to design fully custom programs from anything you write. The built-in generator works without it.</p>
       <form id="ai-form">
@@ -1754,6 +1767,7 @@
     const a = me();
     switch (el.dataset.action) {
       case 'set-role':
+        if (window.Cloud && window.Cloud.team() && window.Cloud.team().role === 'athlete') return;
         return setRole(el.dataset.role);
       case 'open-log':
         return openWorkout();
@@ -2188,6 +2202,23 @@
     onWorkoutLogged: (a, w) => Progress.onWorkoutLogged(a, w),
     solo,
   });
+
+  // Accounts and sync. Runs before routing so an email sign-in link's hash is read first.
+  if (window.Cloud && window.CloudUI) {
+    CloudUI.init({ C, state: () => state, save, render, toast, esc, role, me, sportOptions });
+    state = CloudUI.applySession(state);
+    Cloud.init({
+      getState: () => state,
+      setState: (next, opts) => {
+        state = CloudUI.applySession(next, { fresh: !!(opts && opts.replace) });
+        store();
+        render();
+      },
+      onStatus: () => CloudUI.refresh(),
+      // An under-18 athlete's own data isn't uploaded until a parent or guardian approves sharing.
+      holdPush: () => !solo() && role() === 'athlete' && Cloud.team() && Cloud.team().role === 'athlete' && C.needsConsent(me(), today()),
+    });
+  }
 
   const [initialTab, initialId] = location.hash.slice(1).split('/');
   go(initialTab || '', initialId);

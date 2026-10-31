@@ -2218,3 +2218,8 @@ body.pro .stat { font-size: 1.6rem; }
 .team-table td { padding: .4rem; border-top: 1px solid var(--border); vertical-align: top; }
 .pill.done { background: color-mix(in srgb, var(--muted) 16%, transparent); }
 @media (max-width: 560px) { .team-table th:nth-child(4), .team-table td:nth-child(4) { display: none; } }
+.welcome-cloud { max-width: 34rem; margin: 0 auto; }
+.cloud-codes { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; margin: .5rem 0; }
+.cloud-codes > div { display: flex; flex-direction: column; }
+.cloud-codes code, .cloud-invites code { font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; letter-spacing: .08em; font-weight: 700; }
+.cloud-invites summary { cursor: pointer; font-weight: 600; margin: .4rem 0; }
