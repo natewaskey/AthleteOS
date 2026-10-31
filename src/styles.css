@@ -1673,6 +1673,8 @@ i.mg-dot { display: inline-block; width: 10px; height: 10px; padding: 0; margin-
 #live-set .live-stage { width: min(100%, calc(70vh * 16 / 9)); }
 .form-fix { text-align: left; margin: 0.5rem 0; }
 .pill.hold { background: color-mix(in srgb, var(--warn, #d97706) 18%, var(--surface)); }
+.pill.next-load.up { background: color-mix(in srgb, var(--good, #16a34a) 18%, var(--surface)); }
+.pill.next-load.down { background: color-mix(in srgb, var(--warn, #d97706) 18%, var(--surface)); }
 .profile-page .pill { white-space: nowrap; }
 /* keep visually hidden radios inside their labels so they never widen the page */
 .rate label, .seg-radio { position: relative; }

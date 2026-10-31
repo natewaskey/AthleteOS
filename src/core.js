@@ -1165,7 +1165,7 @@
   function normalizeSetResult(s) {
     const out = { reps: s.reps === '' || s.reps == null ? null : Math.max(0, Number(s.reps) || 0), weightKg: s.weightKg === '' || s.weightKg == null ? null : Math.max(0, Number(s.weightKg) || 0), done: !!s.done };
     // A set coached live by the camera keeps its form summary.
-    if (s.live && typeof s.live === 'object') out.live = { score: s.live.score == null ? null : Math.round(Number(s.live.score)) || 0, good: Math.max(0, Math.round(Number(s.live.good) || 0)), issue: s.live.issue ? String(s.live.issue).slice(0, 60) : null, analysisId: s.live.analysisId ? String(s.live.analysisId) : null };
+    if (s.live && typeof s.live === 'object') out.live = { score: s.live.score == null ? null : Math.round(Number(s.live.score)) || 0, good: Math.max(0, Math.round(Number(s.live.good) || 0)), issue: s.live.issue ? String(s.live.issue).slice(0, 60) : null, analysisId: s.live.analysisId ? String(s.live.analysisId) : null, ...(Number(s.live.speed) > 0 ? { speed: +Number(s.live.speed).toFixed(2) } : {}), ...(s.live.loss != null && isFinite(Number(s.live.loss)) ? { loss: +Number(s.live.loss).toFixed(2) } : {}) };
     return out;
   }
 

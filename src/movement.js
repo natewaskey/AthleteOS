@@ -1032,7 +1032,7 @@
    */
   function velocityCheck(exercise, ctx, reps) {
     const key = VELOCITY_POINT[exercise];
-    if (!key || reps.length < 2) return null;
+    if (!key) return null;
     const up = exercise === 'ohp' ? (r) => [r.start, r.key] : (r) => [r.key, r.end];
     for (const r of reps) {
       const [a, b] = up(r);
@@ -1040,6 +1040,7 @@
       const dt = ctx.frames[b].t - ctx.frames[a].t;
       r.velocity = pa && pb && dt > 0 ? Math.abs(pa.y - pb.y) / (ctx.L.leg || 1) / dt : null;
     }
+    if (reps.length < 2) return null;
     const v = reps.map((r) => r.velocity).filter((x) => x != null);
     if (v.length < 2) return null;
     const best = Math.max(...v);

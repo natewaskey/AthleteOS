@@ -29,8 +29,10 @@
    * frame: { t: seconds, lm: [[x,y,z,visibility] × 33] | null }
    * events: { type: 'rep', n, score, status, cue, check } | { type: 'lost' } | { type: 'found' } | { type: 'hint', text }
    *         | { type: 'setup', ok, id, text } when the camera setup check changes (feet cut off, too far, wrong angle…)
+   *         | { type: 'stop', n, loss } once, when rep speed has dropped by stopAt (0..1) from the set's fastest rep
+   * Rep events carry velocity (leg lengths per second, concentric) and loss (0..1 from the fastest rep so far).
    */
-  function createEngine({ exercise = 'squat', aspect = 16 / 9 } = {}) {
+  function createEngine({ exercise = 'squat', aspect = 16 / 9, stopAt = null } = {}) {
     if (!M.EXERCISES[exercise]) throw new Error('Unknown exercise: ' + exercise);
     const frames = [];
     const reps = [];
@@ -41,6 +43,8 @@
     let hinted = false;
     let lastSetup = -Infinity;
     let setup = null;
+    let best = 0;
+    let stopped = false;
 
     function checkSetup(frame) {
       let res = M.framing(frame.lm, aspect, { exercise });
@@ -95,9 +99,16 @@
         const cue = worst ? shortCue(worst) : 'Good rep';
         // Spoken version: the imperative before a colon ("Sit deeper: aim to…" → "Sit deeper").
         const spoken = /^[^:]{3,32}:/.test(cue) ? cue.split(':')[0] : cue;
-        const item = { type: 'rep', n: reps.length + 1, t: rep.t, score: rep.score, status: worst ? worst.status : 'good', check: worst ? worst.id : null, label: worst ? worst.label : null, cue, spoken };
+        const velocity = rep.velocity != null && isFinite(rep.velocity) ? rep.velocity : null;
+        if (velocity != null) best = Math.max(best, velocity);
+        const loss = velocity != null && best ? Math.max(0, 1 - velocity / best) : null;
+        const item = { type: 'rep', n: reps.length + 1, t: rep.t, score: rep.score, status: worst ? worst.status : 'good', check: worst ? worst.id : null, label: worst ? worst.label : null, cue, spoken, velocity, loss };
         reps.push(item);
         events.push(item);
+        if (stopAt && !stopped && loss != null && loss >= stopAt) {
+          stopped = true;
+          events.push({ type: 'stop', n: item.n, loss });
+        }
       }
       return events;
     }
@@ -114,6 +125,9 @@
         avgScore: scored.length ? Math.round(scored.reduce((s, r) => s + r.score, 0) / scored.length) : null,
         good: reps.filter((r) => r.status === 'good').length,
         topIssue: topRep ? { label: topRep.label, cue: topRep.cue, reps: top[1] } : null,
+        bestVelocity: best || null,
+        speedLoss: reps.length && best && reps[reps.length - 1].velocity != null ? Math.max(0, 1 - reps[reps.length - 1].velocity / best) : null,
+        stoppedAt: stopped ? reps.find((r) => r.loss != null && r.loss >= stopAt)?.n ?? null : null,
       };
     }
 
@@ -222,6 +236,10 @@
           if (!e.ok && e.id !== 'none' && run.spokenSetup !== e.id) (run.spokenSetup = e.id), say(e.text);
         }
         if (e.type === 'lost') setText('live-cue', 'Step back into frame');
+        if (e.type === 'stop') {
+          setText('live-cue', `⏹ Rep ${e.n}: speed dropped ${Math.round(e.loss * 100)}%. End the set here.`);
+          say('Speed dropped. Rack it, end the set.');
+        }
         if (e.type === 'hint') setText('live-status', e.text);
         if (e.type === 'rep') {
           run.lastStatus = e.status;
@@ -256,7 +274,7 @@
       video.classList.toggle('mirror', facing === 'user');
       await video.play().catch(() => {});
       const aspect = (video.videoWidth || 16) / (video.videoHeight || 9);
-      run = { exercise, facing, stream, engine: createEngine({ exercise, aspect }), t0: performance.now(), raf: 0, lastStatus: 'good', lm: null, poseErr: null, aspect, set: keep || null };
+      run = { exercise, facing, stream, engine: createEngine({ exercise, aspect, stopAt: keep && keep.stopAt }), t0: performance.now(), raf: 0, lastStatus: 'good', lm: null, poseErr: null, aspect, set: keep || null };
       ['live-start'].forEach((id) => byId(id) && (byId(id).hidden = true));
       ['live-stop', 'live-flip'].forEach((id) => byId(id) && (byId(id).hidden = false));
       setText('live-cue', 'Loading the pose model…');
@@ -361,7 +379,7 @@
      * openSet({ exercise, title, onDone(result) }): a full-screen camera over Live workout mode.
      * "Finish set" stops the camera and calls onDone({ reps, avgScore, good, topIssue, analysis }).
      */
-    function openSet({ exercise, title, onDone }) {
+    function openSet({ exercise, title, onDone, stopAt = null }) {
       closeSet();
       const ex = M.EXERCISES[exercise];
       if (!ex) return;
@@ -380,8 +398,9 @@
         <ol class="live-log small" id="live-log"></ol>`;
       document.body.append(el);
       scope = el;
+      run = { set: { onDone, title, stopAt } }; // carried into the camera run by start()
       start(exercise, 'user').then(() => {
-        if (run) run.set = { onDone, title };
+        if (run) run.set = { onDone, title, stopAt };
       });
     }
 
@@ -394,7 +413,7 @@
 
     function finishSet() {
       const r = run;
-      if (!r || !r.set) return closeSet();
+      if (!r || !r.set || !r.engine) return closeSet();
       stop(true);
       const sum = r.engine.summary();
       const an = sum.reps >= 2 ? storeRun(r, { athleteNote: `Live coach during ${r.set.title || 'a workout'}` }) : null;
