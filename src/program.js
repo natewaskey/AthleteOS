@@ -62,7 +62,7 @@
   // [pattern, equipment...] per library exercise. Unlisted warm-up / mobility / cool-down items are
   // bodyweight mobility.
   const META = {
-    'Band pull-apart': ['mobility', 'band'], 'Jumping jacks': ['drill'], 'Foam roll': ['recovery', 'foam-roller'], 'Easy jog': ['run', 'field'],
+    'Band pull-apart': ['mobility', 'band'], 'Mini-band squat': ['mobility', 'band'], 'Lateral band walk': ['mobility', 'band'], 'Tempo goblet squat': ['mobility', 'dumbbell'], 'Jumping jacks': ['drill'], 'Foam roll': ['recovery', 'foam-roller'], 'Easy jog': ['run', 'field'],
     'A-skips': ['drill', 'field'], 'B-skips': ['drill', 'field'], 'High knees': ['drill', 'field'], Carioca: ['cod', 'field'],
     'Acceleration sprint': ['sprint', 'field'], 'Flying sprint': ['sprint', 'field'], 'Pro agility (5-10-5)': ['cod', 'cones'], '3-cone drill (L-drill)': ['cod', 'cones'],
     'T-drill': ['cod', 'cones'], 'Agility ladder: in-in-out-out': ['cod', 'cones'], 'Agility ladder: Icky shuffle': ['cod', 'cones'], 'Lateral shuffle': ['cod', 'field'],
@@ -120,6 +120,15 @@
     'Nordic hamstring curl': ['Kneel with ankles anchored', 'Lower as slowly as you can with hips extended', 'Catch yourself, push back up'],
     'Copenhagen plank': ['Top leg on the bench, body straight', 'Lift hips and hold', 'Keep hips stacked'],
     'Split squat': ['Long stance, torso tall', 'Drop the back knee straight down', 'Drive through the front heel'],
+    'Bulgarian split squat': ['Rear foot laces-down on the bench', 'Sink straight down, slight forward lean', 'Drive through the whole front foot'],
+    'Mini-band squat': ['Band just above the knees', 'Push your knees out against the band', 'Slow down, quick up'],
+    'Lateral band walk': ['Band around the ankles or knees, quarter squat', 'Step wide, toes forward', 'Don’t let the knees cave'],
+    'Tempo goblet squat': ['3 seconds down, pause at the bottom', 'Chest tall, elbows inside the knees', 'Light weight, perfect position'],
+    'Wall hip hinge': ['Stand a foot from a wall, soft knees', 'Reach your hips back to touch the wall', 'Shins stay vertical'],
+    'Dowel hip hinge': ['Stick touches head, upper back and tailbone', 'Hinge until you feel the hamstrings', 'Keep all three contacts'],
+    'Split squat hold': ['Hold the bottom, back knee just off the floor', 'Front knee over the toes', 'Torso tall, breathe'],
+    'Scapular push-up': ['Arms straight in a plank', 'Let the shoulder blades pinch, then push apart', 'Body stays rigid'],
+    'Wall slide': ['Back, head and arms against the wall', 'Slide arms up without arching', 'Ribs stay down'],
   };
   const PATTERN_CUES = {
     squat: ['Brace your core', 'Knees track over toes', 'Drive through mid-foot'], hinge: ['Hips back, flat back', 'Load the hamstrings', 'Squeeze glutes to finish'],
@@ -235,15 +244,110 @@
     return weekIndex - Math.floor((weekIndex + 1) / prog.deloadEvery);
   }
 
-  // A copy of the plan progressed to week `weekIndex` (0-based).
-  function progressPlan(plan, weekIndex, progression) {
+  // ---------- periodization (training blocks) ----------
+
+  /*
+   * A program can run as a sequence of blocks instead of one repeating week:
+   *   accumulate: more sets and reps, lighter (build work capacity)
+   *   intensify:  the written prescription, heavier each week
+   *   peak:       fewer sets and reps, heaviest
+   *   taper:      about half the volume at peak loads, to be fresh on the day
+   * Loads build within a block and reset at the start of the next one (a wave). The last week of
+   * a block that's 4+ weeks long is a deload. Accessory lifts rotate to a variation each block.
+   */
+  const CYCLE_KINDS = {
+    accumulate: { label: 'Accumulation', short: 'Acc', sets: 1, reps: 2, pct: -7.5, rpe: -0.5, why: 'More sets and reps at lighter loads to build work capacity.' },
+    intensify: { label: 'Intensification', short: 'Int', sets: 0, reps: 0, pct: 0, rpe: 0, why: 'Heavier each week at moderate volume.' },
+    peak: { label: 'Peak', short: 'Peak', sets: -1, reps: -2, pct: 5, rpe: 0.5, why: 'Low reps at the heaviest loads.' },
+    taper: { label: 'Taper', short: 'Taper', sets: 0, reps: 0, pct: 2.5, rpe: 0, half: true, why: 'Half the volume so you’re fresh on the day.' },
+  };
+
+  // Split `weeks` into blocks. With a peak date the program ends in a peak block and a taper week.
+  function periodize(weeks, { peak = false } = {}) {
+    const w = Math.max(1, Math.round(weeks));
+    if (w < 4) return peak && w >= 2 ? [{ kind: 'intensify', weeks: w - 1 }, { kind: 'taper', weeks: 1 }] : [{ kind: 'intensify', weeks: w }];
+    const taper = peak ? 1 : 0;
+    const left = w - taper;
+    let out;
+    if (left < 6) out = [{ kind: 'accumulate', weeks: Math.ceil(left / 2) }, { kind: peak ? 'peak' : 'intensify', weeks: Math.floor(left / 2) }];
+    else if (!peak && left < 9) out = [{ kind: 'accumulate', weeks: Math.ceil(left / 2) }, { kind: 'intensify', weeks: Math.floor(left / 2) }];
+    else {
+      const pk = Math.min(3, Math.max(2, Math.floor(left / 4)));
+      const acc = Math.ceil((left - pk) / 2);
+      out = [{ kind: 'accumulate', weeks: acc }, { kind: 'intensify', weeks: left - pk - acc }, { kind: 'peak', weeks: pk }];
+    }
+    if (taper) out.push({ kind: 'taper', weeks: 1 });
+    return out.filter((b) => b.weeks > 0);
+  }
+
+  function normalizeCycle(cycle) {
+    if (!Array.isArray(cycle)) return null;
+    const out = cycle.filter((b) => b && CYCLE_KINDS[b.kind]).map((b) => ({ kind: b.kind, weeks: Math.max(1, Math.min(16, Math.round(Number(b.weeks) || 1))) }));
+    return out.length ? out : null;
+  }
+
+  // Where week `weekIndex` sits: { kind, block, week (within block), weeks (block length), deload, steps }.
+  function cycleWeek(cycle, weekIndex) {
+    let start = 0;
+    for (let k = 0; k < cycle.length; k++) {
+      const b = cycle[k];
+      if (weekIndex < start + b.weeks || k === cycle.length - 1) {
+        const week = Math.min(weekIndex - start, b.weeks - 1);
+        const deload = b.weeks >= 4 && week === b.weeks - 1 && b.kind !== 'taper';
+        return { kind: b.kind, block: k, week, weeks: b.weeks, deload, steps: deload ? Math.max(0, week - 1) : week };
+      }
+      start += b.weeks;
+    }
+    return { kind: 'intensify', block: 0, week: weekIndex, weeks: 1, deload: false, steps: weekIndex };
+  }
+
+  // Deload check for a week, honouring a block structure when the program has one.
+  const weekIsDeload = (weekIndex, progression, cycle) => (cycle ? cycleWeek(cycle, weekIndex).deload : isDeload(weekIndex, normalizeProgression(progression)));
+
+  // A lift's variation for block k (0 = as written), staying within the equipment the program was built for.
+  function rotateFor(name, k, equipment) {
+    if (!k) return name;
+    // Same kit first (a barbell lift rotates to another barbell lift), so a block never regresses.
+    const kit = meta(name).equipment;
+    const all = alternatives(name, { equipment, limit: 8 }).filter((n) => C.libraryEntry(n));
+    const same = all.filter((n) => kit.every((e) => meta(n).equipment.includes(e)) && meta(n).pattern === meta(name).pattern);
+    // Loaded lifts don't rotate to bodyweight ones.
+    const loaded = kit.length ? all.filter((n) => meta(n).equipment.length) : all;
+    const alts = (same.length ? same : loaded).slice(0, 4);
+    return alts.length ? alts[(k - 1) % alts.length] : name;
+  }
+
+  // A copy of the plan progressed to week `weekIndex` (0-based). With a cycle, block rules apply.
+  function progressPlan(plan, weekIndex, progression, cycle = null, { equipment = null } = {}) {
     const prog = normalizeProgression(progression);
-    const deload = isDeload(weekIndex, prog);
-    const steps = stepsAt(weekIndex, prog);
+    const cw = cycle ? cycleWeek(cycle, weekIndex) : null;
+    const deload = cw ? cw.deload : isDeload(weekIndex, prog);
+    const steps = cw ? cw.steps : stepsAt(weekIndex, prog);
+    const mod = cw ? CYCLE_KINDS[cw.kind] : null;
     const p = JSON.parse(JSON.stringify(plan));
     for (const b of p.blocks) {
+      const main = ['strength', 'power'].includes(b.type);
+      b.items = b.items.map((i, idx) => {
+        // Accessories (not the first lift, not %1RM lifts) and jumps rotate to a variation each block.
+        if (cw && cw.block && ((main && idx > 0 && i.loadType !== 'pct') || ['plyo', 'core'].includes(b.type)) && !i.formFix) {
+          const alt = rotateFor(i.name, cw.block, equipment);
+          if (alt !== i.name) {
+            const fresh = C.normalizePlanItem({ name: alt }, b.type);
+            i = { ...i, name: fresh.name, eachSide: fresh.eachSide, ...(fresh.measure !== i.measure || (i.loadType === 'pct' && fresh.loadType !== 'pct') ? { measure: fresh.measure, amount: fresh.amount, loadType: fresh.loadType, loadValue: fresh.loadValue } : {}) };
+          }
+        }
+        return i;
+      });
       for (const i of b.items) {
+        if (mod && main && i.measure === 'reps') {
+          i.sets = Math.max(1, Math.min(10, mod.half ? Math.round(i.sets / 2) : i.sets + mod.sets));
+          if (i.loadType === 'pct' || i.loadType === 'rpe') i.amount = Math.max(1, i.amount + (i.amount <= 6 || mod.reps < 0 ? mod.reps : 0));
+        } else if (mod && mod.half && ['plyo', 'speed', 'conditioning'].includes(b.type)) i.sets = Math.max(1, Math.round(i.sets / 2));
         if (i.loadValue == null) continue;
+        if (mod && main) {
+          if (i.loadType === 'pct') i.loadValue = +(i.loadValue + mod.pct).toFixed(1);
+          if (i.loadType === 'rpe') i.loadValue = Math.min(9.5, +(i.loadValue + mod.rpe).toFixed(1));
+        }
         if (i.loadType === 'pct') i.loadValue = Math.min(95, +(i.loadValue + steps * prog.pctPerWeek).toFixed(1));
         if (i.loadType === 'weight') i.loadValue = +(i.loadValue + steps * prog.kgPerWeek).toFixed(2);
         if (i.loadType === 'rpe') i.loadValue = Math.min(9.5, +(i.loadValue + steps * prog.rpePerWeek).toFixed(1));
@@ -254,7 +358,7 @@
       }
       if (deload && ['strength', 'power', 'plyo', 'conditioning'].includes(b.type)) for (const i of b.items) i.sets = Math.max(1, Math.round(i.sets * 0.6));
     }
-    p.name = `${plan.name} · W${weekIndex + 1}${deload ? ' (deload)' : ''}`;
+    p.name = `${plan.name} · W${weekIndex + 1}${cw && cycle.length > 1 ? ` ${CYCLE_KINDS[cw.kind].short}` : ''}${deload ? ' (deload)' : ''}`;
     return C.normalizePlan(p);
   }
 
@@ -269,6 +373,10 @@
       phase: PHASES[input.phase] ? input.phase : 'general',
       weeks: Math.max(1, Math.min(16, Math.round(Number(input.weeks) || 4))),
       progression: normalizeProgression(input.progression),
+      // Optional block structure and the date it should peak for (see periodize).
+      cycle: normalizeCycle(input.cycle),
+      peakDate: /^\d{4}-\d{2}-\d{2}$/.test(input.peakDate || '') ? input.peakDate : null,
+      equipment: Array.isArray(input.equipment) ? input.equipment.filter((e) => EQUIPMENT[e]) : null,
       sessions: (Array.isArray(input.sessions) ? input.sessions : [])
         .map((s) => ({ day: Math.max(0, Math.min(6, Math.round(Number(s.day) || 0))), plan: C.normalizePlan(s.plan || {}) }))
         .sort((a, b) => a.day - b.day),
@@ -285,7 +393,7 @@
       for (const s of program.sessions) {
         const date = C.addDays(monday, w * 7 + s.day);
         if (date < startISO) continue;
-        const plan = progressPlan(s.plan, w, program.progression);
+        const plan = progressPlan(s.plan, w, program.progression, program.cycle, { equipment: program.equipment });
         for (const athleteId of athleteIds) {
           out.push(C.normalizeAssignment({ athleteId, date, plan: JSON.parse(JSON.stringify(plan)), coachNote, programId: program.id, week: w + 1, assignedBy }));
         }
@@ -604,7 +712,7 @@
   const DAY_LAYOUT = { 1: [2], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 4, 5], 6: [0, 1, 2, 3, 4, 5] };
 
   // Read free-text requests for things the form can't express.
-  function parseRequest(text = '') {
+  function parseRequest(text = '', todayISO = C.toISODate(new Date())) {
     const t = String(text).toLowerCase();
     const out = { equipment: null, avoid: [], focus: [], minutes: null, restrictions: [] };
     if (/\b(home|hotel|no gym|no equipment|bodyweight only)\b/.test(t)) out.equipment = /dumbbell/.test(t) ? ['dumbbell', 'band'] : ['band'];
@@ -638,6 +746,19 @@
     if (/no (jump|jumping|plyo)/.test(t)) out.restrictions.push('no-jumping');
     if (/no (running|sprint)/.test(t)) out.restrictions.push('no-running');
     if (/no overhead/.test(t)) out.restrictions.push('no-overhead');
+    // A date to peak for, e.g. "combine on March 14", "peak for 4/12", "meet by june 3rd".
+    const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const md = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/) || t.match(/\b(?:on|by|for|before)\s+(\d{1,2})\/(\d{1,2})\b/);
+    if (md && /\b(peak|meet|combine|tryouts?|showcase|test(ing)? day|competition|race|game|season starts?|camp|nationals|state|playoffs?|by|before)\b/.test(t)) {
+      const month = isNaN(md[1]) ? MONTHS.indexOf(md[1]) : Number(md[1]) - 1;
+      const day = Number(md[2]);
+      if (month >= 0 && month < 12 && day >= 1 && day <= 31) {
+        const now = new Date(todayISO + 'T12:00:00');
+        let d = new Date(now.getFullYear(), month, day, 12);
+        if (d < now) d = new Date(now.getFullYear() + 1, month, day, 12);
+        out.peakDate = C.toISODate(d);
+      }
+    }
     return out;
   }
 
@@ -673,7 +794,11 @@
     const exp = ['beginner', 'intermediate', 'advanced'].includes(input.experience) ? input.experience : 'intermediate';
     const days = Math.max(1, Math.min(6, Math.round(Number(req.daysPerWeek || input.daysPerWeek) || 3)));
     const minutes = Math.max(20, Math.min(150, Number(req.minutes || input.minutes) || 60));
-    const weeks = Math.max(1, Math.min(12, Math.round(Number(req.weeks || input.weeks) || 4)));
+    // Peaking for a date: the program runs from next Monday through the week of that date.
+    const peakDate = [input.peakDate, req.peakDate].find((d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && d > C.toISODate(new Date())) || null;
+    const firstMonday = C.addDays(C.startOfWeek(C.toISODate(new Date())), 7);
+    const peakWeeks = peakDate ? Math.floor(Math.max(0, C.daysBetween(firstMonday, peakDate)) / 7) + 1 : null;
+    const weeks = Math.max(1, Math.min(16, Math.round(Number(peakWeeks || req.weeks || input.weeks) || 4)));
     let equipment = Array.isArray(input.equipment) && input.equipment.length ? [...input.equipment] : Object.keys(EQUIPMENT);
     if (req.equipment) equipment = req.equipment;
     if (req.noBarbell) equipment = equipment.filter((e) => e !== 'barbell');
@@ -838,12 +963,16 @@
       : goal === 'in-season'
         ? { pctPerWeek: 0, kgPerWeek: 0, rpePerWeek: 0, deloadEvery: 0 }
         : { pctPerWeek: goal === 'hypertrophy' ? 1.5 : 2.5, kgPerWeek: exp === 'beginner' ? 2.27 : 1.13, rpePerWeek: 0.5, deloadEvery: weeks >= 4 ? 4 : 0 };
-    const phase = input.phase || (goal === 'in-season' ? 'in' : goal === 'return' ? 'rehab' : 'general');
+    const phase = peakDate ? 'peak' : input.phase || (goal === 'in-season' ? 'in' : goal === 'return' ? 'rehab' : 'general');
+    // Six weeks or more (or a peak date) run as training blocks instead of one repeating week.
+    const blocky = !['in-season', 'return'].includes(goal) && input.periodize !== false && (peakDate ? weeks >= 2 : weeks >= 6);
+    const cycle = blocky ? periodize(weeks, { peak: !!peakDate }) : null;
     const why = [
-      `${days} days/week, about ${minutes} min each, for ${weeks} weeks.`,
+      `${days} days/week, about ${minutes} min each, for ${weeks} weeks${peakDate ? `, peaking for ${peakDate}` : ''}.`,
+      cycle && cycle.length > 1 ? `Runs in blocks: ${cycle.map((b) => `${CYCLE_KINDS[b.kind].label.toLowerCase()} (${b.weeks} wk)`).join(', then ')}. Accessory lifts change each block.` : '',
       wantsSpeed ? 'Speed and agility come first in the session, while you’re fresh.' : '',
       wantsPlyo ? 'Jumps before lifting to train power.' : '',
-      progression.deloadEvery ? `Loads build each week with a lighter deload every ${progression.deloadEvery}th week.` : '',
+      cycle ? 'Loads build within each block, with a lighter week at the end of long blocks.' : progression.deloadEvery ? `Loads build each week with a lighter deload every ${progression.deloadEvery}th week.` : '',
       avoid.length || restrictions.length ? 'Exercises that stress your limitations were left out.' : '',
       fv === 'force' ? 'Your jump force-velocity profile shows a force deficit, so main lifts are heavier (fewer reps, higher loads).' : '',
       fv === 'velocity' ? 'Your jump force-velocity profile shows a velocity deficit, so there’s extra fast, light work and main lifts are moved for speed.' : '',
@@ -854,6 +983,9 @@
       phase,
       weeks,
       progression,
+      cycle,
+      peakDate,
+      equipment,
       sessions,
       source: 'generator',
     });
@@ -909,6 +1041,67 @@
     required: ['name', 'group', 'sets', 'measure', 'amount', 'loadType', 'loadValue', 'restSec', 'eachSide', 'tempo', 'notes'],
     additionalProperties: false,
   };
+
+  /*
+   * programProgress(state, programId, todayISO) -> per athlete on the program:
+   *   [{ athleteId, week, weeks, done, due, pct, missedInRow, next, finished }]
+   * week: the program week they're in; due: sessions dated before today; pct: done / due.
+   */
+  function programProgress(state, programId, todayISO) {
+    const by = new Map();
+    for (const a of state.assignments || []) {
+      if (a.programId !== programId) continue;
+      if (!by.has(a.athleteId)) by.set(a.athleteId, []);
+      by.get(a.athleteId).push(a);
+    }
+    const out = [];
+    for (const [athleteId, list] of by) {
+      list.sort((x, y) => (x.date < y.date ? -1 : 1));
+      const past = list.filter((a) => a.date < todayISO);
+      const done = past.filter((a) => a.status === 'completed').length + list.filter((a) => a.date >= todayISO && a.status === 'completed').length;
+      let missedInRow = 0;
+      for (let k = past.length - 1; k >= 0 && past[k].status !== 'completed'; k--) missedInRow++;
+      const current = [...list].reverse().find((a) => a.date <= todayISO) || list[0];
+      const next = list.find((a) => a.date >= todayISO && a.status === 'assigned') || null;
+      out.push({
+        athleteId,
+        week: current ? current.week || 1 : 1,
+        weeks: Math.max(...list.map((a) => a.week || 1)),
+        done,
+        due: past.length,
+        total: list.length,
+        pct: past.length ? Math.round((past.filter((a) => a.status === 'completed').length / past.length) * 100) : null,
+        missedInRow,
+        next: next ? next.date : null,
+        finished: !next && list.every((a) => a.date < todayISO || a.status !== 'assigned'),
+      });
+    }
+    return out;
+  }
+
+  // Ready-made starting points: each is a generator input, so it adapts to the athlete's
+  // equipment and injuries when it's built, and can be edited like any generated program.
+  const FULL_GYM = ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'kettlebell', 'cones'];
+  const TEMPLATES = [
+    { id: 'offseason-strength', icon: '🏋️', name: 'Off-season strength', blurb: '12 weeks, 4 days. Accumulation, intensification and peak blocks for bigger maxes.', input: { goal: 'strength', daysPerWeek: 4, minutes: 75, weeks: 12, phase: 'off', equipment: FULL_GYM, focus: [] } },
+    { id: 'combine-prep', icon: '⏱️', name: 'Combine / testing prep', blurb: '8 weeks, 4 days. Sprint, jump and strength work that peaks for testing day.', input: { goal: 'speed', daysPerWeek: 4, minutes: 75, weeks: 8, phase: 'pre', equipment: FULL_GYM, focus: ['speed', 'plyo', 'agility'] } },
+    { id: 'vertical', icon: '🦘', name: 'Jump higher', blurb: '6 weeks, 3 days. Plyometrics plus heavy and fast lower-body lifts.', input: { goal: 'power', daysPerWeek: 3, minutes: 60, weeks: 6, phase: 'off', equipment: FULL_GYM, focus: ['plyo', 'lower'] } },
+    { id: 'preseason', icon: '🔥', name: 'Pre-season power', blurb: '6 weeks, 3 days. Power, speed and conditioning to get game-ready.', input: { goal: 'power', daysPerWeek: 3, minutes: 60, weeks: 6, phase: 'pre', equipment: FULL_GYM, focus: ['speed', 'conditioning'] } },
+    { id: 'in-season', icon: '🏟️', name: 'In-season maintenance', blurb: '2 short sessions a week to keep strength and power without leaving you sore.', input: { goal: 'in-season', daysPerWeek: 2, minutes: 45, weeks: 8, phase: 'in', equipment: FULL_GYM, focus: [] } },
+    { id: 'muscle', icon: '💪', name: 'Build muscle', blurb: '8 weeks, 4 days upper/lower. Higher reps and volume.', input: { goal: 'hypertrophy', daysPerWeek: 4, minutes: 60, weeks: 8, phase: 'off', equipment: FULL_GYM, focus: [] } },
+    { id: 'beginner', icon: '🌱', name: 'First program', blurb: '6 weeks, 3 full-body days. Learn the main lifts with safe loads.', input: { goal: 'general', experience: 'beginner', daysPerWeek: 3, minutes: 45, weeks: 6, phase: 'general', equipment: FULL_GYM, focus: ['mobility'] } },
+    { id: 'home', icon: '🏠', name: 'Home: dumbbells and bands', blurb: '4 weeks, 3 days, no gym needed.', input: { goal: 'general', daysPerWeek: 3, minutes: 45, weeks: 4, phase: 'general', equipment: ['dumbbell', 'band'], focus: ['core', 'conditioning'] } },
+  ];
+
+  // Build a template for an athlete (their sport, experience and injuries) -> program.
+  function fromTemplate(id, { sport = 'other', experience, avoidAreas = [], restrictions = [], peakDate = '' } = {}) {
+    const t = TEMPLATES.find((x) => x.id === id);
+    if (!t) return null;
+    const p = generateProgram({ ...t.input, sport, experience: t.input.experience || experience || 'intermediate', avoidAreas, restrictions, peakDate: t.id === 'combine-prep' ? peakDate : '' });
+    p.name = t.name;
+    p.templateId = t.id;
+    return p;
+  }
 
   const PROGRAM_SCHEMA = {
     type: 'object',
@@ -979,6 +1172,7 @@
       `Sport / position: ${sport.label}${input.position ? ` (${input.position})` : ''}`,
       `Experience: ${input.experience || 'intermediate'}`,
       `Days per week: ${input.daysPerWeek || 3}; minutes per session: ${input.minutes || 60}; weeks: ${input.weeks || 4}`,
+      ...(input.peakDate ? [`Peak date: ${input.peakDate}. The app runs the program as blocks (accumulation, intensification, peak, then a one-week taper ending that week), so write a balanced week-1 template and set weeks to fit.`] : []),
       `Season phase: ${PHASES[input.phase] || 'not specified'}`,
       `Available equipment: ${(input.equipment || []).map((e) => EQUIPMENT[e] || e).join(', ') || 'full gym'}`,
       `Focus areas: ${(input.focus || []).map((f) => FOCUS[f] || f).join(', ') || 'balanced'}`,
@@ -986,6 +1180,7 @@
       `Injuries / areas to protect: ${(input.avoidAreas || []).map((a) => C.BODY_AREA_LABEL[a] || a).join(', ') || 'none reported'}`,
       `Restrictions: ${(input.restrictions || []).map((r) => RESTRICTIONS[r]?.label || r).join(', ') || 'none'}`,
     ];
+    if (Array.isArray(input.context)) lines.push(...input.context.map((l) => String(l).slice(0, 400)).slice(0, 30));
     if (input.request) lines.push('', 'In the athlete’s own words:', String(input.request).slice(0, 2000));
     lines.push('', 'Exercise library by block:', lib);
     return { system: AI_SYSTEM, user: lines.join('\n') };
@@ -1035,6 +1230,7 @@
     detectPRs, testPR, checkinStreak, badges,
     nutritionTargets, recoveryTips, cycleInfo,
     normalizeInjury, activeInjuries, concussionProgress,
+    CYCLE_KINDS, periodize, cycleWeek, weekIsDeload, normalizeCycle, TEMPLATES, fromTemplate, programProgress,
     weeklyReport,
     parseRequest, generateProgram, trimToTime, buildAIRequest, programFromAI,
   };

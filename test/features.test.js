@@ -135,3 +135,24 @@ test('live coach counts reps as they finish and cues the fault', () => {
   evs = evs.concat(e.push({ t: t + 1, lm: null }), e.push({ t: t + 2, lm: null }));
   assert.ok(evs.some((x) => x.type === 'lost'));
 });
+
+test('live coach checks the camera setup and covers the new lifts', () => {
+  assert.ok(L.LIVE_EXERCISES.includes('rdl') && L.LIVE_EXERCISES.includes('bss'));
+  // Wrong angle for the lift: front-on squat frames while coaching a deadlift.
+  const e = L.createEngine({ exercise: 'deadlift' });
+  const sim = M.simulate('squat', { view: 'front', reps: 2, fps: 30 });
+  const evs = [];
+  evs.push(...e.push({ t: 0, lm: null }));
+  for (const f of sim.frames) evs.push(...e.push({ t: f.t + 0.5, lm: f.lm }));
+  const setup = evs.filter((x) => x.type === 'setup');
+  assert.equal(setup[0].id, 'none');
+  assert.equal(setup[setup.length - 1].id, 'angle');
+  assert.equal(e.setup.ok, false);
+  // A good side-on RDL passes the setup check once and counts its reps.
+  const r = L.createEngine({ exercise: 'rdl' });
+  const rs = M.simulate('rdl', { reps: 3, fps: 30 });
+  const out = [];
+  for (const f of rs.frames) out.push(...r.push(f));
+  assert.deepEqual(out.filter((x) => x.type === 'setup').map((x) => x.id), ['ok']);
+  assert.equal(out.filter((x) => x.type === 'rep').length, 3);
+});

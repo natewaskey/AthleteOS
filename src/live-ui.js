@@ -242,13 +242,19 @@
     const { i, b } = items[idx];
     const prog = a.progress[i.id] || { sets: [] };
     const done = prog.sets.filter((s) => s.done).length;
-    const kg = C.resolveLoadKg(i, athlete);
+    const sug = root.Autoreg ? root.Autoreg.suggestLoad(ctx.state(), athlete, i, a.date) : null;
+    const kg = sug ? sug.kg : C.resolveLoadKg(i, athlete);
     const unit = ctx.units() === 'metric' ? 'kg' : 'lb';
     const step = unit === 'kg' ? 2.5 : 5;
     const plannedW = kg ? Math.round(C.kgToDisplay(kg, ctx.units()) / step) * step : null;
     const lastW = prog.sets.filter((s) => s.weightKg).slice(-1)[0];
     const workW = lastW ? Math.round(C.kgToDisplay(lastW.weightKg, ctx.units()) / step) * step : plannedW;
     const barbell = P.meta(i.name).equipment.includes('barbell');
+    const lib = C.libraryEntry(i.name);
+    const LC = root.LiveCoach;
+    const liveEx = lib && lib.form && LC && LC.openSet && LC.LIVE_EXERCISES.includes(lib.form) && i.measure === 'reps' && ctx.role() === 'athlete' ? lib.form : null;
+    const liveSet = Array.from({ length: i.sets }, (_, k) => k).find((k) => !prog.sets[k]?.done) ?? -1;
+    const lastLive = [...prog.sets].reverse().find((x) => x && x.live);
     el.innerHTML = `<div class="focus-top"><button class="btn btn-sm" data-live="close-focus">✕ Exit</button><span class="muted small">${idx + 1} / ${items.length} · ${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</span></div>
       <div class="focus-body">
         <h2>${i.group ? `<span class="item-num">${esc(i.group)}</span> ` : ''}${esc(i.name)}</h2>
@@ -258,10 +264,22 @@
         ${barbell && workW ? plateHTML(workW) : ''}
         <div class="focus-sets">${Array.from({ length: i.sets }, (_, k) => `<button class="focus-set" data-live="set" data-set="${k}" aria-pressed="${!!prog.sets[k]?.done}">${prog.sets[k]?.done ? '✓' : k + 1}</button>`).join('')}</div>
         <p class="small muted">${done}/${i.sets} sets done${i.restSec ? ` · rest ${Math.round(i.restSec / 60 * 10) / 10} min between sets` : ''}</p>
+        ${liveEx && liveSet >= 0 ? `<button class="btn btn-primary" data-live="coach-set" data-set="${liveSet}">🎥 Coach me live · set ${liveSet + 1}</button><p class="small muted" style="margin:.35rem 0 0">Prop your phone up. It counts your reps, cues your form out loud and logs the set.</p>` : ''}
+        ${lastLive ? `<p class="small" style="margin:.5rem 0 0">Last live set: <strong>${lastLive.reps} reps</strong>${lastLive.live.score != null ? ` · form ${lastLive.live.score}` : ''}${lastLive.live.speed ? ` · best ${lastLive.live.speed} m/s${lastLive.live.loss != null ? `, ${Math.round(lastLive.live.loss * 100)}% slower by the end` : ''}` : ''}${lastLive.live.issue ? ` · work on ${esc(lastLive.live.issue.toLowerCase())}` : ' · clean reps 💪'}</p>` : ''}
+        ${liveEx && root.Autoreg ? `<p class="small muted" style="margin:.35rem 0 0">Speed cut-off: end the set when reps slow ${Math.round(root.Autoreg.stopLoss(i, b.type) * 100)}% from your fastest.${e1rmLine(i.name)}</p>` : ''}
         ${i.measure === 'sec' ? `<button class="btn" data-live="intervals">⏱ Start interval timer (${i.sets} × ${i.amount}s${i.restSec ? ` / ${i.restSec}s rest` : ''})</button>` : ''}
         <div class="row" style="justify-content:center;gap:.5rem;margin-top:.5rem"><button class="btn btn-sm btn-ghost" data-live="howto">ⓘ How to</button></div>
       </div>
       <div class="focus-nav"><button class="btn" data-live="prev" ${idx === 0 ? 'disabled' : ''}>‹ Prev</button><button class="btn btn-primary" data-live="next">${idx === items.length - 1 ? 'Finish ✓' : 'Next ›'}</button></div>`;
+  }
+
+  // Estimated 1RM from bar speed (camera or imported), when there are enough loads to fit a line.
+  function e1rmLine(name) {
+    const Sci = root.Science;
+    const prof = Sci && focus ? Sci.vbtProfile(focus.athlete, name, C.toISODate(new Date())) : null;
+    if (!prof || !prof.e1rm) return '';
+    const unit = ctx.units() === 'metric' ? 'kg' : 'lb';
+    return ` Bar-speed 1RM estimate: <strong>${Math.round(C.kgToDisplay(prof.e1rm, ctx.units()))} ${unit}</strong>.`;
   }
 
   function closeFocus() {
@@ -309,6 +327,34 @@
       }
       case 'intervals':
         return startIntervals({ rounds: i.sets, work: i.amount, rest: i.restSec, label: i.name });
+      case 'coach-set': {
+        const lib = C.libraryEntry(i.name);
+        const k = +el.dataset.set;
+        const a = focus.assignment, athlete = focus.athlete, item = i;
+        const AR = root.Autoreg;
+        const stopAt = AR ? AR.stopLoss(i, focus.items[focus.idx].b.type) : null;
+        return root.LiveCoach.openSet({
+          exercise: lib.form,
+          title: `${i.name} · set ${k + 1} of ${i.sets}`,
+          stopAt,
+          onDone: (res) => {
+            if (!focus || focus.assignment !== a) return;
+            if (!res.reps) return ctx.toast('No full reps were counted, so the set wasn’t logged.');
+            if (!a.startedAt) a.startedAt = Date.now();
+            const p = (a.progress[item.id] = a.progress[item.id] || { sets: [], note: '' });
+            const prev = p.sets[k] || {};
+            const weightKg = prev.weightKg ?? C.resolveLoadKg(item, athlete);
+            const speed = AR ? AR.toMs(res.bestVelocity, athlete) : null;
+            p.sets[k] = { ...prev, reps: res.reps, weightKg, done: true, live: { score: res.avgScore, good: res.good, issue: res.topIssue ? res.topIssue.label : null, analysisId: res.analysis ? res.analysis.id : null, speed, loss: res.speedLoss != null ? Math.round(res.speedLoss * 100) / 100 : null } };
+            // The set's fastest rep becomes a bar-speed point for the load-velocity profile.
+            if (AR && weightKg) AR.logCameraSpeed(athlete, { exercise: item.name, loadKg: weightKg, bestLegsPerSec: res.bestVelocity, date: a.date });
+            ctx.save();
+            ctx.toast(`Logged ${res.reps} reps${res.avgScore != null ? ` · form ${res.avgScore}` : ''}${speed ? ` · best ${speed} m/s` : ''}${res.stoppedAt ? ` · speed cut-off hit on rep ${res.stoppedAt}` : ''}`);
+            if (item.restSec && k < item.sets - 1 && root.PlanUI.startRest) root.PlanUI.startRest(item.restSec, item.name);
+            drawFocus();
+          },
+        });
+      }
       case 'howto':
         return openHowTo(i.name);
     }

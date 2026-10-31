@@ -59,9 +59,28 @@
    * generateProgram(input, { fallbacks, onProgress, signal }) -> program (Program.normalizeProgram shape)
    * Streams a structured-output response and validates it into a program.
    */
-  async function generateProgram(input, { fallbacks = true, onProgress = () => {}, signal } = {}) {
+  async function generateProgram(input, opts = {}) {
+    const { system, user } = root.Program.buildAIRequest(input);
+    return programRequest(system, user, opts);
+  }
+
+  /*
+   * editProgram(program, request, { context, ...opts }) -> revised program, same id
+   * Claude rewrites the program to match a plain-language change request.
+   */
+  async function editProgram(program, request, { context = [], ...opts } = {}) {
     const P = root.Program;
-    const { system, user } = P.buildAIRequest(input);
+    const system = `${P.AI_SYSTEM}\n\nYou are revising an existing program. Make the change the athlete or coach asks for and keep everything else the same: same sessions, days, exercises and prescriptions unless the request needs them changed. Use exercise names from the library when you can. Put a one-sentence summary of what you changed at the start of the description.`;
+    const lib = Object.entries(root.Core.BLOCK_TYPES).map(([k, v]) => `${v.label} (${k}): ${root.Core.EXERCISE_LIBRARY.filter((x) => x.block === k).map((x) => x.name).join(', ')}`).join('\n');
+    const user = ['Current program (JSON):', root.ProgramEdit.toText(program), ...context, '', 'Change requested:', String(request).slice(0, 2000), '', 'Exercise library by block:', lib].join('\n');
+    const out = await programRequest(system, user, opts);
+    out.id = program.id;
+    out.createdAt = program.createdAt;
+    return out;
+  }
+
+  async function programRequest(system, user, { fallbacks = true, onProgress = () => {}, signal } = {}) {
+    const P = root.Program;
     const anthropic = await client();
     const Anthropic = anthropic.constructor;
     const params = {
@@ -156,5 +175,5 @@
     }
   }
 
-  root.AI = { getKey, setKey, hasKey, generateProgram, chat, estimateMeal, MODEL };
+  root.AI = { getKey, setKey, hasKey, generateProgram, editProgram, chat, estimateMeal, MODEL };
 })(window);

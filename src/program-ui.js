@@ -9,6 +9,7 @@
   let ctx, C, P;
   let form = null; // last generator inputs
   let preview = null; // program being previewed (not yet saved) or an opened saved one
+  let talk = null; // last change made by describing it: { before, changes, unknown, by }
   let previewWeek = 0;
   let busy = null; // AbortController while generating
 
@@ -19,16 +20,40 @@
   const programs = () => ctx.state().programs;
   const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  // What the app already knows about the athlete building a program (null for coaches).
+  function athleteData() {
+    const me = ctx.role() === 'athlete' ? ctx.me() : null;
+    return me && root.AthleteContext ? root.AthleteContext.build(ctx.state(), me, today()) : null;
+  }
+
   function defaults() {
     const me = ctx.role() === 'athlete' ? ctx.me() : null;
-    return {
+    const known = athleteData();
+    const base = {
       // The athlete's main goal sets the starting goal, focus areas and season phase.
       ...((me && me.focus && root.Goals && root.Goals.programDefaults(me.focus)) || { goal: 'general', focus: [], phase: 'general' }),
       sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4,
       equipment: ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'cones', 'kettlebell'], avoidAreas: [], restrictions: [], request: '', engine: 'builtin',
       // An athlete's own jump force-velocity profile steers the program unless they change it.
       fv: (me && root.FV && root.FV.bias(me, today())) || '',
+      useData: true,
     };
+    // Injuries, restrictions and screen priorities start ticked.
+    if (known) {
+      base.avoidAreas = [...new Set([...base.avoidAreas, ...known.avoidAreas])];
+      base.restrictions = [...new Set([...base.restrictions, ...known.restrictions])];
+      base.focus = [...new Set([...base.focus, ...known.focus.filter((k) => P.FOCUS[k])])];
+    }
+    return base;
+  }
+
+  function knownHTML(f) {
+    const known = athleteData();
+    if (!known || !known.facts.length) return '';
+    const ICON = { profile: '🧍', strength: '🏋️', screen: '🧭', form: '📐', injury: '🩹', training: '📅' };
+    return `<fieldset><legend>What the builder knows about you</legend>
+      <ul class="known-list">${known.facts.map((x) => `<li><span aria-hidden="true">${ICON[x.kind] || '•'}</span> ${esc(x.text)}</li>`).join('')}</ul>
+      <label class="check"><input type="checkbox" name="useData" ${f.useData !== false ? 'checked' : ''}/> <span>Build around this (Claude reads all of it; injuries and screen priorities are ticked below)</span></label></fieldset>`;
   }
 
   // ---------- list ----------
@@ -57,8 +82,37 @@
             </article>`
               )
               .join('')}</div>`
-          : `<div class="card empty">No programs yet. <button class="btn btn-primary" data-prog-action="new">✨ Generate one</button></div>`
-      }`;
+          : `<div class="card empty">No programs yet. <button class="btn btn-primary" data-prog-action="new">✨ Generate one</button> or start from a template below.</div>`
+      }
+      ${coach ? teamHTML() : ''}
+      <h2 class="section-title" style="margin-top:1.25rem">Start from a template</h2>
+      <p class="muted small" style="margin-top:0">Built for ${coach ? 'your team' : 'you'}: exercises adapt to ${coach ? 'the equipment and limits you set' : 'your sport and any injuries'}. Edit anything after.</p>
+      <div class="analysis-grid">${P.TEMPLATES.map((t) => `<article class="card template-card">
+          <div class="row" style="flex-wrap:nowrap"><div class="sport-dot" aria-hidden="true">${t.icon}</div><div class="main" style="min-width:0"><strong>${esc(t.name)}</strong></div></div>
+          <p class="small" style="margin:.5rem 0 0">${esc(t.blurb)}</p>
+          <div class="row" style="margin-top:auto;padding-top:.6rem"><button class="btn btn-sm" data-prog-action="template" data-id="${t.id}">Preview</button></div>
+        </article>`).join('')}</div>`;
+  }
+
+  // Coach view: who is on which program, what week they're in, and who is falling behind.
+  function teamHTML() {
+    const st = ctx.state();
+    const rows = programs()
+      .map((p) => ({ p, list: P.programProgress(st, p.id, today()).filter((r) => ctx.athleteById(r.athleteId)) }))
+      .filter((x) => x.list.length);
+    if (!rows.length) return '';
+    const status = (r) => (r.finished ? ['done', 'Finished'] : r.missedInRow >= 2 ? ['bad', `Missed last ${r.missedInRow}`] : r.pct != null && r.pct < 70 ? ['warn', 'Falling behind'] : ['good', 'On track']);
+    return `<section class="card" style="margin-top:1rem">
+      <h3>Team on programs</h3>
+      ${rows.map(({ p, list }) => `<div class="team-prog">
+        <div class="row"><strong>${esc(p.name)}</strong><span class="muted small">${p.weeks} weeks${p.cycle ? ` · ${p.cycle.map((b) => P.CYCLE_KINDS[b.kind].short).join(' → ')}` : ''}${p.peakDate ? ` · peaks ${esc(ctx.fmtDate(p.peakDate, { month: 'short', day: 'numeric' }))}` : ''}</span><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-prog-open="${p.id}">Open</button></div>
+        <table class="team-table"><thead><tr><th>Athlete</th><th>Week</th><th>Done</th><th>Next</th><th>Status</th></tr></thead><tbody>
+        ${list.sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101)).map((r) => {
+          const [cls, label] = status(r);
+          const blk = p.cycle ? P.CYCLE_KINDS[P.cycleWeek(p.cycle, r.week - 1).kind].short : '';
+          return `<tr><td>${esc(ctx.athleteById(r.athleteId).name)}</td><td>${r.week}/${r.weeks}${blk ? ` <span class="muted">${blk}</span>` : ''}</td><td>${r.done}/${r.due}${r.pct != null ? ` <span class="muted">(${r.pct}%)</span>` : ''}</td><td>${r.next ? esc(ctx.fmtDate(r.next, { weekday: 'short', month: 'short', day: 'numeric' })) : '—'}</td><td><span class="pill ${cls}">${label}</span></td></tr>`;
+        }).join('')}</tbody></table></div>`).join('')}
+    </section>`;
   }
 
   // ---------- generator form ----------
@@ -76,17 +130,19 @@
           <label>Experience <select name="experience">${['beginner', 'intermediate', 'advanced'].map((x) => `<option ${x === f.experience ? 'selected' : ''} value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></label>
           <label>Days per week <select name="daysPerWeek">${[1, 2, 3, 4, 5, 6].map((n) => `<option ${n === +f.daysPerWeek ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Minutes per session <select name="minutes">${[30, 45, 60, 75, 90, 120].map((n) => `<option ${n === +f.minutes ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-          <label>Length <select name="weeks">${[2, 3, 4, 6, 8, 10, 12].map((n) => `<option value="${n}" ${n === +f.weeks ? 'selected' : ''}>${n} weeks</option>`).join('')}</select></label>
+          <label>Length <select name="weeks">${[2, 3, 4, 6, 8, 10, 12, 16].map((n) => `<option value="${n}" ${n === +f.weeks ? 'selected' : ''}>${n} weeks</option>`).join('')}</select></label>
           <label>Season phase <select name="phase">${Object.entries(P.PHASES).map(([k, v]) => `<option value="${k}" ${k === f.phase ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+          <label>Peak for a date <input type="date" name="peakDate" value="${esc(f.peakDate || '')}" min="${today()}"/><small class="muted">Optional. Sets the length and ends with a peak and taper.</small></label>
           <label>Force-velocity emphasis <select name="fv">${[['', 'Balanced'], ['force', 'Force deficit: heavier strength'], ['velocity', 'Velocity deficit: faster, lighter work']].map(([k, v]) => `<option value="${k}" ${k === (f.fv || '') ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         </div>
         ${fvHint()}
+        ${knownHTML(f)}
         <fieldset><legend>Equipment available</legend><div class="row">${Object.entries(P.EQUIPMENT).filter(([k]) => !['none', 'field'].includes(k)).map(([k, v]) => chip('equipment', k, v, f.equipment.includes(k))).join('')}</div>
           <p class="hint" style="margin:.4rem 0 0">Bodyweight and open space (a field or park) are always assumed.</p></fieldset>
         <fieldset><legend>Extra focus</legend><div class="row">${Object.entries(P.FOCUS).map(([k, v]) => chip('focus', k, v, f.focus.includes(k))).join('')}</div></fieldset>
         <fieldset><legend>Injuries or areas to protect</legend>
-          <div class="row">${['knee-l', 'knee-r', 'shoulder-l', 'shoulder-r', 'lower-back', 'hamstring-l', 'hamstring-r', 'ankle-l', 'ankle-r', 'hips', 'wrist-l', 'wrist-r'].map((a) => chip('avoidAreas', a, C.BODY_AREA_LABEL[a].replace(' / Achilles', ''), f.avoidAreas.includes(a))).join('')}</div>
-          <div class="row" style="margin-top:.5rem">${['no-jumping', 'no-running', 'no-overhead', 'no-lower-load', 'no-upper-load'].map((r) => chip('restrictions', r, P.RESTRICTIONS[r].label, f.restrictions.includes(r))).join('')}</div>
+          <div class="row">${[...new Set(['knee-l', 'knee-r', 'shoulder-l', 'shoulder-r', 'lower-back', 'hamstring-l', 'hamstring-r', 'ankle-l', 'ankle-r', 'hips', 'wrist-l', 'wrist-r', ...f.avoidAreas.filter((a) => C.BODY_AREA_LABEL[a])])].map((a) => chip('avoidAreas', a, C.BODY_AREA_LABEL[a].replace(' / Achilles', ''), f.avoidAreas.includes(a))).join('')}</div>
+          <div class="row" style="margin-top:.5rem">${[...new Set(['no-jumping', 'no-running', 'no-overhead', 'no-lower-load', 'no-upper-load', ...f.restrictions.filter((r) => P.RESTRICTIONS[r])])].map((r) => chip('restrictions', r, P.RESTRICTIONS[r].label, f.restrictions.includes(r))).join('')}</div>
         </fieldset>
         <label>Tell us exactly what you want <textarea name="request" rows="3" maxlength="2000" placeholder="e.g. I’m a sophomore wide receiver. I want a faster 40 and a higher vertical before summer camp. Left knee gets sore after jumping. I train at school Mon/Wed/Fri and at home on weekends with dumbbells.">${esc(f.request)}</textarea></label>
         <fieldset><legend>How to build it</legend>
@@ -113,6 +169,8 @@
       goal: fd.get('goal'), sport: fd.get('sport'), experience: fd.get('experience'), daysPerWeek: +fd.get('daysPerWeek'), minutes: +fd.get('minutes'), weeks: +fd.get('weeks'), phase: fd.get('phase'),
       equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin', fv: fd.get('fv') || '',
       position: ctx.role() === 'athlete' ? ctx.me().position : '',
+      useData: fd.get('useData') === 'on',
+      peakDate: String(fd.get('peakDate') || ''),
     };
   }
 
@@ -127,6 +185,8 @@
       previewWeek = 0;
       return ctx.go('plan', 'program:preview');
     }
+    const known = form.useData ? athleteData() : null;
+    if (known && root.AthleteContext) form.context = root.AthleteContext.lines(known);
     prog.hidden = false;
     btn.disabled = true;
     busy = new AbortController();
@@ -139,6 +199,12 @@
           if (s) s.textContent = `Claude is writing your program… ${Math.round(n / 100) / 10}k characters`;
         },
       });
+      // Claude writes week 1; the block structure and peak date are applied on top.
+      if (form.peakDate && form.peakDate > today()) {
+        program.peakDate = form.peakDate;
+        program.cycle = P.periodize(program.weeks, { peak: true });
+      } else if (program.weeks >= 6 && !['in', 'rehab'].includes(program.phase)) program.cycle = P.periodize(program.weeks);
+      program.equipment = form.equipment;
       preview = program;
       previewWeek = 0;
       busy = null;
@@ -172,19 +238,25 @@
         </div>
       </div>
       ${p.description ? `<div class="cue coach"><div>${esc(p.description)}</div></div>` : ''}
+      ${talkHTML()}
       <section class="card" style="margin-bottom:1rem">
         <h3>Progression</h3>
         <div class="grid-3">
           <label>% of 1RM added per week <input type="number" step="0.5" min="0" max="10" data-prog-field="pctPerWeek" value="${prog.pctPerWeek}"/></label>
           <label>${lb ? 'lb' : 'kg'} added per week (fixed loads) <input type="number" step="0.5" min="0" max="40" data-prog-field="kgPerWeek" value="${kgStep}"/></label>
-          <label>Deload every <select data-prog-field="deloadEvery">${[0, 3, 4, 5, 6].map((n) => `<option value="${n}" ${n === prog.deloadEvery ? 'selected' : ''}>${n ? `${n}th week` : 'Never'}</option>`).join('')}</select></label>
+          ${p.cycle ? '' : `<label>Deload every <select data-prog-field="deloadEvery">${[0, 3, 4, 5, 6].map((n) => `<option value="${n}" ${n === prog.deloadEvery ? 'selected' : ''}>${n ? `${n}th week` : 'Never'}</option>`).join('')}</select></label>`}
         </div>
+        <div class="grid-3" style="margin-top:.5rem">
+          <label>Structure <select data-prog-field="structure"><option value="flat" ${p.cycle ? '' : 'selected'}>Same week, repeated</option><option value="blocks" ${p.cycle ? 'selected' : ''}>Training blocks</option></select></label>
+          <label>Peak for a date <input type="date" data-prog-field="peakDate" value="${esc(p.peakDate || '')}" min="${today()}"/></label>
+        </div>
+        ${cycleHTML(p, w)}
       </section>
-      <div class="week-tabs" role="tablist">${Array.from({ length: p.weeks }, (_, i) => `<button role="tab" data-prog-week="${i}" aria-selected="${i === w}">W${i + 1}${P.isDeload(i, prog) ? ' ↓' : ''}</button>`).join('')}</div>
-      <p class="muted small">${P.isDeload(w, prog) ? 'Deload week: about 15% lighter with fewer sets to recover and absorb the training.' : w ? `Loads progressed ${P.stepsAt(w, prog)} step${P.stepsAt(w, prog) === 1 ? '' : 's'} from week 1.` : 'Week 1 starting loads.'}</p>
+      <div class="week-tabs" role="tablist">${Array.from({ length: p.weeks }, (_, i) => `<button role="tab" data-prog-week="${i}" aria-selected="${i === w}">W${i + 1}${P.weekIsDeload(i, prog, p.cycle) ? ' ↓' : ''}</button>`).join('')}</div>
+      <p class="muted small">${weekNote(p, w)}</p>
       <div class="program-week">${p.sessions
         .map((s, si) => {
-          const plan = P.progressPlan(s.plan, w, prog);
+          const plan = P.progressPlan(s.plan, w, prog, p.cycle, { equipment: p.equipment });
           return `<section class="card program-session">
             <div class="card-head"><h3>${DAY[s.day]} · ${esc(s.plan.name)}</h3><span class="muted small">${C.estimateMinutes(plan)} min</span></div>
             ${plan.blocks
@@ -204,6 +276,78 @@
         .join('')}</div>`;
   }
 
+  // The block bar: one segment per training block, sized by its weeks.
+  function cycleHTML(p, w) {
+    if (!p.cycle) return '';
+    const at = P.cycleWeek(p.cycle, w);
+    return `<div class="cycle-bar" role="list" aria-label="Training blocks">${p.cycle.map((b, k) => `<div role="listitem" class="cycle-seg ${b.kind} ${k === at.block ? 'on' : ''}" style="flex:${b.weeks}" title="${esc(P.CYCLE_KINDS[b.kind].why)}"><strong>${esc(P.CYCLE_KINDS[b.kind].label)}</strong><span>${b.weeks} wk</span></div>`).join('')}</div>
+      ${p.peakDate ? `<p class="small muted" style="margin:.4rem 0 0">🎯 Peaks for ${esc(ctx.fmtDate(p.peakDate))}. Start it the week of ${esc(ctx.fmtDate(peakStart(p)))} to land the taper on time.</p>` : ''}`;
+  }
+
+  function weekNote(p, w) {
+    const prog = p.progression;
+    if (p.cycle) {
+      const cw = P.cycleWeek(p.cycle, w);
+      const k = P.CYCLE_KINDS[cw.kind];
+      return `${k.label} block, week ${cw.week + 1} of ${cw.weeks}. ${cw.deload ? 'Deload week: about 15% lighter with fewer sets.' : k.why}${cw.block && cw.week === 0 ? ' New block: accessory lifts switch to a variation.' : ''}`;
+    }
+    return P.isDeload(w, prog) ? 'Deload week: about 15% lighter with fewer sets to recover and absorb the training.' : w ? `Loads progressed ${P.stepsAt(w, prog)} step${P.stepsAt(w, prog) === 1 ? '' : 's'} from week 1.` : 'Week 1 starting loads.';
+  }
+
+  // Monday to start on so the last week of the program contains the peak date.
+  const peakStart = (p) => C.addDays(C.startOfWeek(p.peakDate), -7 * (p.weeks - 1));
+
+  // Change the program by describing it. Common edits run instantly; anything else goes to Claude.
+  function talkHTML() {
+    const hasAI = root.AI && root.AI.hasKey();
+    const E = root.ProgramEdit;
+    if (!E) return '';
+    return `<section class="card talk-edit" style="margin-bottom:1rem">
+      <h3>💬 Change it by describing it</h3>
+      <form id="talk-form" class="row" style="flex-wrap:nowrap">
+        <input name="talk" style="flex:1;min-width:0" maxlength="500" placeholder="e.g. swap bench for dumbbell bench, add a set to squats, no jumping" aria-label="Describe a change"/>
+        <button class="btn btn-primary" type="submit">Apply</button>
+      </form>
+      <div class="row talk-examples" style="margin-top:.4rem">${E.EXAMPLES.slice(0, 5).map((x) => `<button type="button" class="chip" data-prog-action="talk-example" data-text="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <p class="hint" style="margin:.4rem 0 0">${hasAI ? 'Simple edits apply instantly. Anything else, Claude rewrites the program for you.' : 'Handles swaps, adding or removing exercises, sets, loads, days, length and session time. Add a Claude key in Settings for anything else.'}</p>
+      <div id="talk-progress" hidden><div class="progress"><i class="indeterminate"></i></div><p class="small muted">Claude is revising your program…</p></div>
+      ${talk ? `<div class="talk-result cue ${talk.changes.length ? 'coach' : 'warn'}"><div>
+        ${talk.changes.length ? `<strong>${talk.by === 'claude' ? '✨ Claude changed:' : 'Changed:'}</strong><ul>${talk.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+        ${talk.unknown.length ? `<p class="small" style="margin:.3rem 0 0">I didn’t understand: ${talk.unknown.map((u) => `“${esc(u)}”`).join(', ')}. Try wording like “${esc(E.EXAMPLES[Math.floor(Math.random() * E.EXAMPLES.length)])}”.</p>` : ''}
+        ${talk.changes.length ? `<div class="row" style="margin-top:.4rem"><button class="btn btn-sm" data-prog-action="talk-keep">Keep</button><button class="btn btn-sm btn-ghost" data-prog-action="talk-undo">↶ Undo</button></div>` : ''}
+      </div></div>` : ''}
+    </section>`;
+  }
+
+  async function runTalk(el) {
+    const text = String(new FormData(el).get('talk') || '').trim();
+    if (!text || !preview) return;
+    const E = root.ProgramEdit;
+    const before = JSON.parse(JSON.stringify(preview));
+    const equipment = form ? form.equipment : null;
+    const local = E.apply(preview, text, { equipment });
+    if (local.unknown.length && root.AI && root.AI.hasKey()) {
+      const prog = $('#talk-progress');
+      if (prog) prog.hidden = false;
+      el.querySelector('[type=submit]').disabled = true;
+      try {
+        const known = athleteData();
+        const revised = await root.AI.editProgram(preview, text, { context: known && root.AthleteContext ? root.AthleteContext.lines(known) : [], fallbacks: ctx.state().ai.fallbacks !== false });
+        revised.meta = preview.meta || null;
+        preview = revised;
+        talk = { before, changes: E.diff(before, revised), unknown: [], by: 'claude' };
+      } catch (err) {
+        if (prog) prog.hidden = true;
+        el.querySelector('[type=submit]').disabled = false;
+        return ctx.toast(err.message || 'Claude couldn’t make that change');
+      }
+    } else {
+      if (local.changes.length) preview = { ...local.program, meta: preview.meta || null, source: preview.source };
+      talk = { before, changes: local.changes, unknown: local.unknown, by: 'builtin' };
+    }
+    rerender();
+  }
+
   function view(id) {
     if (id === 'programs') return listHTML();
     if (id === 'program:new') return formHTML();
@@ -211,7 +355,7 @@
     if (id && id.startsWith('program:')) {
       const p = programs().find((x) => x.id === id.slice(8));
       if (!p) return `<div class="card empty">Program not found. <button class="btn" data-prog-action="back">Back</button></div>`;
-      if (!preview || preview.id !== p.id) (preview = JSON.parse(JSON.stringify(p))), (previewWeek = 0);
+      if (!preview || preview.id !== p.id) (preview = JSON.parse(JSON.stringify(p))), (previewWeek = 0), (talk = null);
       return programHTML(preview, true);
     }
     return listHTML();
@@ -237,7 +381,7 @@
   let dialog = null;
   async function openAssign(p) {
     if (ctx.role() === 'athlete') {
-      const start = await Dialogs.prompt('When do you want to start?', { title: 'Add to my plan', type: 'date', value: today(), ok: 'Add sessions', required: true });
+      const start = await Dialogs.prompt('When do you want to start?', { title: 'Add to my plan', type: 'date', value: p.peakDate && peakStart(p) >= today() ? peakStart(p) : today(), ok: 'Add sessions', required: true });
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
@@ -265,7 +409,7 @@
       <p class="muted small">${p.weeks} weeks × ${p.sessions.length} sessions, progressed automatically each week.</p>
       ${groups.length ? `<div class="row" style="margin-bottom:.5rem">${groups.map((g) => `<button type="button" class="chip" data-pick-group="${esc(g)}">+ ${esc(g)}</button>`).join('')}</div>` : ''}
       <div class="athlete-pick">${athletes.map((a) => `<label class="check"><input type="checkbox" name="athlete" value="${a.id}"/> ${esc(ctx.athleteName(a))}${a.groups.length ? ` <span class="muted small">· ${esc(a.groups.join(', '))}</span>` : ''}</label>`).join('')}</div>
-      <label style="margin-top:.75rem">Start date <input type="date" name="start" value="${C.addDays(C.startOfWeek(today()), 7)}" required/></label>
+      <label style="margin-top:.75rem">Start date <input type="date" name="start" value="${p.peakDate && peakStart(p) >= today() ? peakStart(p) : C.addDays(C.startOfWeek(today()), 7)}" required/></label>
       <label>Note to athletes <input name="note" maxlength="300" placeholder="e.g. Summer strength block"/></label>
       <label class="check"><input type="checkbox" name="notify" checked/> Message athletes about it</label>
       ${asymCount ? `<label class="check"><input type="checkbox" name="asym" checked/> Add a weak-side set for athletes with a left/right gap <span class="muted small">(${asymCount} on the team)</span></label>` : ''}
@@ -313,9 +457,19 @@
         return ctx.go('plan', 'program:new');
       case 'back':
         preview = null;
+        talk = null;
         return ctx.go('plan', 'programs');
       case 'back-form':
         return ctx.go('plan', 'program:new');
+      case 'template': {
+        const me = ctx.role() === 'athlete' ? ctx.me() : null;
+        const known = athleteData();
+        preview = P.fromTemplate(el.dataset.id, { sport: me ? me.sport : 'other', avoidAreas: known ? known.avoidAreas : [], restrictions: known ? known.restrictions : [] });
+        previewWeek = 0;
+        talk = null;
+        form = null;
+        return ctx.go('plan', 'program:preview');
+      }
       case 'builtin-instead': {
         const f = $('#gen-form');
         if (f) f.querySelector('input[name=engine][value=builtin]').checked = true;
@@ -347,6 +501,18 @@
         ctx.save();
         return ctx.render();
       }
+      case 'talk-example': {
+        const input = $('#talk-form [name=talk]');
+        if (input) (input.value = el.dataset.text), input.focus();
+        return;
+      }
+      case 'talk-keep':
+        talk = null;
+        return rerender();
+      case 'talk-undo':
+        if (talk) preview = talk.before;
+        talk = null;
+        return rerender();
       case 'drop-session':
         preview.sessions.splice(+el.dataset.si, 1);
         return rerender();
@@ -365,7 +531,18 @@
     if (el.dataset.progField) {
       const f = el.dataset.progField;
       if (f === 'name') preview.name = el.value;
-      else {
+      else if (f === 'structure' || f === 'peakDate') {
+        if (e.type !== 'change') return;
+        if (f === 'peakDate') {
+          preview.peakDate = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : null;
+          // A peak date sets the length: from next Monday through the week of the date.
+          if (preview.peakDate) preview.weeks = Math.max(2, Math.min(16, Math.floor(Math.max(0, C.daysBetween(C.addDays(C.startOfWeek(today()), 7), preview.peakDate)) / 7) + 1));
+        }
+        const blocks = f === 'structure' ? el.value === 'blocks' : !!preview.cycle || !!preview.peakDate;
+        preview.cycle = blocks ? P.periodize(preview.weeks, { peak: !!preview.peakDate }) : null;
+        previewWeek = Math.min(previewWeek, preview.weeks - 1);
+        return rerender();
+      } else {
         let v = Number(el.value) || 0;
         if (f === 'kgPerWeek' && ctx.units() !== 'metric') v *= 0.45359237;
         preview.progression = P.normalizeProgression({ ...preview.progression, [f]: v });
@@ -380,6 +557,10 @@
   }
 
   function onSubmit(e) {
+    if (e.target.id === 'talk-form') {
+      e.preventDefault();
+      return runTalk(e.target);
+    }
     if (e.target.id !== 'gen-form') return;
     e.preventDefault();
     generate(e.target);

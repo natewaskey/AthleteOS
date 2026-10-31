@@ -1666,6 +1666,15 @@ i.mg-dot { display: inline-block; width: 10px; height: 10px; padding: 0; margin-
 .live-log { max-height: 160px; overflow-y: auto; padding-left: 1.2rem; margin: 0.6rem 0 0; }
 .live-log li.bad { color: var(--bad); } .live-log li.warn { color: var(--warn, #d97706); } .live-log li.good { color: var(--good); }
 @media (max-width: 640px) { .live-stage { aspect-ratio: 3 / 4; width: 100%; } }
+#live-set {
+  position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; gap: 0.5rem; overflow-y: auto;
+  padding: calc(0.75rem + env(safe-area-inset-top)) 16px calc(0.75rem + env(safe-area-inset-bottom));
+}
+#live-set .live-stage { width: min(100%, calc(70vh * 16 / 9)); }
+.form-fix { text-align: left; margin: 0.5rem 0; }
+.pill.hold { background: color-mix(in srgb, var(--warn, #d97706) 18%, var(--surface)); }
+.pill.next-load.up { background: color-mix(in srgb, var(--good, #16a34a) 18%, var(--surface)); }
+.pill.next-load.down { background: color-mix(in srgb, var(--warn, #d97706) 18%, var(--surface)); }
 .profile-page .pill { white-space: nowrap; }
 /* keep visually hidden radios inside their labels so they never widen the page */
 .rate label, .seg-radio { position: relative; }
@@ -2189,3 +2198,23 @@ body.pro .stat { font-size: 1.6rem; }
 .rts-strength { gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap; }
 .rts-strength input { padding: 0.3rem 0.5rem; }
 .warn-t { color: var(--warn); }
+
+.known-list { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; gap: .3rem; font-size: .9rem; }
+.cue.warn { background: color-mix(in srgb, var(--warn, #d97706) 12%, var(--surface)); border-left: 3px solid var(--warn, #d97706); }
+.talk-examples { gap: .35rem; }
+.talk-result ul { margin: .3rem 0 0; padding-left: 1.1rem; }
+.cycle-bar { display: flex; gap: 3px; margin-top: .75rem; border-radius: 10px; overflow: hidden; }
+.cycle-seg { display: flex; flex-direction: column; padding: .4rem .5rem; font-size: .78rem; min-width: 0; background: var(--surface-2, color-mix(in srgb, var(--text) 8%, var(--surface))); opacity: .75; }
+.cycle-seg strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cycle-seg span { color: var(--muted); }
+.cycle-seg.on { opacity: 1; outline: 2px solid var(--accent); outline-offset: -2px; }
+.cycle-seg.accumulate { background: color-mix(in srgb, #3b82f6 22%, var(--surface)); }
+.cycle-seg.intensify { background: color-mix(in srgb, #f59e0b 24%, var(--surface)); }
+.cycle-seg.peak { background: color-mix(in srgb, #ef4444 24%, var(--surface)); }
+.cycle-seg.taper { background: color-mix(in srgb, #10b981 24%, var(--surface)); }
+.team-prog + .team-prog { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--border); }
+.team-table { width: 100%; border-collapse: collapse; margin-top: .4rem; font-size: .88rem; }
+.team-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; padding: .3rem .4rem; }
+.team-table td { padding: .4rem; border-top: 1px solid var(--border); vertical-align: top; }
+.pill.done { background: color-mix(in srgb, var(--muted) 16%, transparent); }
+@media (max-width: 560px) { .team-table th:nth-child(4), .team-table td:nth-child(4) { display: none; } }

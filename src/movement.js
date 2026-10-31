@@ -173,6 +173,94 @@
     return r < 0.38 ? 'side' : r > 0.55 ? 'front' : 'angled';
   }
 
+  // ---------- camera setup ----------
+
+  // Joints that must be in the picture, as [left, right] landmark pairs (the better-seen side counts).
+  const FRAME_PAIRS = { shoulders: [11, 12], hips: [23, 24], knees: [25, 26], ankles: [27, 28] };
+  const PRESSES = ['bench', 'pushup']; // wrists must be in frame too
+  const EDGE = 0.02;
+
+  /*
+   * framing(lm, aspect, { exercise }) -> { ok, id, text }
+   * One frame's check of the camera setup: whole body in frame, not too small, well lit.
+   * id: 'none' | 'feet' | 'head' | 'edge' | 'far' | 'light' | 'ok'
+   */
+  function framing(lm, aspect = 16 / 9, { exercise } = {}) {
+    if (!lm || lm.length < 33) return { ok: false, id: 'none', text: 'Step into the picture so the camera can see you.' };
+    const pairs = { ...FRAME_PAIRS, ...(PRESSES.includes(exercise) ? { wrists: [15, 16] } : {}) };
+    const best = {};
+    for (const [k, [a, b]] of Object.entries(pairs)) best[k] = (lm[a][3] ?? 1) >= (lm[b][3] ?? 1) ? lm[a] : lm[b];
+    const inside = (p) => p[0] >= EDGE && p[0] <= 1 - EDGE && p[1] >= EDGE && p[1] <= 1 - EDGE;
+    const seen = (p) => (p[3] ?? 1) >= VIS_MIN && inside(p);
+    const vis = Object.values(best).map((p) => p[3] ?? 1);
+    if (vis.every((v) => v < VIS_MIN)) return { ok: false, id: 'none', text: 'Step into the picture so the camera can see you.' };
+    if (!seen(best.ankles) || (best.ankles[1] > 1 - EDGE)) return { ok: false, id: 'feet', text: 'Your feet are cut off. Step back or tilt the phone down.' };
+    const nose = lm[0];
+    if (!seen(best.shoulders) || (nose && (nose[3] ?? 1) >= VIS_MIN && nose[1] < EDGE)) return { ok: false, id: 'head', text: 'Your head or shoulders are cut off. Step back or tilt the phone up.' };
+    const missing = Object.entries(best).filter(([, p]) => !seen(p)).map(([k]) => k);
+    if (missing.length) {
+      const offSide = missing.some((k) => best[k][0] < EDGE || best[k][0] > 1 - EDGE);
+      if (offSide) return { ok: false, id: 'edge', text: 'Move toward the middle of the picture.' };
+      if (missing.some((k) => best[k][1] < EDGE)) return { ok: false, id: 'head', text: 'Part of you goes out of the top of the picture. Step back or tilt the phone up.' };
+      return { ok: false, id: 'light', text: `The camera can’t see your ${missing.join(' and ')}. Add light, or wear clothes that stand out from the background.` };
+    }
+    const xs = Object.values(best).map((p) => p[0] * aspect), ys = Object.values(best).map((p) => p[1]);
+    if (nose && (nose[3] ?? 1) >= VIS_MIN) (xs.push(nose[0] * aspect), ys.push(nose[1]));
+    const size = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    if (size < 0.38) return { ok: false, id: 'far', text: 'You’re small in the picture. Move the phone a little closer.' };
+    if (vis.reduce((s, v) => s + v, 0) / vis.length < 0.6) return { ok: false, id: 'light', text: 'It’s hard to see you clearly. Add light or film against a plainer background.' };
+    return { ok: true, id: 'ok', text: 'Camera setup looks good.' };
+  }
+
+  // Camera angle advice for an exercise from a short window of frames, or null when it fits.
+  function angleAdvice(frames, aspect, exercise) {
+    const ex = EXERCISES[exercise];
+    const good = frames.filter((f) => f && f.lm && f.lm.length >= 33);
+    if (!ex || good.length < 5) return null;
+    const view = detectView(good, aspect);
+    if (ex.views.includes(view)) return null;
+    if (view === 'angled') return { id: 'angle', text: 'The camera is at an angle. Film straight side-on or straight from the front.' };
+    return ex.views[0] === 'side'
+      ? { id: 'angle', text: `Turn so your side faces the camera. ${ex.label} is checked from the side.` }
+      : { id: 'angle', text: `Face the camera. ${ex.label} is checked from the front.` };
+  }
+
+  // Exercises where the feet stay planted, so moving ankles mean a moving camera.
+  const PLANTED = ['squat', 'deadlift', 'rdl', 'bench', 'ohp', 'pushup', 'bss'];
+
+  /*
+   * recordingQuality(frames, aspect, exercise) -> { inFrame (0..1), shaky, issues: [{ id, text }] }
+   * How usable a recording is: how much of it had the whole body in frame, and whether the camera moved.
+   */
+  function recordingQuality(frames, aspect, exercise) {
+    const sample = frames.filter((_, i) => i % 3 === 0);
+    const results = sample.map((f) => framing(f && f.lm, aspect, { exercise }));
+    const ok = results.filter((r) => r.ok).length;
+    const inFrame = results.length ? ok / results.length : 0;
+    const issues = [];
+    if (inFrame < 0.8) {
+      const counts = {};
+      for (const r of results) if (!r.ok) counts[r.id] = (counts[r.id] || 0) + 1;
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      const text = results.find((r) => r.id === top[0]).text;
+      issues.push({ id: top[0], text: `Your whole body wasn’t clearly in frame for ${Math.round((1 - inFrame) * 100)}% of the video. ${text}` });
+    }
+    let shaky = false;
+    if (PLANTED.includes(exercise)) {
+      const good = frames.filter((f) => f && f.lm && f.lm.length >= 33);
+      if (good.length >= 10) {
+        const side = chooseSide(good);
+        const J = good.map((f) => joints(f, side, aspect));
+        const L = segmentLengths(good, side, aspect);
+        const xs = J.map((j) => (visible(j.an) ? j.an.x : null)), ys = J.map((j) => (visible(j.an) ? j.an.y : null));
+        const spread = Math.max(percentile(xs, 0.95) - percentile(xs, 0.05), percentile(ys, 0.95) - percentile(ys, 0.05)) / (L.leg || 1);
+        shaky = isFinite(spread) && spread > 0.25;
+        if (shaky) issues.push({ id: 'shake', text: 'The camera (or your feet) moved a lot. Prop the phone up so it stays still for more accurate numbers.' });
+      }
+    }
+    return { inFrame, shaky, issues };
+  }
+
   // +1 if the athlete faces screen-right, -1 if screen-left (from toe vs heel).
   function detectFacing(frames, side, aspect) {
     const d = median(
@@ -427,6 +515,65 @@
       },
     },
 
+    rdl: {
+      label: 'Romanian deadlift',
+      icon: '🏋️',
+      views: ['side'],
+      signalLabel: 'Hip angle',
+      keyLabel: 'Bottom of the hinge',
+      keyIs: 'min',
+      target: { value: 90, label: 'Hinge from the hips, knees soft' },
+      tips: 'Film side-on with the whole bar path visible, phone at hip height, about 3 m away.',
+      signal: (j) => (visible(j.sh, j.hip, j.kn) ? angle3(j.sh, j.hip, j.kn) : null),
+      evaluate(ctx, rep) {
+        const { L, facing } = ctx;
+        const k = ctx.J[rep.key];
+        const top = ctx.J[rep.end] || ctx.J[rep.start];
+        const out = [];
+        const knee = angle3(k.hip, k.kn, k.an);
+        out.push(check('knees', 'Soft, fixed knees', knee, grade(knee, [140, 178], [128, 180]), {
+          display: `${r0(knee)}° at the bottom`, target: 'Knees slightly bent (≈ 140–170°) and staying put', joint: 'kn', weight: 1.5,
+          cue: 'You’re bending your knees too much and turning it into a squat. Keep a soft knee bend and push your hips back instead.',
+          drill: 'Wall hip hinge: stand a foot from a wall and reach your hips back to touch it without bending the knees more.',
+        }));
+        const backAngle = 90 - fromVertical(k.hip, k.sh);
+        out.push(check('hinge', 'Hinge depth', backAngle, grade(backAngle, [-10, 45], [-10, 60]), {
+          display: `${r0(backAngle)}° above horizontal`, target: 'Torso within ≈ 45° of horizontal at the bottom', joint: 'sh', weight: 1.5,
+          cue: 'Hinge further: push your hips back until you feel a strong hamstring stretch, with the bar at or below your knees.',
+          drill: 'Dowel hip hinges (stick on your back touching head, upper back and tailbone).',
+        }));
+        const midfoot = visible(k.he, k.ft) ? mid(k.he, k.ft) : k.an;
+        const bar = visible(k.wr) ? ((k.wr.x - midfoot.x) * facing) / (L.leg || 1) : null;
+        out.push(check('barpath', 'Bar close to the legs', bar == null ? null : Math.abs(bar), grade(bar == null ? null : Math.abs(bar), [0, 0.1], [0, 0.18]), {
+          display: bar == null ? '—' : Math.abs(bar) <= 0.1 ? 'Close to the legs' : 'Bar drifting away from the legs',
+          target: 'Bar slides down the thighs, over mid-foot', joint: 'wr', weight: 1.5,
+          cue: 'Keep the bar touching your thighs all the way down. Squeeze your lats to pull it in.',
+          drill: 'Light RDLs with a 2-second pause just below the knee, bar in contact with the legs.',
+        }));
+        const hipAtTop = top ? angle3(top.sh, top.hip, top.kn) : null;
+        out.push(check('lockout', 'Lockout', hipAtTop, grade(hipAtTop, [165, 180], [155, 180]), {
+          display: hipAtTop == null ? '—' : `${r0(hipAtTop)}° at the top`, target: 'Stand tall with hips fully extended', joint: 'hip',
+          cue: 'Finish each rep by squeezing your glutes and standing tall, without leaning back.',
+          drill: 'Glute bridges and hip thrusts for a strong finish.',
+        }));
+        return out.concat(tempoChecks(ctx, rep, { minDown: 1 }));
+      },
+      ideal(ctx, j) {
+        const f = ctx.facing, L = ctx.L;
+        const an = j.an;
+        const kn = add(an, dir(8, f), L.shin);
+        const hip = add(kn, dir(-25, f), L.thigh);
+        const sh = add(hip, dir(68, f), L.torso);
+        const pose = withFeet({ an, kn, hip, sh, nose: add(sh, dir(75, f), L.head) }, j, ctx);
+        const midX = pose.he && pose.ft ? (pose.he.x + pose.ft.x) / 2 : an.x;
+        const arm = L.upper + L.fore;
+        const dx = Math.min(arm * 0.9, Math.abs(sh.x - midX));
+        pose.wr = { x: midX, y: sh.y + Math.sqrt(arm * arm - dx * dx), v: 1 };
+        pose.el = { x: sh.x + (pose.wr.x - sh.x) * (L.upper / arm), y: sh.y + (pose.wr.y - sh.y) * (L.upper / arm), v: 1 };
+        return pose;
+      },
+    },
+
     lunge: {
       label: 'Lunge',
       icon: '🦵',
@@ -499,6 +646,67 @@
         const ban = add(bkn, dir(-100, f), L.shin);
         const out = { an, kn, hip, sh, okn: bkn, oan: ban, ohip: hip, nose: add(sh, dir(4, f), L.head) };
         return out;
+      },
+    },
+
+    bss: {
+      label: 'Bulgarian split squat',
+      icon: '🦵',
+      views: ['side', 'front'],
+      signalLabel: 'Front knee angle',
+      keyLabel: 'Bottom',
+      keyIs: 'min',
+      target: { value: 90, label: 'Front knee ≈ 90°' },
+      tips: 'Rear foot on a bench. Film side-on with the bench and your whole body in frame. For knee tracking, film from the front.',
+      signal: (j, ctx) => EXERCISES.lunge.signal(j, ctx),
+      evaluate(ctx, rep) {
+        const k = ctx.J[rep.key];
+        const legs = lungeLegs(k, ctx);
+        const out = [];
+        if (ctx.view !== 'front') {
+          const front = angle3(legs.f.hip, legs.f.kn, legs.f.an);
+          out.push(check('frontknee', 'Depth', front, grade(front, [0, 105], [0, 118]), {
+            display: `${r0(front)}° front knee`, target: 'Front thigh about parallel (knee ≈ 90°)', joint: 'kn', weight: 2,
+            cue: 'Go lower: sink straight down until your front thigh is about parallel to the floor.',
+            drill: 'Split squat holds at the bottom, 3 × 20 seconds each leg.',
+          }));
+          const lean = fromVertical(k.hip, k.sh);
+          out.push(check('lean', 'Torso', lean, grade(lean, [0, 30], [0, 40]), {
+            display: `${r0(lean)}° lean`, target: 'A slight forward lean (≤ 30°) is fine', joint: 'sh',
+            cue: 'Keep your chest up. A little forward lean is good, but don’t fold over your front leg.',
+            drill: 'Goblet-hold split squats to keep the torso tall.',
+          }));
+          const shin = fromVertical(legs.f.an, legs.f.kn);
+          out.push(check('shin', 'Front foot position', shin, grade(shin, [0, 32], [0, 40]), {
+            display: `${r0(shin)}° shin angle`, target: 'Front shin fairly upright (≤ 30° forward)', joint: 'kn',
+            cue: 'Your front foot is too close to the bench. Hop it forward a few inches so your knee doesn’t shoot past your toes.',
+            drill: 'Set your stance before each set: kneel, put the front heel in line with the knee, then stand up.',
+          }));
+        }
+        if (ctx.view !== 'side') {
+          const f = legs.f;
+          const t = (f.kn.y - f.hip.y) / ((f.an.y - f.hip.y) || 1);
+          const lineX = f.hip.x + (f.an.x - f.hip.x) * t;
+          const inward = ((lineX - f.kn.x) * Math.sign(f.hip.x - legs.b.hip.x || 1)) / (ctx.L.thigh || 1);
+          out.push(check('valgus', 'Knee tracking', inward, grade(inward, [-9, 0.08], [-9, 0.16]), {
+            display: inward <= 0.08 ? 'Knee over toes' : 'Knee caving in', target: 'Front knee tracks over the second toe', joint: 'kn', weight: 2,
+            cue: 'Keep your front knee pointing over your toes. Don’t let it collapse inward.',
+            drill: 'Banded split squats and lateral band walks.',
+          }));
+        }
+        return out.concat(tempoChecks(ctx, rep, { minDown: 0.8 }));
+      },
+      ideal(ctx, j) {
+        if (ctx.view === 'front') return null;
+        const f = ctx.facing, L = ctx.L;
+        const legs = lungeLegs(j, ctx);
+        const an = legs.f.an;
+        const kn = add(an, dir(18, f), L.shin);
+        const hip = add(kn, dir(-92, f), L.thigh);
+        const sh = add(hip, dir(15, f), L.torso);
+        const oan = legs.b.an;
+        const okn = ik2(hip, oan, L.thigh, L.shin, f > 0 ? -1 : 1);
+        return { an, kn, hip, sh, okn, oan, ohip: hip, nose: add(sh, dir(15, f), L.head) };
       },
     },
 
@@ -815,7 +1023,7 @@
   // ---------- rep speed ----------
 
   // Point whose travel best tracks the bar/body for each lift.
-  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', lunge: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr' };
+  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', rdl: 'hip', lunge: 'hip', bss: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr' };
 
   /*
    * Concentric speed per rep (body-lengths per second from the tracked point), and speed loss
@@ -824,7 +1032,7 @@
    */
   function velocityCheck(exercise, ctx, reps) {
     const key = VELOCITY_POINT[exercise];
-    if (!key || reps.length < 2) return null;
+    if (!key) return null;
     const up = exercise === 'ohp' ? (r) => [r.start, r.key] : (r) => [r.key, r.end];
     for (const r of reps) {
       const [a, b] = up(r);
@@ -832,6 +1040,7 @@
       const dt = ctx.frames[b].t - ctx.frames[a].t;
       r.velocity = pa && pb && dt > 0 ? Math.abs(pa.y - pb.y) / (ctx.L.leg || 1) / dt : null;
     }
+    if (reps.length < 2) return null;
     const v = reps.map((r) => r.velocity).filter((x) => x != null);
     if (v.length < 2) return null;
     const best = Math.max(...v);
@@ -997,16 +1206,18 @@
     const warnings = [];
     if (detected === 'angled') warnings.push('The camera looks angled. Film straight side-on (or straight from the front) for the most accurate numbers.');
     if (!ex.views.includes(v)) warnings.push(`${ex.label} is best analysed from the ${ex.views.join(' or ')}. Some checks were skipped.`);
+    const quality = recordingQuality(good, aspect, exercise);
+    for (const q of quality.issues) warnings.push(q.text);
 
     if (ex.gait) {
       const g = analyzeGait(ctx);
       const checks = g.checks;
-      return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: [], contacts: g.contacts, cadence: g.cadence, checks, series, keyIndex: g.keyIndex, warnings, frames: good });
+      return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: [], contacts: g.contacts, cadence: g.cadence, checks, series, keyIndex: g.keyIndex, warnings, quality, frames: good });
     }
 
     const reps = detectReps(series, { keyIs: ex.keyIs, minRange: exercise === 'ohp' ? 30 : 25 });
     if (!reps.length) {
-      return { exercise, label: ex.label, view: v, side, facing, L, reps: [], checks: [], series, times: good.map((f) => f.t), keyIndex: 0, error: `No complete ${ex.label.toLowerCase()} reps found. Check the exercise type and that the full movement is in frame.`, warnings };
+      return { exercise, label: ex.label, view: v, side, facing, L, reps: [], checks: [], series, times: good.map((f) => f.t), keyIndex: 0, error: `No complete ${ex.label.toLowerCase()} reps found. Check the exercise type and that the full movement is in frame.`, warnings, quality };
     }
     const repResults = reps.map((rep, i) => {
       const checks = ex.evaluate(ctx, rep);
@@ -1016,7 +1227,7 @@
     const checks = summarise(repResults);
     if (vel) checks.push(vel);
     const worst = repResults.reduce((a, b) => ((b.score ?? 100) < (a.score ?? 100) ? b : a));
-    return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: repResults, checks, series, keyIndex: worst.key, keyRep: worst.n, warnings, frames: good });
+    return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: repResults, checks, series, keyIndex: worst.key, keyRep: worst.n, warnings, quality, frames: good });
   }
 
   function finish(result) {
@@ -1077,7 +1288,10 @@
       else if (exercise === 'squat' && o.view === 'front') pose = simFrontSquat(p, S, o);
       else if (exercise === 'squat') pose = simSquat(p, S, o, f);
       else if (exercise === 'deadlift') pose = simDeadlift(p, S, o, f, up);
+      else if (exercise === 'rdl') pose = simRDL(p, S, o, f);
       else if (exercise === 'lunge') pose = simLunge(p, S, o, f);
+      else if (exercise === 'bss' && o.view === 'front') pose = simFrontSquat(p, S, { ...o, depth: o.depth ?? -100 });
+      else if (exercise === 'bss') pose = simBSS(p, S, o, f);
       else if (exercise === 'pushup') pose = simPushup(p, S, o, f);
       else if (exercise === 'bench') pose = simBench(p, S, o, f);
       else if (exercise === 'ohp') pose = simOHP(p, S, o, f);
@@ -1167,6 +1381,38 @@
     const sh = add(hip, dir(torsoA, f), S.torso);
     const arms = armsFromShoulder(sh, S, f);
     return { an: fan, kn, hip, sh, ...arms, ...feet(fan, S, f), oan: ban, okn, ohip: { ...hip }, ohe: { x: ban.x - f * 0.02, y: ban.y - 0.02, v: 1 }, oft: { x: ban.x + f * 0.05, y: ban.y + 0.03, v: 1 }, nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  // Romanian deadlift: soft fixed knees, hips back. o.squat bends the knees (fault), o.torso sets hinge depth.
+  function simRDL(p, S, o, f) {
+    const an = { x: 0.85, y: 0.86, v: 1 };
+    const kn = add(an, dir(lerp(0, o.squat ? 28 : 8, p), f), S.shin);
+    const hip = add(kn, dir(lerp(0, o.squat ? -70 : -25, p), f), S.thigh);
+    const torsoA = lerp(0, o.torso ?? 68, p);
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const drift = (o.barDrift || 0) * p;
+    const arm = S.upper + S.fore;
+    const barX = lerp(sh.x, an.x + f * 0.02, p) + f * drift;
+    const dx = Math.min(arm * 0.95, Math.abs(sh.x - barX));
+    const wr = { x: barX, y: sh.y + Math.sqrt(arm * arm - dx * dx), v: 1 };
+    const el = { x: sh.x + (wr.x - sh.x) * (S.upper / arm), y: sh.y + (wr.y - sh.y) * (S.upper / arm), v: 1 };
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(torsoA + 5, f), S.head) };
+  }
+
+  // Bulgarian split squat: rear foot up on a bench behind. o.depth < 1 stays high, o.stance < 1 puts the front foot too close.
+  function simBSS(p, S, o, f) {
+    const fan = { x: 0.95, y: 0.86, v: 1 };
+    const ban = { x: 0.95 - f * 0.45, y: 0.75, v: 1 };
+    const depth = o.depth ?? 1;
+    const close = 1 - (o.stance ?? 1);
+    const hipY = lerp(0.86 - S.shin - S.thigh + 0.03, 0.86 - S.shin + 0.01 - (1 - depth) * 0.12, p);
+    const hip = { x: lerp(0.95 - f * 0.13, 0.95 - f * (0.17 - close * 0.14), p), y: hipY, v: 1 };
+    const kn = ik2(hip, fan, S.thigh, S.shin, f > 0 ? -1 : 1);
+    const okn = ik2(hip, ban, S.thigh, S.shin, f > 0 ? -1 : 1);
+    const torsoA = lerp(5, o.lean ?? 18, p);
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const arms = armsFromShoulder(sh, S, f);
+    return { an: fan, kn, hip, sh, ...arms, ...feet(fan, S, f), oan: ban, okn, ohip: { ...hip }, ohe: { x: ban.x - f * 0.03, y: ban.y - 0.01, v: 1 }, oft: { x: ban.x - f * 0.06, y: ban.y + 0.01, v: 1 }, nose: add(sh, dir(torsoA, f), S.head) };
   }
 
   function simPushup(p, S, o, f) {
@@ -1313,6 +1559,9 @@
     percentile,
     detectReps,
     detectView,
+    framing,
+    angleAdvice,
+    recordingQuality,
     chooseSide,
     detectFacing,
     joints,

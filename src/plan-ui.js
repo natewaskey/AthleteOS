@@ -565,7 +565,9 @@
     const lib = C.libraryEntry(i.name);
     const withWeight = i.measure === 'reps' && (['weight', 'pct', 'rpe'].includes(i.loadType) || ['strength', 'power'].includes(b.type)) && i.loadType !== 'bw';
     const doneCount = prog.sets.filter((s) => s.done).length;
-    const pre = i.loadType === 'pct' || i.loadType === 'weight' ? roundPlate(C.resolveLoadKg(i, athlete)) : null;
+    // Next weight from last session's numbers (reps hit, RPE, live form score) beats the calendar step.
+    const sug = athlete && a.status !== 'completed' && a.status !== 'skipped' && root.Autoreg ? root.Autoreg.suggestLoad(ctx.state(), athlete, i, a.date) : null;
+    const pre = i.loadType === 'pct' || i.loadType === 'weight' ? roundPlate(sug ? sug.kg : C.resolveLoadKg(i, athlete)) : null;
     const complete = doneCount >= i.sets;
     let setsHTML = '';
     if (withWeight) {
@@ -604,6 +606,8 @@
         <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>${root.ScienceUI ? ' ' + root.ScienceUI.evidenceChip(i.name) : ''}
           <div class="small">${esc(prescription(i, athlete))}</div>
           ${i.notes ? `<div class="muted small">${esc(i.notes)}</div>` : ''}
+          ${i.formFix && i.formFix.kind === 'hold' ? `<div class="small"><span class="pill hold" title="Comes off when a re-check passes">🔒 Weight held: work on ${esc(i.formFix.labels.join(', ').toLowerCase())}</span></div>` : ''}
+          ${sug ? `<div class="small"><span class="pill next-load ${sug.change}" title="${esc(sug.reason)}">${{ up: '▲', same: '＝', down: '▼' }[sug.change]} ${roundPlate(sug.kg)} ${ctx.U().weight} today</span> <span class="muted">${esc(sug.reason)}</span></div>` : ''}
           ${flag ? `<div class="small flag-note">${flag.level === 'bad' ? '⛔' : '⚠️'} ${esc(flag.reason)}</div>` : ''}
           ${actual}</div>
         <div class="item-tools">

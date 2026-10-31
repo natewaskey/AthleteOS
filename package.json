@@ -5,7 +5,8 @@
   "description": "Training log, load management and readiness tracking for athletes. Zero dependencies.",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "test": "node --test"
+    "test": "node --test",
+    "accuracy": "node tools/accuracy.js"
   },
   "license": "MIT"
 }
