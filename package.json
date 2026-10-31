@@ -8,5 +8,6 @@
     "test": "node --test",
     "accuracy": "node tools/accuracy.js"
   },
-  "license": "MIT"
+  "license": "UNLICENSED",
+  "private": true
 }

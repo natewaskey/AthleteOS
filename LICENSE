@@ -1,0 +1,8 @@
+Copyright (c) 2026 Nathan Waskey. All rights reserved.
+
+This software and its source code are proprietary. No permission is granted to copy,
+modify, distribute, sublicense, or use any part of it, in whole or in part, without
+prior written permission from the copyright holder.
+
+Third-party components in vendor/ remain under their own licenses (MediaPipe: Apache-2.0;
+Anthropic SDK: MIT), as noted in those folders.
