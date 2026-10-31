@@ -524,6 +524,8 @@
     document.addEventListener('click', onClick);
     document.addEventListener('submit', onSubmit);
     document.addEventListener('input', onInput);
+    // Coming back from the Google page with Back (or the browser restoring it) shows sign in again, ready to use.
+    addEventListener('pageshow', (e) => e.persisted && ctx.render());
   }
 
   root.CloudUI = { init, card, refresh, applySession, firstRun, loginScreen, startScreen, gate, coachSteps, onCoachSetup };
