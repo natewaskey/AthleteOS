@@ -989,6 +989,12 @@
     ['Split squat hold', 'warmup', { s: 2, m: 'sec', a: 20, e: 1 }],
     ['Scapular push-up', 'warmup', { s: 2, a: 10 }],
     ['Wall slide', 'warmup', { s: 2, a: 10 }],
+    // injury-prevention drills (sport prevention routines, balance gaps)
+    ['Band external rotation', 'warmup', { s: 2, a: 12, e: 1 }],
+    ['Single-leg balance', 'warmup', { s: 2, m: 'sec', a: 30, e: 1 }],
+    ['Tibialis raise', 'warmup', { s: 2, a: 15 }],
+    ['Eccentric wrist extension', 'warmup', { s: 2, a: 12, e: 1 }],
+    ['Neck isometrics', 'warmup', { s: 2, m: 'sec', a: 10 }],
     ['Ankle rocks (knee to wall)', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
     ['Couch stretch', 'mobility', { s: 2, a: 45, e: 1 }],
     ['Deep squat hold', 'mobility', { s: 2, a: 45 }],
@@ -998,6 +1004,7 @@
     ['Hip CARs', 'mobility', { s: 1, m: 'reps', a: 5, e: 1 }],
     ['Shoulder CARs', 'mobility', { s: 1, m: 'reps', a: 5, e: 1 }],
     ['Hamstring floss', 'mobility', { s: 2, m: 'reps', a: 10, e: 1 }],
+    ['Sleeper stretch', 'mobility', { s: 2, m: 'sec', a: 30, e: 1 }],
     ['Foam roll', 'mobility', { s: 1, a: 300 }],
     // speed & agility (distance in metres)
     ['A-skips', 'speed', { s: 3, a: 18.288 }],

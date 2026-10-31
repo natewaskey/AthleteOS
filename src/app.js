@@ -14,14 +14,14 @@
   const ATHLETE_SECTIONS = [
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'form', 'live', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['form', 'Form check'], ['history', 'History']] },
-    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
+    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
     { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
     { id: 'help', label: 'Help & FAQ', icon: 'help', routes: ['help'] },
   ];
   const COACH_SECTIONS = [
-    { id: 'team', label: 'Team', icon: 'users', routes: ['team'] },
+    { id: 'team', label: 'Team', icon: 'users', routes: ['team', 'body'] },
     { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
@@ -72,6 +72,7 @@
   const SM = window.Smart;
   const Sci = window.ScienceUI;
   const JumpUI = window.JumpUI;
+  const BodyUI = window.BodyUI;
   const LiveCam = window.LiveCoach;
   const P = window.Platform;
 
@@ -467,6 +468,13 @@
 
   // ---------- athlete views ----------
 
+  // One line each morning that ties the body picture together (Checkup.morningBrief).
+  function briefCard(a) {
+    const b = window.Checkup.morningBrief(state, a, today());
+    if (!b.bodyParts.length) return '';
+    return `<button class="brief-line clickable" data-tab="body" aria-label="Morning body brief. Open the body view">${icon('sparkle')}<span>${esc(b.bodyText.charAt(0).toUpperCase() + b.bodyText.slice(1))}</span><span class="muted small">Body ›</span></button>`;
+  }
+
   const athleteViews = {
     today() {
       const a = me();
@@ -519,6 +527,7 @@
                 : `<div class="session-name">Rest or free day</div><div class="muted small">Nothing scheduled.</div><button class="btn" data-prog-action="new">${icon('sparkle')}<span>Build a program</span></button>`}
           </div>
         </section>
+        ${window.Checkup && window.Balance ? briefCard(a) : ''}
         <div class="grid">${Smart.nextCard(a)}</div>`;
     },
 
@@ -564,6 +573,7 @@
       const prs = C.strengthRecords(a.workouts).length + C.enduranceRecords(a.workouts).length;
       return Progress.athleteView(`${Smart.goalCard(a, { compact: true })}${Summary.summaryCard(a)}
         ${Smart.riskCard(a, { span: 'span-6' })}${loadCard(a)}
+        ${BodyUI.summaryCard(a, { span: 'span-12' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a)}
@@ -579,6 +589,10 @@
 
     screen() {
       return Screens.view(ui.id);
+    },
+
+    body() {
+      return BodyUI.view(ui.id);
     },
 
     health() {
@@ -874,6 +888,10 @@
   // ---------- coach views ----------
 
   const coachViews = {
+    body() {
+      return BodyUI.view(ui.id);
+    },
+
     team() {
       if (!state.team.onboarded) return coachWizard();
       if (ui.id && athleteById(ui.id)) return coachAthleteDetail(athleteById(ui.id));
@@ -1118,6 +1136,7 @@
         ${Smart.goalCard(a, { compact: true })}
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
+        ${BodyUI.summaryCard(a, { span: 'span-12' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
         ${Sci.ageCard(a, { span: 'span-12' })}
@@ -2179,6 +2198,7 @@
   Cal.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
+  BodyUI.init(shared);
   Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
   Chal.init(shared);
