@@ -1384,6 +1384,8 @@
         // Head coach override: null = role default, false = drafts only. True never skips the certification check.
         canPrescribe: x.canPrescribe === false ? false : x.canPrescribe === true ? true : null,
         pinHash: x.pinHash ? String(x.pinHash) : '',
+        // The account (when signed in) that this staff member uses, so each coach's device knows who they are.
+        ...(x.userId ? { userId: String(x.userId).slice(0, 64) } : {}),
       }));
     if (!out.length) out.push({ id: 'coach-1', name: String(coach?.name || ''), role: 'head', certs: [], canPrescribe: null, pinHash: '' });
     return out;
