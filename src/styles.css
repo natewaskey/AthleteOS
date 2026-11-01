@@ -2827,3 +2827,18 @@ dialog.camcheck { width: min(980px, 96vw); }
 .jump-rel { margin-top: .6rem; }
 .jump-ref { margin-top: .5rem; }
 .jump-ref label { display: flex; flex-direction: column; gap: .25rem; max-width: 18rem; margin-top: .4rem; }
+
+/* ---------- Wearables ---------- */
+.wear-list { margin: 0; }
+.wear-row { display: flex; align-items: center; gap: .7rem; }
+.wear-row .main { flex: 1; min-width: 0; }
+.wear-row .pill { margin-left: .3rem; }
+.wear-logo { flex: none; width: 2rem; height: 2rem; border-radius: 8px; display: grid; place-items: center; font-family: var(--font-mono, 'Geist Mono', monospace); font-weight: 700; font-size: .85rem; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.wear-whoop { color: #f5f5f5; background: #111; }
+.wear-garmin { color: #7cc8ff; }
+.wear-oura { color: #d9c7a1; }
+.wear-polar { color: #ff4d5e; }
+.wear-coach .fv-stats div span:last-child:not(:first-child) { margin-top: .1rem; }
+.wear-spark { margin-top: .6rem; display: flex; flex-direction: column; gap: .2rem; }
+.wear-spark .spark { width: 100%; height: 40px; }
+.wear-coach .bad-t, .jump-rel .bad-t { color: var(--bad); }

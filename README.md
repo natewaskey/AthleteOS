@@ -163,6 +163,12 @@ One place that looks at the body as a whole over months and years, built to keep
 - Also shows estimated maxes and the movement screen score. Each section can be shown or hidden.
 - Share it as a downloaded web page, a copy-paste email version for college coaches, or print / PDF.
 
+### Wearable sync (WHOOP, Garmin, Oura, Polar)
+- **Settings › Devices:** athletes tap Connect, sign in to the brand once, and sleep, HRV, resting heart rate, recovery and workouts sync by themselves (last 30 days on connect, then new data by webhook or whenever the app opens).
+- Device numbers fill the morning check-in (sleep, HRV, resting HR), feed readiness and personal baselines, and synced workouts count toward training load with an RPE estimated from heart rate. The same session from two brands or a file import is only logged once.
+- **Coach view:** a Devices card on each athlete page shows HRV and resting HR against the athlete's normal, sleep and recovery, plus a 14-day HRV trend. HRV more than 15% below normal, under 6 hours of sleep or device recovery under 34% shows up as a flag on the team list.
+- Tokens stay on the server (Supabase `wearables` function); the app never sees them. Setup: [docs/WEARABLES.md](docs/WEARABLES.md).
+
 ### Camera accuracy
 - **Camera check before recording:** form checks and jump tests can be recorded in the app. A live checklist (in frame, distance, angle, level, light, frame rate, phone still) must be all green for a second before recording unlocks, and the setup is saved so the next session films from the same spot.
 - **Size calibration:** 📏 on the video player: tap both ends of something of known size (bumper plate 45 cm, a tape measure, a box) and distances and bar speed use that instead of the athlete's height.
@@ -308,7 +314,7 @@ Everything is stored in the browser (`localStorage` for data, IndexedDB for vide
 - **Push notifications:** these need a push service and server-side keys. Today, alerts appear in-app with badges.
 - **Guardian consent by email:** today the guardian ticks the box on the athlete's device.
 - **Claude requests from a server:** the optional AI mode currently calls Anthropic directly from the browser with a user-supplied key. A production version should proxy through a server.
-- **Direct wearable sync** (Garmin/Apple/Whoop APIs): these require developer agreements. File import (GPX/TCX) works today.
+- **Apple Watch / Apple Health sync:** needs a native iPhone app (planned). WHOOP, Garmin, Oura and Polar sync directly today.
 
 ## Turning it into an app
 
@@ -388,6 +394,8 @@ src/evidence.js       research grades and citations for exercises and scoring ru
 src/jump.js           camera jump testing: flight time, height, contact time, RSI, slow-motion check
 src/jump-ui.js        jump test dialog, jump testing card, left vs right card
 src/camcheck.js       camera check before recording (framing, distance, angle, level, light, fps), in-app recorder
+src/wearables.js      device sync: Devices card, merge synced days/workouts, coach card and flags
+supabase/functions/wearables/  sign-in, sync and webhooks for WHOOP, Garmin, Oura, Polar (map.mjs = data mapping)
 src/reliability.js    repeat-trial spread, real change vs noise (MDC), Bland-Altman agreement, check accuracy
 src/asymmetry.js      limb symmetry from hops, jumps and the screen; weak-side sets in programs
 src/fv.js             jump force-velocity profile (F0, V0, Pmax, deficit) for the program builder

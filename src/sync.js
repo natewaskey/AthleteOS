@@ -684,5 +684,8 @@
     return res.ok ? res.blob() : null;
   }
 
-  root.Cloud = { init, mediaPath, uploadMedia, downloadMedia, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled, aiAvailable: () => aiReady !== false, checkAI };
+  // Signed-in REST call against this project (tables, RPCs, edge functions): api('/rest/v1/...', { method, body }).
+  const api = (path, opts) => http(path, opts);
+
+  root.Cloud = { init, api, mediaPath, uploadMedia, downloadMedia, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled, aiAvailable: () => aiReady !== false, checkAI };
 })(typeof window !== 'undefined' ? window : globalThis);

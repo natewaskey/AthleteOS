@@ -265,7 +265,8 @@
       notes: String(input.notes || '').trim(),
       avgHr: Number(input.avgHr) > 0 ? Math.round(Number(input.avgHr)) : null,
       maxHr: Number(input.maxHr) > 0 ? Math.round(Number(input.maxHr)) : null,
-      source: ['gpx', 'tcx'].includes(input.source) ? input.source : null,
+      source: ['gpx', 'tcx', 'whoop', 'garmin', 'oura', 'polar'].includes(input.source) ? input.source : null,
+      ...(input.externalId ? { externalId: String(input.externalId).slice(0, 120) } : {}), // id at the device brand, for synced workouts
     };
   }
 
@@ -860,6 +861,9 @@
     if (ready && ready.score >= 40 && ready.score < 55) flags.push({ level: 'warn', text: `Readiness ${ready.score}: keep it easy` });
     if (!checkin) flags.push({ level: 'info', text: last ? `No check-in today (last ${daysBetween(last.date, todayISO)}d ago)` : 'Has never checked in' });
     if (lastWorkout && daysBetween(lastWorkout, todayISO) >= 5) flags.push({ level: 'info', text: `No training logged in ${daysBetween(lastWorkout, todayISO)} days` });
+    // Last night's wearable data (HRV well below normal, short sleep, low recovery), in the browser.
+    const W = typeof globalThis !== 'undefined' ? globalThis.Wearables : null;
+    if (W && W.flags) for (const f of W.flags(athlete)) flags.push(f);
 
     const rank = { bad: 0, warn: 1, info: 2 };
     flags.sort((a, b) => rank[a.level] - rank[b.level]);

@@ -308,3 +308,63 @@ drop policy if exists media_update on storage.objects;
 create policy media_update on storage.objects for update to authenticated using (bucket_id = 'media' and public.media_access(name));
 drop policy if exists media_delete on storage.objects;
 create policy media_delete on storage.objects for delete to authenticated using (bucket_id = 'media' and public.media_access(name));
+
+-- ---------- Wearables (WHOOP, Garmin, Oura, Polar) ----------
+-- Tokens live in wearable_connections, which only the "wearables" edge function (service role) can read.
+create table if not exists public.wearable_connections (
+  id uuid primary key default gen_random_uuid(),
+  team_id uuid not null references public.teams(id) on delete cascade,
+  athlete_id text not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider text not null check (provider in ('whoop', 'garmin', 'oura', 'polar')),
+  provider_user_id text,
+  access_token text not null,
+  refresh_token text,
+  expires_at timestamptz,
+  status text not null default 'ok',
+  error text,
+  last_sync timestamptz,
+  created_at timestamptz not null default now(),
+  unique (team_id, athlete_id, provider)
+);
+create index if not exists wearable_connections_provider_user on public.wearable_connections (provider, provider_user_id);
+alter table public.wearable_connections enable row level security;
+
+-- Short-lived sign-in states (15 minutes), service role only.
+create table if not exists public.wearable_states (
+  state text primary key,
+  user_id uuid not null,
+  team_id uuid not null,
+  athlete_id text not null,
+  provider text not null,
+  verifier text,
+  return_to text,
+  created_at timestamptz not null default now()
+);
+alter table public.wearable_states enable row level security;
+
+-- Synced data: one row per day (sleep, HRV, resting HR, recovery) or workout, per brand.
+create table if not exists public.wearable_data (
+  team_id uuid not null references public.teams(id) on delete cascade,
+  athlete_id text not null,
+  provider text not null,
+  kind text not null check (kind in ('day', 'workout')),
+  key text not null,
+  data jsonb not null,
+  updated_at timestamptz not null default now(),
+  primary key (team_id, athlete_id, provider, kind, key)
+);
+create index if not exists wearable_data_team_updated on public.wearable_data (team_id, updated_at);
+alter table public.wearable_data enable row level security;
+drop policy if exists wearable_data_read on public.wearable_data;
+create policy wearable_data_read on public.wearable_data for select using (
+  (public.my_role(team_id) = 'coach' and not public.awaiting_parent(team_id, athlete_id))
+  or (public.my_role(team_id) = 'athlete' and athlete_id = public.my_athlete(team_id))
+);
+
+-- Which brands each athlete has connected (no tokens), for the Devices page and the coach view.
+create or replace function public.wearable_status(t uuid) returns table (athlete_id text, provider text, status text, last_sync timestamptz, error text) language sql stable security definer set search_path = public as $$
+  select c.athlete_id, c.provider, c.status, c.last_sync, c.error from wearable_connections c
+  where c.team_id = t and ((my_role(t) = 'coach' and not awaiting_parent(t, c.athlete_id)) or (my_role(t) = 'athlete' and c.athlete_id = my_athlete(t)))
+$$;
+grant execute on function public.wearable_status(uuid) to authenticated;

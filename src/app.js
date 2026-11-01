@@ -870,6 +870,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${window.Wearables ? Wearables.devicesCard() : ''}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
@@ -921,7 +922,7 @@
 
   function importCard() {
     return `<section class="card" style="margin-bottom:1rem"><div class="row">
-      <div class="main"><strong>⌚ Import from a watch or app</strong><div class="muted small">GPX or TCX files from Garmin, Coros, Polar, Suunto, Apple Health exports or Strava (Activity → Export GPX). Distance, time, climb and heart rate come in automatically.</div></div>
+      <div class="main"><strong>⌚ Import from a watch or app</strong><div class="muted small">GPX or TCX files from Garmin, Coros, Polar, Suunto, Apple Health exports or Strava (Activity → Export GPX). Distance, time, climb and heart rate come in automatically. WHOOP, Garmin, Oura and Polar can also sync by themselves: Settings › Devices.</div></div>
       <label class="btn" style="margin:0;color:var(--text)">Choose files<input type="file" id="activity-import" accept=".gpx,.tcx,application/gpx+xml,application/xml,text/xml" multiple hidden /></label>
     </div></section>`;
   }
@@ -1301,6 +1302,7 @@
       <div class="grid">
         ${readinessCard(a, { coach: true })}
         ${loadCard(a)}
+        ${window.Wearables ? Wearables.coachCard(a) : ''}
         ${Smart.goalCard(a, { compact: true })}
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
@@ -1924,8 +1926,12 @@
     cForm.sleepQuality.value = src.sleepQuality ?? 3;
     cForm.stress.value = src.stress ?? 2;
     cForm.mood.value = src.mood ?? 4;
-    cForm.restingHR.value = src.restingHR ?? '';
-    const devHrv = (a.metrics || []).find((m) => m.key === 'hrv' && m.date === t);
+    // Device numbers for today (wearable sync or imports) pre-fill the blanks.
+    const dev = (key) => (a.metrics || []).find((m) => m.key === key && m.date === t);
+    const devSleep = dev('sleep');
+    if (!existing && devSleep && devSleep.value > 0) cForm.sleep.value = Math.round(devSleep.value * 4) / 4;
+    cForm.restingHR.value = src.restingHR ?? (dev('rhr') ? Math.round(dev('rhr').value) : '');
+    const devHrv = dev('hrv');
     cForm.hrv.value = src.hrv ?? (devHrv ? Math.round(devHrv.value) : '');
     cForm.note.value = src.note ?? '';
     cForm.hydration.value = src.hydration ?? 3;
@@ -2528,6 +2534,7 @@
   Cal.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
+  if (window.Wearables) Wearables.init(shared);
   BodyUI.init(shared);
   if (window.MobilityUI) window.MobilityUI.init(shared);
   if (window.Tours) window.Tours.init({ go });
