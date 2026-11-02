@@ -44,7 +44,8 @@
             repsTarget: i.amount,
             repsHit: sets.length >= i.sets && top.every((s) => (s.reps ?? i.amount) >= i.amount),
             missed: top.some((s) => s.reps != null && s.reps < i.amount),
-            rpe: a.result ? a.result.rpe : null,
+            rpe: top.some((s) => s.rpe != null) ? Math.max(...top.filter((s) => s.rpe != null).map((s) => s.rpe)) : a.result ? a.result.rpe : null,
+            setRpe: top.some((s) => s.rpe != null),
             formScore: scores.length ? Math.min(...scores) : null,
           };
         }
@@ -63,6 +64,10 @@
     if (/med ball|band|sled|plate/i.test(item.name)) return null; // implements that don't go up in small steps
     const last = lastPerformance(state, athlete.id, item.name, beforeISO);
     if (!last) return null;
+    // Typed set RPE is corrected by what the athlete's bar speed has shown about their ratings.
+    const F = typeof module !== 'undefined' && module.exports ? require('./feedback.js') : root.Feedback;
+    const bias = last.setRpe && F ? F.rpeBias(state, athlete.id, beforeISO) : null;
+    if (bias && Math.abs(bias.bias) >= 0.5) last.rpe = F.correctedRpe(last.rpe, bias);
     const rx = `${last.sets}×${last.repsTarget}`;
     const step = stepKg(item.name);
     const out = (kg, change, reason) => ({ kg: Math.round(kg * 100) / 100, lastKg: last.weightKg, change, reason, date: last.date });

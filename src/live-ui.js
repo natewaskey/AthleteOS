@@ -237,21 +237,39 @@
       limit: 8,
     });
     ensureSheet();
+    const F = root.Feedback;
+    let reason = null;
+    const optsHTML = () => {
+      const list = F && reason ? F.swapOptions(item.name, reason, alts.length ? alts : P.alternatives(item.name, { limit: 12 })).slice(0, 8) : alts;
+      return list.length ? `<div class="swap-list">${list.map((n) => `<button class="swap-opt" data-swap-to="${esc(n)}"><strong>${esc(n)}</strong><span class="muted small">${esc(P.PATTERNS[P.meta(n).pattern]?.label || '')}${P.meta(n).equipment.length ? ' · ' + P.meta(n).equipment.map((e) => P.EQUIPMENT[e]).join(', ') : ' · bodyweight'}</span></button>`).join('')}</div>` : '<p>No good alternatives in the library. Ask your coach.</p>';
+    };
     sheet.innerHTML = `<div class="row"><h2 style="margin:0">Swap ${esc(item.name)}</h2><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
-      <p class="muted small">Same movement family, filtered for today’s soreness and any injuries.</p>
-      ${alts.length ? `<div class="swap-list">${alts.map((n) => `<button class="swap-opt" data-swap-to="${esc(n)}"><strong>${esc(n)}</strong><span class="muted small">${esc(P.PATTERNS[P.meta(n).pattern]?.label || '')}${P.meta(n).equipment.length ? ' · ' + P.meta(n).equipment.map((e) => P.EQUIPMENT[e]).join(', ') : ' · bodyweight'}</span></button>`).join('')}</div>` : '<p>No good alternatives in the library. Ask your coach.</p>'}
+      ${F ? `<p class="small" style="margin:.4rem 0 .2rem">Why are you swapping it? <span class="muted">(your coach sees this)</span></p><div class="row swap-reasons">${Object.entries(F.SWAP_REASONS).map(([k, v]) => `<button type="button" class="chip" data-swap-reason="${k}" aria-pressed="false">${esc(v)}</button>`).join('')}</div>` : ''}
+      <p class="muted small" data-swap-note>Same movement family, filtered for today’s soreness and any injuries.</p>
+      <div data-swap-opts>${optsHTML()}</div>
       <label style="margin-top:.75rem">Or type any exercise <input id="swap-custom" placeholder="e.g. Leg press" maxlength="80"/></label>
       <div class="dialog-actions"><button class="btn" data-swap-custom>Use custom</button></div>`;
+    const NOTE = { pain: 'Options that load the same area less, filtered for soreness and injuries. Your coach will get a note.', equipment: 'Bodyweight and band options.', hard: 'Easier versions first.', easy: 'Harder versions first.', prefer: 'Same movement family.' };
     const done = (name) => {
       const block = assignment.plan.blocks.find((b) => b.items.includes(item));
       const alt = C.normalizePlanItem({ name }, block ? block.type : 'strength');
       const from = item.name;
       Object.assign(item, { name: alt.name, measure: alt.measure, amount: C.libraryEntry(name) ? alt.amount : item.amount, loadType: C.libraryEntry(name) ? alt.loadType : item.loadType, loadValue: C.libraryEntry(name) ? alt.loadValue : item.loadValue, eachSide: alt.eachSide, notes: `Swapped from ${from}.` });
+      if (reason && F) Object.assign(item, { swapReason: F.SWAP_REASONS[reason], swappedFrom: from });
+      delete item.why;
       delete assignment.progress[item.id];
       sheet.close();
-      onDone(from, alt.name);
+      onDone(from, alt.name, reason);
     };
     sheet.onclick = (e) => {
+      const r = e.target.closest('[data-swap-reason]');
+      if (r) {
+        reason = r.getAttribute('aria-pressed') === 'true' ? null : r.dataset.swapReason;
+        sheet.querySelectorAll('[data-swap-reason]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.swapReason === reason)));
+        sheet.querySelector('[data-swap-opts]').innerHTML = optsHTML();
+        sheet.querySelector('[data-swap-note]').textContent = reason ? NOTE[reason] : 'Same movement family, filtered for today’s soreness and any injuries.';
+        return;
+      }
       const b = e.target.closest('[data-swap-to]');
       if (b) return done(b.dataset.swapTo);
       if (e.target.closest('[data-swap-custom]')) {
