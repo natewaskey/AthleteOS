@@ -128,6 +128,7 @@
         <section class="card span-6"><div class="card-head"><h3>Test results</h3>
           <select data-prog-ui="test" style="width:auto">${C.TESTS.map((x) => `<option value="${x.id}" ${x.id === ui.test ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
           ${lineChart(C.testHistory(a, ui.test).map((r) => ({ date: r.date, value: r.value })), { fmt: (v) => fmtTest(ui.test, v), better: C.TEST_INFO[ui.test].better })}
+          ${root.SprintUI && C.TEST_INFO[ui.test].kind === 'speed' && ['split10', 'dash20', 'dash40'].includes(ui.test) ? `<button class="btn btn-sm" data-spr="open" data-distance="${ui.test}" style="margin-top:.5rem">📹 Time it with the camera</button>` : ''}
           <form data-prog-form="self-test" class="row" style="margin-top:.5rem;align-items:flex-end">
             <label style="margin:0;flex:1">Log a result (${esc(unitLabel(ui.test))}) <input name="value" inputmode="decimal" required/></label>
             <label style="margin:0">Date <input type="date" name="date" value="${t}"/></label>
@@ -143,6 +144,7 @@
   // ---------- coach Performance tab ----------
 
   function coachView(lead = '') {
+    if (root.TestDayUI && root.TestDayUI.active()) return root.TestDayUI.view();
     const athletes = ctx.state().athletes;
     const groups = [...new Set(athletes.flatMap((a) => a.groups))].sort();
     const shown = ui.group ? athletes.filter((a) => a.groups.includes(ui.group)) : athletes;
@@ -151,7 +153,7 @@
         ${groups.length ? `<select data-prog-ui="group" style="width:auto"><option value="">All athletes</option>${groups.map((g) => `<option ${g === ui.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
         <button class="btn" data-action="weekly-report">📄 Weekly report</button></div>
       <div class="grid">${lead}
-        <section class="card span-6"><div class="card-head"><h3>Testing day</h3></div>
+        <section class="card span-6"><div class="card-head"><h3>Testing day</h3><div class="row" style="gap:.35rem">${root.TestDayUI ? '<button class="btn btn-sm btn-primary" data-td="start">▶ Guided testing day</button>' : ''}${root.SprintUI ? '<button class="btn btn-sm" data-spr="open" title="Time a sprint with the camera">📹 Sprint timer</button>' : ''}</div></div>
           <form data-prog-form="test-day">
             <div class="grid-2"><label>Test <select name="test" data-prog-ui="entryTest">${C.TESTS.map((x) => `<option value="${x.id}" ${x.id === ui.entryTest ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
               <label>Date <input type="date" name="date" value="${today()}"/></label></div>

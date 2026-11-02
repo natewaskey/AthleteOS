@@ -683,6 +683,7 @@
   const TESTS = [
     { id: 'dash40', name: '40-yard dash', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'split10', name: '10-yard split', kind: 'speed', unit: 'time', better: 'lower' },
+    { id: 'dash20', name: '20-yard dash', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'proagility', name: 'Pro agility (5-10-5)', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'cone3', name: '3-cone drill', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'vertical', name: 'Vertical jump', kind: 'power', unit: 'jump', better: 'higher' },

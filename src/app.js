@@ -2537,6 +2537,8 @@
   Sci.init(shared);
   JumpUI.init(shared);
   if (window.FeedbackUI) FeedbackUI.init(shared);
+  if (window.SprintUI) SprintUI.init(shared);
+  if (window.TestDayUI) TestDayUI.init(shared);
   if (window.Wearables) Wearables.init(shared);
   BodyUI.init(shared);
   if (window.MobilityUI) window.MobilityUI.init(shared);

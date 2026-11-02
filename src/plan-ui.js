@@ -603,7 +603,7 @@
         return `<div class="set-row ${s.done ? 'done' : ''}"><span class="muted small">Set ${k + 1}</span>
           <label><input type="number" min="0" data-set="${k}" data-item="${i.id}" data-sf="reps" value="${reps}" ${doing ? '' : 'disabled'} aria-label="Reps set ${k + 1}"/><small>reps</small></label>
           <label><input type="number" min="0" step="any" data-set="${k}" data-item="${i.id}" data-sf="weight" value="${w}" ${doing ? '' : 'disabled'} aria-label="Weight set ${k + 1}"/><small>${ctx.U().weight}</small></label>
-          <label class="set-rpe"><select data-set="${k}" data-item="${i.id}" data-sf="rpe" ${doing ? '' : 'disabled'} aria-label="Effort (RPE) set ${k + 1}" title="How hard was it? 10 = no reps left, 8 = 2 left"><option value="">–</option>${[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => `<option value="${v}" ${s.rpe === v ? 'selected' : ''}>${v}</option>`).join('')}</select><small>RPE</small></label>
+          <label class="set-rpe"><select data-set="${k}" data-item="${i.id}" data-sf="rpe" ${doing ? '' : 'disabled'} aria-label="Effort (RPE) set ${k + 1}" title="How hard was it? 10 = no reps left, 8 = 2 left"><option value="">RPE</option>${[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => `<option value="${v}" ${s.rpe === v ? 'selected' : ''}>${v}</option>`).join('')}</select><small>RPE</small></label>
           ${doing ? `<button class="set-check" data-plan-action="toggle-set" data-assign="${a.id}" data-item="${i.id}" data-set="${k}" aria-pressed="${!!s.done}" aria-label="Set ${k + 1} done">✓</button>` : `<span class="set-check static" aria-hidden="true">${s.done ? '✓' : ''}</span>`}</div>`;
       }).join('')}</div>`;
     } else {
