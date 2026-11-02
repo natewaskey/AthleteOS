@@ -142,6 +142,10 @@
     'Box breathing': ['box-breathing', 'Sit or lie comfortably.', ['In for 4', 'Hold for 4', 'Out for 4, hold for 4'], 'Forcing the breath.'],
   };
 
+  // The expanded library carries its own how-to (exercises-plus.js).
+  const PLUS = (typeof module !== 'undefined' && module.exports ? require('./exercises-plus.js') : root.ExercisesPlus) || { ALL: [] };
+  for (const x of PLUS.ALL) if (!H[x.name]) H[x.name] = [x.demo, x.setup, x.cues, x.avoid];
+
   const BY = {};
   for (const [name, [demo, setup, cues, avoid]] of Object.entries(H)) BY[name.toLowerCase()] = { name, demo, setup, cues, avoid };
 
@@ -159,6 +163,23 @@
 
   // Close-enough matches for coaches' own names, most specific first.
   const ALIASES = [
+    // newer, more specific names first
+    [/landmine (rotation|180|twist)/, 'Landmine rotation'], [/landmine.*(punch|rotational press)/, 'Landmine rotational press'], [/landmine/, 'Landmine press'],
+    [/wood ?chop|cable chop|chop/, 'Cable woodchop'], [/cable lift|lift.*low to high/, 'Cable lift (low to high)'], [/scoop/, 'Med ball scoop toss'], [/shot ?put/, 'Med ball shot put throw'], [/overhead (backward|back) throw|backward throw|ohb/, 'Med ball overhead backward throw'],
+    [/y-?t-?w|ytw|prone (y|t|w)/, 'Prone Y-T-W raise'], [/side.?lying (er|external)/, 'Side-lying external rotation'], [/90.?90 .*(er|external)/, '90/90 band external rotation'], [/internal rotation|\bir\b/, 'Band internal rotation'], [/scaption|full can|empty can|open can/, 'Open-can scaption'],
+    [/wall dribble|ball on wall|wall circles/, 'Ball-on-wall circles'], [/cross.?body/, 'Cross-body stretch'], [/jband|j-band|thrower.?s band/, 'Thrower’s band series'], [/dislocat|pass.?through/, 'Band dislocates'], [/push.?up plus/, 'Push-up plus'],
+    [/lateral lunge|side lunge/, 'Lateral lunge'], [/cossack/, 'Cossack squat'], [/lateral step.?up/, 'Lateral step-up'], [/slide ?board/, 'Slide board'], [/crossover/, 'Crossover step drill'], [/defensive slide|closeout/, 'Defensive slide'],
+    [/safety (bar|squat)|ssb/, 'Safety bar squat'], [/box squat/, 'Box squat'], [/pause squat/, 'Pause squat'], [/pistol/, 'Pistol squat'], [/skater squat/, 'Skater squat'], [/single.?leg (box )?squat/, 'Single-leg box squat'], [/reverse lunge/, 'Reverse lunge'], [/step.?down/, 'Step-down'], [/spanish squat/, 'Spanish squat'], [/wall sit/, 'Wall sit'], [/leg press/, 'Leg press'],
+    [/sumo/, 'Sumo deadlift'], [/good ?morning/, 'Good morning'], [/slider (ham|leg) curl|ham(string)? curl/, 'Slider hamstring curl'], [/glute.?ham|ghr/, 'Glute-ham raise'], [/back extension|hyperextension/, 'Back extension'], [/airplane/, 'Hip airplane'], [/reverse nordic/, 'Reverse Nordic'],
+    [/(db|dumbbell) bench/, 'Dumbbell bench press'], [/floor press/, 'Floor press'], [/incline push.?up/, 'Incline push-up'], [/wall push.?up/, 'Wall push-up'], [/inverted row|body ?row|ring row|trx row/, 'Inverted row'], [/chest.?supported|seal row/, 'Chest-supported row'], [/cable row/, 'Single-arm cable row'], [/band row/, 'Band row'],
+    [/assisted pull.?up/, 'Band-assisted pull-up'], [/negative/, 'Pull-up negative'], [/scap(ular)? pull/, 'Scap pull-up'], [/neutral.?grip/, 'Neutral-grip pull-up'], [/suitcase/, 'Suitcase carry'], [/overhead carry|waiter/, 'Overhead carry'], [/trap bar jump/, 'Trap bar jump'], [/(db|dumbbell) snatch/, 'Dumbbell snatch'],
+    [/snap.?down/, 'Snap-down'], [/countermovement|\bcmj\b/, 'Countermovement jump'], [/squat jump/, 'Squat jump'], [/line hop|ankle hop/, 'Line hops'], [/power skip/, 'Power skips'], [/triple jump/, 'Standing triple jump'], [/plyo push/, 'Plyo push-up'],
+    [/wall drill|wall march/, 'Wall drill (acceleration march)'], [/falling start/, 'Falling start sprint'], [/3.?point|three.?point/, 'Three-point start'], [/wicket/, 'Wicket runs'], [/strides?|build.?ups?/, 'Strides'], [/decel|sprint to stop/, 'Sprint to stop (deceleration)'], [/drop step/, 'Drop step to sprint'],
+    [/rsa|repeated sprint/, 'Repeated sprints (RSA)'], [/suicide|line drill/, 'Line drills (suicides)'], [/17s|court shuttle/, 'Court shuttles (17s)'], [/swim/, 'Swim intervals'], [/zone 2 bike|easy bike/, 'Zone 2 bike'], [/fartlek/, 'Fartlek run'], [/hill repeat/, 'Hill repeats'], [/long run/, 'Long run'], [/threshold/, 'Threshold intervals (run)'],
+    [/shadow ?box/, 'Shadow boxing rounds'], [/sprawl/, 'Sprawls'], [/burpee/, 'Burpees'], [/mountain climber/, 'Mountain climbers'], [/bear crawl/, 'Bear crawl'], [/bear (plank|hold)/, 'Bear plank hold'], [/elliptical/, 'Elliptical intervals'],
+    [/body saw/, 'Body saw'], [/shoulder tap/, 'Plank shoulder taps'], [/hollow rock/, 'Hollow rock'],
+    [/neck (band|4.?way|harness)/, '4-way neck (band)'], [/dead hang|bar hang/, 'Dead hang'], [/towel/, 'Towel hang'], [/pinch/, 'Plate pinch hold'], [/wrist roller/, 'Wrist roller'], [/hangboard|fingerboard/, 'Hangboard hang'], [/short foot|foot dom/, 'Short foot'], [/single.?leg calf/, 'Single-leg calf raise'], [/soleus|bent.?knee calf/, 'Bent-knee calf raise'],
+    [/arm circle/, 'Arm circles'], [/frankenstein|toy soldier/, 'Frankenstein walk'], [/knee hug/, 'Knee hug walk'], [/quad (pull|stretch)/, 'Quad pull walk'], [/spiderman/, 'Spiderman lunge'], [/butt kick/, 'Butt kicks'], [/trunk rotation/, 'Trunk rotation'], [/skipping/, 'Skipping'],
     [/clap/, 'Clap push-up'], [/push.?up/, 'Push-up'], [/bench|floor press|chest press/, 'Bench press'], [/incline/, 'Incline dumbbell press'], [/push press|jerk/, 'Push press'], [/overhead press|shoulder press|military|\bohp\b/, 'Overhead press'],
     [/bulgarian|rear.?foot/, 'Bulgarian split squat'], [/split squat jump|lunge jump/, 'Split squat jump'], [/split squat/, 'Split squat'], [/lunge/, 'Walking lunge'], [/step.?up/, 'Step-up'],
     [/front squat/, 'Front squat'], [/goblet/, 'Goblet squat'], [/jump squat|squat jump/, 'Jump squat'], [/squat/, 'Back squat'],

@@ -6,6 +6,7 @@
   'use strict';
 
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const PLUS = (typeof module !== 'undefined' && module.exports ? require('./exercises-plus.js') : root.ExercisesPlus) || { ALL: [] };
 
   /*
    * Sport catalog. `metric` says how distance is summarised:
@@ -1132,6 +1133,9 @@
     ['Pigeon stretch', 'cooldown', { s: 1, a: 45, e: 1 }],
     ["Child's pose", 'cooldown', { s: 1, a: 60 }],
     ['Box breathing', 'cooldown', { s: 1, a: 120 }],
+    // The expanded library (exercises-plus.js): rotational power, arm care, lateral, strength, plyos, speed,
+    // conditioning by energy system, core, neck/grip/feet, sport warm-ups and youth regressions.
+    ...PLUS.ALL.map((x) => [x.name, x.block, x.d]),
   ].map(([name, block, d, form]) => ({
     name,
     block,
@@ -1160,6 +1164,9 @@
       tempo: String(input.tempo || '').trim().slice(0, 12),
       eachSide: input.eachSide == null ? d.eachSide : !!input.eachSide,
       notes: String(input.notes || '').trim().slice(0, 300),
+      // Why the builder picked it (one line), and why it was swapped in, if it was.
+      ...(input.why ? { why: String(input.why).trim().slice(0, 160) } : {}),
+      ...(input.swapReason ? { swapReason: String(input.swapReason).trim().slice(0, 120) } : {}),
       // Set by formplan.js: a corrective drill or a held weight from a form check.
       ...(input.formFix && typeof input.formFix === 'object' ? { formFix: JSON.parse(JSON.stringify(input.formFix)) } : {}),
     };
