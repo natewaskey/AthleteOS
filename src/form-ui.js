@@ -82,10 +82,10 @@
     const a = athleteFor(an);
     const heightCm = heightOf(a);
     const limits = (a && a.blueprint && a.blueprint.limits) || null;
-    const key = `${an.id}|${an.exercise}|${an.view}|${heightCm || ''}|${limits ? JSON.stringify(limits) : ''}`;
+    const key = `${an.id}|${an.exercise}|${an.view}|${heightCm || ''}|${limits ? JSON.stringify(limits) : ''}|${an.calib ? an.calib.cmPerUnit : ''}`;
     if (resultCache.has(key)) return resultCache.get(key);
     const V = root.Vision;
-    const result = V ? V.run(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view, heightCm, limits }) : M.analyze(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view, limits });
+    const result = V ? V.run(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view, heightCm, limits, calib: an.calib }) : M.analyze(data.frames, { exercise: an.exercise, aspect: data.aspect, view: an.view, limits });
     delete result.preparedFrames;
     result.framesRef = data.frames.filter((f) => f && f.lm && f.lm.length >= 33);
     if (a && !an.demo && result.L && result.view === 'side' && !result.error) rememberLengths(a, an, result.L);
@@ -104,8 +104,12 @@
   // Keep the stored summary (for lists and the coach's roster) in sync with the result.
   function storeSummary(an, result) {
     const checks = (result.checks || []).filter((c) => !c.info).map((c) => ({ id: c.id, label: c.label, status: c.status, display: c.display, ...(c.confidenceLevel ? { conf: c.confidenceLevel } : {}) }));
-    const changed = an.score !== (result.score ?? null) || an.reps !== result.reps?.length || JSON.stringify(an.checks) !== JSON.stringify(checks);
+    const repScores = (result.reps || []).map((r) => r.score).filter((x) => x != null).map((x) => Math.round(x));
+    const seenView = ['side', 'front', 'angled'].includes(result.view) ? result.view : null;
+    const changed = an.score !== (result.score ?? null) || an.reps !== result.reps?.length || JSON.stringify(an.checks) !== JSON.stringify(checks) || JSON.stringify(an.repScores || []) !== JSON.stringify(repScores) || an.seenView !== seenView;
     if (!changed) return false;
+    an.repScores = repScores;
+    an.seenView = seenView;
     an.score = result.error ? null : result.score ?? null;
     an.reps = result.reps ? result.reps.length : 0;
     an.checks = checks;
@@ -297,16 +301,18 @@
             <div class="ring band-${scoreBand(result.score)}" style="--pct:${result.score ?? 0}"><span>${result.score ?? '–'}</span></div>
             <div><h2>${result.score >= 80 ? 'Great form' : result.score >= 60 ? 'Good, with fixes' : result.score >= 40 ? 'Needs work' : 'Let’s fix this'}</h2>
               <p class="muted" style="margin:0">${e.custom ? `${fmtT(result.times[result.times.length - 1] || 0)} analysed · ${result.view}-on view` : e.gait ? `${result.cadence ? Math.round(result.cadence) + ' steps/min · ' : ''}${fmtT(result.times[result.times.length - 1] || 0)} analysed` : `${reps.length} rep${reps.length === 1 ? '' : 's'} · ${result.view}-on view`}</p>
-              ${result.strengths && result.strengths.length ? `<p class="small" style="margin:.4rem 0 0">✅ ${esc(result.strengths.slice(0, 3).join(', '))}</p>` : ''}</div>
+              ${result.strengths && result.strengths.length ? `<p class="small" style="margin:.4rem 0 0">✅ ${esc(result.strengths.slice(0, 3).join(', '))}</p>` : ''}
+              ${scoreChangeLine(an, result)}</div>
           </div>
         </section>
         <section class="card span-8">
           <div class="card-head"><h3>Checks</h3><span class="muted small">${e.gait || e.custom ? 'Across the whole clip' : 'Median across reps'}${result.confidenceLevel ? ` · ${esc(result.confidenceLevel)} confidence overall` : ''}${root.Explain ? root.Explain.btn('confidence') : ''}</span></div>
+          ${accuracyLine(an)}
           <ul class="list checks">${result.checks
             .map(
               (c) => `<li>${statusDot(c.info ? 'info' : c.status)}
               <div class="main"><strong>${esc(c.label)}</strong>${root.Explain ? root.Explain.btn(`${an.exercise}.${c.id}`) : ''} <span class="muted">· ${esc(c.display || '')}</span>${confBadge(c)}
-                <div class="muted small">Target: ${esc(c.target || '')}${c.reps > 1 && c.off ? ` · ${c.off} of ${c.reps} reps off` : ''}${c.downgraded ? ' · Looked off, but the camera view was unclear. Film again to confirm.' : ''}</div></div></li>`
+                <div class="muted small">Target: ${esc(c.target || '')}${c.reps > 1 && c.off ? ` · ${c.off} of ${c.reps} reps off` : ''}${c.downgraded ? ' · Looked off, but the camera view was unclear. Film again to confirm.' : ''}</div></div>${c.info ? '' : labelButtons(an, c)}</li>`
             )
             .join('')}</ul>
         </section>
@@ -323,6 +329,33 @@
         ${suggestionsCard(an, result)}
         ${discussionCards(an, result)}
       </div>`;
+  }
+
+  // "Was this right?" on each check: builds a record of how often the camera agrees with the coach's eye.
+  function labelButtons(an, c) {
+    const v = (an.labels || {})[c.id];
+    return `<div class="label-btns" role="group" aria-label="Was this check right?"><span class="muted small">Right?</span><button class="btn btn-xs ${v === 'right' ? 'on' : ''}" data-form-action="label" data-check="${esc(c.id)}" data-v="right" aria-pressed="${v === 'right'}">Yes</button><button class="btn btn-xs ${v === 'wrong' ? 'on' : ''}" data-form-action="label" data-check="${esc(c.id)}" data-v="wrong" aria-pressed="${v === 'wrong'}">No</button></div>`;
+  }
+
+  function accuracyLine(an) {
+    if (!root.Reliability) return '';
+    const mine = analyses().filter((x) => x.exercise === an.exercise && x.labels && Object.keys(x.labels).length);
+    const acc = root.Reliability.labelAccuracy(mine);
+    if (!acc.n) return `<p class="hint" style="margin:0 0 .4rem">Tap Yes or No on a check if you can see whether it was right. Over time this shows how often the camera agrees with a coach’s eye for ${esc(exInfo(an.exercise).label.toLowerCase())}.</p>`;
+    const worst = Object.values(acc.byCheck).filter((c) => c.n >= 3).sort((a, b) => a.right / a.n - b.right / b.n)[0];
+    return `<p class="hint" style="margin:0 0 .4rem"><strong>Camera agreed ${acc.pct}% of the time</strong> on ${acc.n} rated ${esc(exInfo(an.exercise).label.toLowerCase())} checks${worst && worst.right / worst.n < 0.7 ? ` · least reliable: ${esc(worst.label)} (${Math.round((worst.right / worst.n) * 100)}%), double-check it by eye` : ''}.</p>`;
+  }
+
+  // Score change vs the last check of the same lift, judged against how much the reps varied.
+  function scoreChangeLine(an, result) {
+    if (!root.Reliability || result.score == null) return '';
+    const prev = analyses().filter((x) => x.id !== an.id && x.athleteId === an.athleteId && x.exercise === an.exercise && x.createdAt < an.createdAt && x.score != null).sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (!prev) return '';
+    const cur = (result.reps || []).map((r) => r.score).filter((x) => x != null);
+    const ch = root.Reliability.scoreChange(prev.repScores && prev.repScores.length ? prev.repScores : [prev.score], cur.length ? cur : [result.score]);
+    if (ch.diff == null) return '';
+    const txt = ch.real ? `${ch.diff > 0 ? 'Up' : 'Down'} ${Math.abs(ch.diff)} since last time, a real change (noise ±${ch.band})` : `${ch.diff >= 0 ? '+' : ''}${ch.diff} since last time, within rep-to-rep noise (±${ch.band})`;
+    return `<p class="small ${ch.real ? (ch.diff > 0 ? 'good-t' : 'bad-t') : 'muted'}" style="margin:.3rem 0 0">${esc(txt)}</p>`;
   }
 
   function confBadge(c) {
@@ -342,9 +375,10 @@
 
   // Two-angle combine (#61): a side-on and a front-on clip of the same lift within 3 days.
   function partnerFor(an) {
-    const other = an.view === 'front' ? 'side' : 'front';
+    const viewOf = (x) => (x.view === 'auto' ? x.seenView : x.view);
+    const other = viewOf(an) === 'front' ? 'side' : 'front';
     return analyses()
-      .filter((x) => x.id !== an.id && x.athleteId === an.athleteId && x.exercise === an.exercise && x.view === other && Math.abs((x.createdAt || 0) - (an.createdAt || 0)) < 3 * 864e5)
+      .filter((x) => x.id !== an.id && x.athleteId === an.athleteId && x.exercise === an.exercise && viewOf(x) === other && Math.abs((x.createdAt || 0) - (an.createdAt || 0)) < 3 * 864e5)
       .sort((a, b) => Math.abs(a.createdAt - an.createdAt) - Math.abs(b.createdAt - an.createdAt))[0] || null;
   }
 
@@ -354,9 +388,11 @@
     if (!V || e.gait || e.custom || result.error) return '';
     const p = partnerFor(an);
     if (!p) {
-      if (an.view === 'auto' || !e.views || e.views.length < 2) return '';
+      const v = an.view === 'auto' ? result.view : an.view;
+      if ((v !== 'side' && v !== 'front') || !e.views || e.views.length < 2) return '';
       return `<section class="card span-12"><div class="card-head"><h3>Add a second angle</h3></div>
-        <p class="muted small" style="margin:0">Film the same lift from the ${an.view === 'front' ? 'side' : 'front'} too. Side-on measures depth, lean and bar path; front-on measures knees caving in and shifting. Together you get one full report.</p></section>`;
+        <p class="muted small" style="margin:0 0 .6rem">Film the same lift from the ${v === 'front' ? 'side' : 'front'} too. Side-on measures depth, lean and bar path; front-on measures knees caving in and shifting. Together you get one full report, and each check comes from the angle that sees it best.</p>
+        ${ctx.role() === 'coach' ? '' : `<button class="btn btn-primary btn-sm" data-form-action="second-angle" data-exercise="${an.exercise}" data-view="${v === 'front' ? 'side' : 'front'}">📷 Film the ${v === 'front' ? 'side' : 'front'} angle now</button>`}</section>`;
     }
     const pd = frameCache.get(p.id);
     if (!pd) {
@@ -387,6 +423,39 @@
     return r.score == null ? '' : r.score >= 80 ? 'good' : r.score >= 55 ? 'warn' : 'bad';
   }
 
+  // ---------- size calibration from a known object ----------
+  // Tap both ends of something of known size in the picture (a 45 cm bumper plate, a 1 m tape mark).
+  // Real-world numbers (cm, m/s) then come from that instead of the athlete's height.
+  const calibState = { on: false, points: [] };
+  const REFS = [['plate', 'Bumper plate (45 cm across)', 45], ['tape', 'Tape mark (1 m)', 100], ['box', 'Plyo box (61 cm / 24 in tall)', 61], ['custom', 'Something else', null]];
+  function calibPanel(an) {
+    const n = calibState.points.length;
+    if (n < 2) return `<p class="small" style="margin:0"><strong>Step ${n + 1} of 2:</strong> pause the video and tap ${n ? 'the other end' : 'one end'} of something you know the size of. A bumper plate is 45 cm across.</p>
+      <button class="btn btn-sm btn-ghost" data-form-action="calibrate-cancel">Cancel</button>${an.calib ? ' <button class="btn btn-sm btn-ghost" data-form-action="calibrate-clear">Use my height instead</button>' : ''}`;
+    return `<div class="row" style="gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+      <label>What did you mark? <select data-calib-ref>${REFS.map(([id, l]) => `<option value="${id}">${esc(l)}</option>`).join('')}</select></label>
+      <label>Length (cm) <input type="number" data-calib-cm min="5" max="400" step="0.5" value="45" style="width:6rem"/></label>
+      <button class="btn btn-sm btn-primary" data-form-action="calibrate-save">Save size</button>
+      <button class="btn btn-sm btn-ghost" data-form-action="calibrate-cancel">Cancel</button></div>`;
+  }
+  // cm per frame unit from two tapped points (0..1 of the picture's width and height).
+  function calibFrom(points, aspect, cm) {
+    if (points.length < 2 || !(cm > 0)) return null;
+    const [a, b] = points;
+    const d = Math.hypot((b[0] - a[0]) * aspect, b[1] - a[1]);
+    return d > 0.01 ? cm / d : null;
+  }
+  function drawCalibMarks(container) {
+    container.querySelectorAll('.calib-dot, .calib-line').forEach((x) => x.remove());
+    for (const [x, y] of calibState.points) {
+      const dot = document.createElement('i');
+      dot.className = 'calib-dot';
+      dot.style.left = `${x * 100}%`;
+      dot.style.top = `${y * 100}%`;
+      container.append(dot);
+    }
+  }
+
   function playerCard(an, result) {
     return `<div class="player hud" id="form-player" style="aspect-ratio:${an.aspect}"></div>
       <div class="player-controls">
@@ -397,9 +466,11 @@
         <label class="check"><input type="checkbox" data-form-toggle="ghost" ${uiState.ghost ? 'checked' : ''}/> Target ghost</label>
         ${result && result.barPath ? `<label class="check"><input type="checkbox" data-form-toggle="barpath" ${uiState.barpath ? 'checked' : ''}/> Bar path</label>` : ''}
         <button class="btn btn-sm" data-form-action="draw" aria-pressed="${!!draw.active}">✏️ Draw</button>
+        ${ctx.role() === 'coach' && !an.calib ? '' : `<button class="btn btn-sm" data-form-action="calibrate" aria-pressed="${!!calibState.on}" title="Tap both ends of something you know the size of">📏 ${an.calib ? `Size: ${esc(an.calib.label || 'calibrated')}` : 'Calibrate size'}</button>`}
         <div class="spacer"></div>
         <span class="muted small" id="form-time">0:00</span>
       </div>
+      <div id="calib-panel" class="calib-panel" ${calibState.on ? '' : 'hidden'}>${calibPanel(an)}</div>
       <p class="hint" style="margin:.4rem 0 0">Green dashed figure = target position at the ${esc((exInfo(an.exercise).keyLabel || 'key point').toLowerCase())}. Colours show which parts need work.</p>`;
   }
 
@@ -960,7 +1031,7 @@
     return dialog;
   }
 
-  function openAnalyze({ exercise = 'squat', videoId = null } = {}) {
+  function openAnalyze({ exercise = 'squat', videoId = null, view = 'auto' } = {}) {
     const d = ensureDialog();
     const me = ctx.me();
     const vids = ctx.state().videos.filter((v) => v.athleteId === me.id).sort((a, b) => b.ts - a.ts);
@@ -973,7 +1044,9 @@
       <p class="hint" id="analyze-tip"></p>
       <p class="hint" id="analyze-setup" style="margin-top:-.25rem"></p>
       <h3>2 · Video</h3>
-      <label class="file-pick"><input type="file" name="file" accept="video/*" /><span class="btn btn-sm">🎥 Record or choose a video</span><span class="muted file-name" data-file-name>No video selected</span></label>
+      <div class="row" style="gap:.5rem;flex-wrap:wrap"><button type="button" class="btn btn-sm btn-primary" data-form-action="record-in-app">📷 Record with camera check</button>
+      <label class="file-pick"><input type="file" name="file" accept="video/*" /><span class="btn btn-sm">🎥 Choose a video</span><span class="muted file-name" data-file-name>No video selected</span></label></div>
+      <p class="hint" style="margin-top:.35rem">Recording in the app checks distance, angle, level, light and frame rate first, and remembers your setup so next time matches.</p>
       ${
         vids.length
           ? `<details ${videoId ? 'open' : ''}><summary class="small">…or use one you already uploaded (${vids.length})</summary>
@@ -982,8 +1055,9 @@
               .join('')}</div></details>`
           : ''
       }
-      <details><summary class="small">Camera angle (optional)</summary>
-        <select name="view"><option value="auto">Auto-detect</option><option value="side">Side-on</option><option value="front">Front-on</option></select></details>
+      <details${view !== 'auto' ? ' open' : ''}><summary class="small">Camera angle (optional)</summary>
+        <select name="view"><option value="auto">Auto-detect</option><option value="side" ${view === 'side' ? 'selected' : ''}>Side-on</option><option value="front" ${view === 'front' ? 'selected' : ''}>Front-on</option></select></details>
+      <label class="check"><input type="checkbox" name="precise" ${uiState.precise ? 'checked' : ''}/> Precise mode: analyse up to 60 frames a second (slower, best for fast lifts and jumps)</label>
       <p class="hint">Runs entirely on this device. Videos up to ${root.Pose ? root.Pose.MAX_SECONDS : 90} s are analysed; for best results keep your whole body in frame with the camera steady.</p>
       <div id="analyze-progress" hidden><div class="progress"><i style="width:0%"></i></div><p class="small muted" data-status>Loading the pose model…</p></div>
       <p class="pain-text small" id="analyze-error" hidden></p>
@@ -993,18 +1067,18 @@
     const syncTip = () => {
       const e = M.EXERCISES[form.exercise.value];
       $('#analyze-tip', d).textContent = '📱 ' + e.tips;
-      const live = root.LiveCoach && root.LiveCoach.LIVE_EXERCISES.includes(form.exercise.value);
-      const MU = root.MobilityUI;
+            const MU = root.MobilityUI;
       const v = (e.views || ['side'])[0];
       const guide = MU && MU.filmDiagram ? `<details class="film-guide-wrap"${uiState.guideOpen ? ' open' : ''}><summary class="small">📐 Where to put the phone</summary><div class="film-guide">${MU.filmDiagram(v, { distance: e.custom === 'sprintstart' ? 9 : e.gait ? 6 : e.custom === 'cut' ? 6 : 3, height: ['pushup', 'bench', 'hipthrust'].includes(form.exercise.value) ? 'knee' : 'hip' })}<p class="small" style="margin:0">${esc(e.views && e.views.length > 1 ? `Best from the ${e.views[0]}. Film from the ${e.views[1]} as well and the app combines both angles into one report.` : `Film from the ${v}.`)} Put the phone on something steady, landscape, with a metre of space above your head and below your feet.</p></div></details>` : '';
       const demo = root.ExerciseDemo && root.ExerciseDemo.button ? root.ExerciseDemo.button('form', form.exercise.value, '▶ Watch good form') : '';
-      $('#analyze-setup', d).innerHTML = guide + demo + (live ? `<button type="button" class="btn btn-sm btn-ghost" data-form-action="setup-check" data-exercise="${form.exercise.value}">📷 Check your camera setup live first</button>` : '');
+      $('#analyze-setup', d).innerHTML = guide + demo + '';
     };
     syncTip();
     form.addEventListener('change', (e) => {
       if (e.target.name === 'exercise') syncTip();
       if (e.target.name === 'file') {
         const f = e.target.files[0];
+        form._recorded = null;
         $('[data-file-name]', form).textContent = f ? `${f.name} · ${(f.size / 1e6).toFixed(1)} MB` : 'No video selected';
         $$('input[name=videoId]', form).forEach((r) => (r.checked = false));
       }
@@ -1025,8 +1099,25 @@
     if (root.Pose) root.Pose.preload().catch(() => {});
   }
 
+  // A video recorded with the camera check goes in as if it had been picked.
+  function attachRecording(form, blob, info = {}) {
+    if (!form.isConnected) return;
+    const ext = /mp4/.test(blob.type) ? 'mp4' : 'webm';
+    const file = new File([blob], `form-check-${Date.now()}.${ext}`, { type: blob.type || 'video/webm' });
+    form._recorded = file;
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      form.file.files = dt.files;
+    } catch {}
+    $$('input[name=videoId]', form).forEach((r) => (r.checked = false));
+    $('[data-file-name]', form).textContent = `Recorded in the app · ${Math.round(info.seconds || 0)} s${info.fps ? ` · ${Math.round(info.fps)} fps` : ''}`;
+    if (info.fps >= 50 && form.precise) form.precise.checked = true;
+  }
+
   async function runAnalysis(form) {
-    const file = form.file.files[0];
+    const file = form.file.files[0] || form._recorded || null;
+    uiState.precise = !!(form.precise && form.precise.checked);
     const picked = form.querySelector('input[name=videoId]:checked');
     const exercise = form.exercise.value;
     const view = form.view.value;
@@ -1061,13 +1152,14 @@
       status.textContent = 'Loading the pose model…';
       const data = await root.Pose.detect(url, {
         signal: controller.signal,
+        precise: uiState.precise,
         onProgress: (f) => {
           bar.style.width = `${Math.round(f * 100)}%`;
           status.textContent = `Tracking your movement… ${Math.round(f * 100)}%`;
         },
       });
       if (data.frames.length < 5) throw new Error('No person was detected. Make sure your whole body is in frame and well lit.');
-      const an = ctx.C.normalizeAnalysis({ athleteId: me.id, videoId, exercise, view, aspect: data.aspect, duration: data.duration, seenByAthlete: true, sharedWithCoach: !!(me.privacy && me.privacy.autoShareForm), seenByCoach: false });
+      const an = ctx.C.normalizeAnalysis({ athleteId: me.id, videoId, exercise, view, aspect: data.aspect, duration: data.duration, seenByAthlete: true, source: form._recorded ? 'camera' : 'upload', fps: data.fps, sharedWithCoach: !!(me.privacy && me.privacy.autoShareForm), seenByCoach: false });
       await ctx.Media.putPoses(an.id, { frames: data.frames, aspect: data.aspect, width: data.width, height: data.height });
       frameCache.set(an.id, { frames: data.frames, aspect: data.aspect });
       storeSummary(an, computeResult(an, { frames: data.frames, aspect: data.aspect }));
@@ -1292,10 +1384,65 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         return ctx.toast('Downloaded. Mark each check good or bad, then run the accuracy report.');
       }
+      case 'calibrate': {
+        calibState.on = !calibState.on;
+        calibState.points = [];
+        el.setAttribute('aria-pressed', String(calibState.on));
+        if (active) active.player.pause && active.player.pause();
+        const panel = $('#calib-panel');
+        if (panel && an) (panel.hidden = !calibState.on), (panel.innerHTML = calibPanel(an));
+        const pl = $('#form-player');
+        if (pl) pl.classList.toggle('calibrating', calibState.on), drawCalibMarks(pl);
+        return;
+      }
+      case 'calibrate-cancel': {
+        calibState.on = false;
+        calibState.points = [];
+        return refreshDetail();
+      }
+      case 'calibrate-clear': {
+        if (!an) return;
+        an.calib = null;
+        calibState.on = false;
+        ctx.save();
+        return refreshDetail();
+      }
+      case 'calibrate-save': {
+        if (!an || !active) return;
+        const cm = Number($('[data-calib-cm]').value);
+        const ref = $('[data-calib-ref]').value;
+        const cmPerUnit = calibFrom(calibState.points, active.data.aspect || an.aspect, cm);
+        if (!cmPerUnit) return ctx.toast('Tap two points further apart, then try again.');
+        const label = ref === 'custom' ? `${cm} cm reference` : REFS.find((r) => r[0] === ref)[1].split(' (')[0];
+        an.calib = { cmPerUnit, refCm: cm, label };
+        calibState.on = false;
+        calibState.points = [];
+        ctx.save();
+        ctx.toast('Size saved. Centimetres and bar speed now use your reference.');
+        return refreshDetail();
+      }
+      case 'second-angle':
+        return openAnalyze({ exercise: el.dataset.exercise, view: el.dataset.view });
+      case 'record-in-app': {
+        const form = document.getElementById('analyze-form');
+        if (!form || !root.CamCheck) return;
+        const ex = form.exercise.value;
+        root.CamCheck.open({ exercise: ex, view: form.view.value, title: `${M.EXERCISES[ex].label} · camera check`, onVideo: (blob, info) => attachRecording(form, blob, info) });
+        return;
+      }
       case 'setup-check': {
         const openDialog = document.querySelector('dialog[open]');
         if (openDialog) openDialog.close();
         return ctx.go('live', el.dataset.exercise);
+      }
+      case 'label': {
+        if (!an) return;
+        an.labels = { ...(an.labels || {}) };
+        if (an.labels[el.dataset.check] === el.dataset.v) delete an.labels[el.dataset.check];
+        else an.labels[el.dataset.check] = el.dataset.v;
+        ctx.save();
+        ctx.render();
+        return;
       }
       case 'clear-flag': {
         if (!an || !root.FormPlan) return;
@@ -1371,8 +1518,31 @@
     refreshDetail();
   }
 
+  // While calibrating, taps on the video mark the reference object's ends.
+  function onCalibTap(e) {
+    if (!calibState.on) return;
+    const pl = e.target.closest('#form-player');
+    if (!pl || e.target.closest('button, input, .virtual-bar')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const r = pl.getBoundingClientRect();
+    if (calibState.points.length >= 2) calibState.points = [];
+    calibState.points.push([(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]);
+    drawCalibMarks(pl);
+    const an = active ? byId(active.id) : null;
+    const panel = $('#calib-panel');
+    if (panel && an) panel.innerHTML = calibPanel(an);
+  }
+
   function init(c) {
     ctx = c;
+    document.addEventListener('click', onCalibTap, true);
+    document.addEventListener('change', (e) => {
+      if (!e.target.matches('[data-calib-ref]')) return;
+      const ref = REFS.find((r) => r[0] === e.target.value);
+      const input = $('[data-calib-cm]');
+      if (ref && ref[2] && input) input.value = ref[2];
+    });
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
     document.addEventListener('submit', onSubmit);

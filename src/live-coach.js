@@ -2,7 +2,7 @@
  * Real-time camera coaching.
  *   Engine (pure, tested in Node): feed pose frames as they arrive; it counts reps as they finish,
  *   grades each rep with the same rules as video analysis, and picks one short cue to say.
- *   Browser: camera → MediaPipe pose (on-device) → engine → skeleton overlay, rep counter and spoken cues.
+ *   Browser: camera → MediaPipe pose (on-device) → engine → skeleton overlay, rep counter and on-screen cues.
  * Browser: window.LiveCoach (needs window.Movement, window.Pose). Node: require('./live-coach.js').
  */
 (function (root) {
@@ -144,31 +144,13 @@
     let scope = document; // where the camera stage lives: the Live coach page, or the in-workout overlay
     const byId = (id) => scope.querySelector('#' + id);
 
-    function voiceOn() {
-      try {
-        return localStorage.getItem('athleteos:live-voice') !== 'off';
-      } catch {
-        return true;
-      }
-    }
-    function say(text) {
-      if (!voiceOn() || !('speechSynthesis' in window) || !text) return;
-      try {
-        speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.rate = 1.05;
-        speechSynthesis.speak(u);
-      } catch {}
-    }
-
     function view(id) {
       const esc = ctx.esc;
       const ex = LIVE_EXERCISES.includes(id) ? id : 'squat';
       const E = M.EXERCISES;
       return `<button class="btn btn-sm btn-ghost" data-tab-link="form" style="margin-bottom:.5rem">‹ Form analysis</button>
-        <div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">🎥 Live coach</h1><div class="spacer"></div>
-          <label class="check" style="margin:0"><input type="checkbox" data-live-voice ${voiceOn() ? 'checked' : ''}/> Spoken cues</label></div>
-        <p class="muted" style="margin-top:0">Set your phone down, step back so your whole body is in frame, and start moving. It counts your reps and coaches each one out loud. Everything runs on this device; no video is recorded.</p>
+        <div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">🎥 Live coach</h1></div>
+        <p class="muted" style="margin-top:0">Set your phone down, step back so your whole body is in frame, and start moving. It counts your reps, shows a cue on screen for each one and records the set so you and your coach can replay it rep by rep.</p>
         <div class="exercise-strip">${LIVE_EXERCISES.map((k) => `<button class="exercise-chip" data-live-ex="${k}" aria-pressed="${k === ex}"><span>${E[k].icon}</span>${esc(E[k].label)}</button>`).join('')}</div>
         <section class="card live-card">
           ${stageHTML('Tap Start, then step into frame')}
@@ -236,19 +218,16 @@
           const stg = byId('live-stage');
           if (stg) stg.classList.toggle('framed', !!e.ok);
           setText('live-cue', e.ok ? (run.engine.reps.length ? 'Camera setup looks good' : 'Camera setup looks good. Start your reps') : '📷 ' + e.text);
-          if (!e.ok && e.id !== 'none' && run.spokenSetup !== e.id) (run.spokenSetup = e.id), say(e.text);
         }
         if (e.type === 'lost') setText('live-cue', 'Step back into frame');
         if (e.type === 'stop') {
           setText('live-cue', `⏹ Rep ${e.n}: speed dropped ${Math.round(e.loss * 100)}%. End the set here.`);
-          say('Speed dropped. Rack it, end the set.');
         }
         if (e.type === 'hint') setText('live-status', e.text);
         if (e.type === 'rep') {
           run.lastStatus = e.status;
           setText('live-count', String(e.n));
           setText('live-cue', e.status === 'good' ? `✓ Rep ${e.n}: good` : `Rep ${e.n}: ${e.cue}`);
-          say(e.status === 'good' ? `${e.n}` : `${e.n}. ${e.spoken}`);
           const log = byId('live-log');
           if (log) log.insertAdjacentHTML('afterbegin', `<li class="${e.status}"><strong>Rep ${e.n}</strong> ${e.score != null ? `· ${e.score}` : ''} · ${ctx.esc(e.status === 'good' ? 'Good rep' : e.label + ': ' + e.cue)}</li>`);
         }
@@ -268,7 +247,7 @@
       setText('live-cue', 'Starting camera…');
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } }, audio: false });
       } catch (err) {
         const embedded = window.self !== window.top;
         return setText('live-cue', embedded ? 'The camera isn’t available inside this preview. Open Motiq in its own browser tab to use Live coach.' : err && err.name === 'NotAllowedError' ? 'Camera access was blocked. Allow it in your browser settings.' : 'Couldn’t open the camera.');
@@ -277,7 +256,14 @@
       video.classList.toggle('mirror', facing === 'user');
       await video.play().catch(() => {});
       const aspect = (video.videoWidth || 16) / (video.videoHeight || 9);
-      run = { exercise, facing, stream, engine: createEngine({ exercise, aspect, stopAt: keep && keep.stopAt }), t0: performance.now(), raf: 0, lastStatus: 'good', lm: null, poseErr: null, aspect, set: keep || null };
+      run = { exercise, facing, stream, engine: createEngine({ exercise, aspect, stopAt: keep && keep.stopAt }), t0: performance.now(), raf: 0, lastStatus: 'good', lm: null, poseErr: null, aspect, set: keep || null, rec: null };
+      // Record the set so it can be replayed rep by rep. Frame times count from the recording's start.
+      const track = stream.getVideoTracks()[0];
+      run.fps = (track && track.getSettings && track.getSettings().frameRate) || null;
+      if (root.CamCheck && root.CamCheck.recorder) {
+        run.rec = root.CamCheck.recorder(stream, { fps: run.fps || 30 });
+        run.t0 = performance.now();
+      }
       ['live-start'].forEach((id) => byId(id) && (byId(id).hidden = true));
       ['live-stop', 'live-flip'].forEach((id) => byId(id) && (byId(id).hidden = false));
       setText('live-cue', 'Loading the pose model…');
@@ -326,7 +312,11 @@
       const r = run;
       run = null;
       cancelAnimationFrame(r.raf);
-      if (r.stream) r.stream.getTracks().forEach((tr) => tr.stop());
+      // The recording finishes before the camera is released.
+      r.video = r.rec ? r.rec.stop().catch(() => null) : Promise.resolve(null);
+      const tracks = r.stream ? r.stream.getTracks() : [];
+      r.video.finally(() => tracks.forEach((tr) => tr.stop()));
+      if (!r.rec) tracks.forEach((tr) => tr.stop());
       const v = byId('live-video');
       if (v) v.srcObject = null;
       if (silent) return r;
@@ -338,11 +328,81 @@
         el.innerHTML = `<section class="card"><div class="card-head"><h3>Set summary</h3></div>
           ${sum.reps ? `<p style="margin-top:0"><strong>${sum.reps} reps</strong>${sum.avgScore != null ? ` · average score ${sum.avgScore}` : ''} · ${sum.good} clean</p>
           ${sum.topIssue ? `<p>Main thing to work on: <strong>${ctx.esc(sum.topIssue.label)}</strong> (${sum.topIssue.reps} reps). ${ctx.esc(sum.topIssue.cue)}</p>` : '<p>Every rep looked good. 💪</p>'}
-          <button class="btn" data-live-action="save">Save to form checks</button>` : '<p class="muted">No full reps were counted. Make sure your whole body is in frame and move through the full range.</p>'}</section>`;
+          <div id="live-replay" class="muted small">Saving the set…</div>` : '<p class="muted">No full reps were counted. Make sure your whole body is in frame and move through the full range.</p>'}</section>`;
       }
-      lastRun = r;
-      if (sum.reps) say(`Set done. ${sum.reps} reps.`);
+      // Every counted set is saved with its video, so the athlete and the coach can replay it.
+      if (sum.reps) {
+        storeRunWithVideo(r).then((an) => {
+          const box = byId('live-replay');
+          if (!box) return;
+          if (!an) return (box.textContent = 'Couldn’t save this set.');
+          box.outerHTML = replayHTML(an, r.engine.reps);
+          mountReplay(byId('live-summary'), an, r.engine.reps);
+        });
+      }
     }
+
+    // Save a finished run as a form check, with the recorded video when there is one.
+    async function storeRunWithVideo(r, extra = {}) {
+      const out = await (r.video || Promise.resolve(null));
+      let videoId = null;
+      if (out && out.blob && out.blob.size && ctx.storeVideo) {
+        const ext = /mp4/.test(out.blob.type) ? 'mp4' : 'webm';
+        const file = new File([out.blob], `live-${r.exercise}-${Date.now()}.${ext}`, { type: out.blob.type });
+        const meta = await ctx.storeVideo(file, ctx.me().id, { caption: `${M.EXERCISES[r.exercise].label} · Live coach` });
+        if (meta) videoId = meta.id;
+      }
+      const an = storeRun(r, { ...extra, videoId, source: 'live', fps: r.fps || null, keepTime: !!videoId });
+      if (an) ctx.save();
+      return an;
+    }
+
+    // Rep-by-rep replay of a saved set: video, a button per rep, slow motion.
+    function replayHTML(an, reps) {
+      const esc = ctx.esc;
+      return `<div class="replay" data-replay="${esc(an.id)}">
+        <div class="replay-stage hud"><video playsinline controls preload="auto"></video></div>
+        <div class="replay-bar">
+          <div class="rep-strip">${(reps || []).map((x) => `<button class="rep-btn ${x.status}" data-replay-rep="${x.t}" title="${esc(x.status === 'good' ? 'Good rep' : x.label || '')}">${x.n}</button>`).join('')}</div>
+          <div class="segmented small-seg" role="group" aria-label="Playback speed">${[0.25, 0.5, 1].map((v) => `<button data-replay-rate="${v}" aria-pressed="${v === 0.5}">${v}×</button>`).join('')}</div>
+        </div>
+        <div class="row" style="margin-top:.5rem"><span class="muted small">${an.sharedWithCoach ? 'Shared with your coach.' : 'Only you can see this until you share it.'}</span><div class="spacer"></div>
+          ${an.sharedWithCoach ? '' : `<button class="btn btn-sm" data-replay-share="${esc(an.id)}">Share with coach</button>`}
+          <button class="btn btn-sm btn-primary" data-form-open="${esc(an.id)}" data-replay-open="${esc(an.id)}">Full breakdown</button></div>
+      </div>`;
+    }
+
+    async function mountReplay(scopeEl, an) {
+      const box = scopeEl && scopeEl.querySelector(`[data-replay="${an.id}"]`);
+      if (!box) return;
+      const v = box.querySelector('video');
+      const url = an.videoId ? await ctx.Media.url(an.videoId).catch(() => null) : null;
+      if (!url) {
+        box.querySelector('.replay-stage').innerHTML = '<p class="muted small" style="padding:1rem">The video isn’t on this device. Open the full breakdown to replay the tracked skeleton.</p>';
+        return;
+      }
+      v.src = url;
+      v.playbackRate = 0.5;
+    }
+
+    // Replay dialog, used between sets in Live workout mode.
+    function replay(analysisId) {
+      const an = (ctx.state().analyses || []).find((x) => x.id === analysisId);
+      if (!an) return ctx.toast('That set isn’t saved on this device.');
+      const reps = (an.repTimes || []).map((t, i) => ({ n: i + 1, t, status: 'good' }));
+      let d = document.getElementById('replay-dialog');
+      if (!d) {
+        d = document.createElement('dialog');
+        d.id = 'replay-dialog';
+        d.className = 'wide';
+        document.body.append(d);
+        d.addEventListener('click', (e) => (e.target === d || e.target.closest('[data-replay-close]')) && d.close());
+      }
+      d.innerHTML = `<div class="row"><h2 style="margin:0">Replay · ${ctx.esc(M.EXERCISES[an.exercise].label)}</h2><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-replay-close aria-label="Close">✕</button></div>${replayHTML(an, reps)}`;
+      d.showModal();
+      mountReplay(d, an);
+    }
+
     let lastRun = null;
 
     // Store a live set as a form check, with its summary filled in so it can shape the program.
@@ -351,14 +411,18 @@
       if (frames.length < 8) return null;
       const me = ctx.me();
       const aspect = r.aspect || 16 / 9;
-      const t0 = frames[0].t;
+      // With a recording, frame times stay on the video's clock so the replay lines up.
+      const t0 = extra.keepTime ? 0 : frames[0].t;
+      delete extra.keepTime;
       const fr = frames.map((f) => ({ t: +(f.t - t0).toFixed(3), lm: f.lm.map((p) => p.map((v) => +(+v).toFixed(4))) }));
+      const repTimes = r.engine.reps.map((x) => +(x.t - t0).toFixed(2));
       const res = M.analyze(fr, { exercise: r.exercise, aspect });
       const an = ctx.C.normalizeAnalysis({
         athleteId: me.id, exercise: r.exercise, aspect, duration: fr[fr.length - 1].t, seenByAthlete: true, athleteNote: 'Recorded with Live coach',
         sharedWithCoach: !!(me.privacy && me.privacy.autoShareForm),
         score: res.error ? null : res.score, reps: (res.reps || []).length,
         checks: (res.checks || []).filter((c) => !c.info).map((c) => ({ id: c.id, label: c.label, status: c.status, display: c.display })),
+        repTimes,
         ...extra,
       });
       ctx.Media.putPoses(an.id, { frames: fr, aspect }).catch(() => {});
@@ -390,8 +454,7 @@
       el.id = 'live-set';
       el.setAttribute('role', 'dialog');
       el.setAttribute('aria-label', 'Live coach for this set');
-      el.innerHTML = `<div class="focus-top"><button class="btn btn-sm" data-live-set="cancel">✕ Cancel</button><span class="muted small">🎥 ${ctx.esc(title || ex.label)}</span>
-          <label class="check" style="margin:0"><input type="checkbox" data-live-voice ${voiceOn() ? 'checked' : ''}/> Voice</label></div>
+      el.innerHTML = `<div class="focus-top"><button class="btn btn-sm" data-live-set="cancel">✕ Cancel</button><span class="muted small">🎥 ${ctx.esc(title || ex.label)}</span></div>
         ${stageHTML('Starting camera…')}
         <p class="small muted" style="text-align:center;margin:.5rem 0">${ctx.esc(ex.tips)}</p>
         <div class="row" style="justify-content:center;gap:.5rem">
@@ -419,13 +482,46 @@
       if (!r || !r.set || !r.engine) return closeSet();
       stop(true);
       const sum = r.engine.summary();
-      const an = sum.reps >= 2 ? storeRun(r, { athleteNote: `Live coach during ${r.set.title || 'a workout'}` }) : null;
       closeSet();
-      if (sum.reps) say(`Set done. ${sum.reps} reps.`);
-      r.set.onDone({ ...sum, analysis: an });
+      if (sum.reps < 2) return r.set.onDone({ ...sum, analysis: null });
+      storeRunWithVideo(r, { athleteNote: `Live coach during ${r.set.title || 'a workout'}` }).then((an) => r.set.onDone({ ...sum, analysis: an }));
     }
 
     function onClick(e) {
+      const rp = e.target.closest('[data-live-replay]');
+      if (rp) return replay(rp.dataset.liveReplay);
+      const rep = e.target.closest('[data-replay-rep]');
+      if (rep) {
+        const v = rep.closest('.replay').querySelector('video');
+        if (v) {
+          v.currentTime = Math.max(0, Number(rep.dataset.replayRep) - 1.2);
+          v.play().catch(() => {});
+        }
+        rep.closest('.rep-strip').querySelectorAll('.rep-btn').forEach((b) => b.setAttribute('aria-pressed', String(b === rep)));
+        return;
+      }
+      const rate = e.target.closest('[data-replay-rate]');
+      if (rate) {
+        const v = rate.closest('.replay').querySelector('video');
+        if (v) v.playbackRate = Number(rate.dataset.replayRate);
+        rate.parentElement.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === rate)));
+        return;
+      }
+      const sh = e.target.closest('[data-replay-share]');
+      if (sh) {
+        const an = (ctx.state().analyses || []).find((x) => x.id === sh.dataset.replayShare);
+        if (an) {
+          an.sharedWithCoach = true;
+          ctx.save();
+          sh.replaceWith(document.createTextNode(''));
+          ctx.toast('Shared with your coach');
+        }
+        return;
+      }
+      if (e.target.closest('[data-replay-open]')) {
+        const d = document.getElementById('replay-dialog');
+        if (d && d.open) d.close();
+      }
       const set = e.target.closest('[data-live-set]');
       if (set) {
         const act = set.dataset.liveSet;
@@ -449,24 +545,16 @@
       if (act === 'save') return save();
     }
 
-    function onChange(e) {
-      if (!e.target.matches('[data-live-voice]')) return;
-      try {
-        localStorage.setItem('athleteos:live-voice', e.target.checked ? 'on' : 'off');
-      } catch {}
-    }
-
     function init(c) {
       ctx = c;
       document.addEventListener('click', onClick);
-      document.addEventListener('change', onChange);
       window.addEventListener('hashchange', () => {
         if (scope !== document) return closeSet();
         if (!location.hash.startsWith('#live')) stop(true);
       });
     }
 
-    Object.assign(LiveCoach, { init, view, start, stop, feed, openSet, closeSet, isRunning: () => !!run });
+    Object.assign(LiveCoach, { init, view, start, stop, feed, openSet, closeSet, replay, isRunning: () => !!run });
   }
 
   if (node) module.exports = LiveCoach;

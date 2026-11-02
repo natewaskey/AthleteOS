@@ -99,6 +99,46 @@
   function save() {
     store();
     if (window.Cloud) window.Cloud.changed();
+    queueMediaShare();
+  }
+
+  // Copy shared form checks and live sets (video + poses) to cloud storage so the coach can replay them.
+  let mediaTimer = null;
+  let mediaBusy = false;
+  const mediaTried = new Set();
+  function queueMediaShare() {
+    if (!window.Cloud || !window.Cloud.team || !window.Cloud.team() || !window.Media || !Media.share) return;
+    clearTimeout(mediaTimer);
+    mediaTimer = setTimeout(shareMedia, 1500);
+  }
+  async function shareMedia() {
+    if (mediaBusy) return;
+    mediaBusy = true;
+    try {
+      for (const an of state.analyses || []) {
+        if (!an.sharedWithCoach || mediaTried.has(an.id) || (an.cloud && an.cloud.video && an.cloud.poses) || !navigator.onLine) continue;
+        mediaTried.add(an.id);
+        try {
+          const cloud = await Media.share(an);
+          if (cloud && (cloud.video !== (an.cloud || {}).video || cloud.poses !== (an.cloud || {}).poses)) {
+            an.cloud = cloud;
+            store();
+            if (window.Cloud) window.Cloud.changed();
+          }
+        } catch (e) {
+          if (e && /schema\.sql/.test(e.message || '')) break; // bucket not set up yet: try again next session
+        }
+      }
+    } finally {
+      mediaBusy = false;
+    }
+  }
+  if (window.Media) {
+    Media.cloudPath = (kind, id) => {
+      const list = state.analyses || [];
+      const an = kind === 'video' ? list.find((x) => x.videoId === id && x.cloud && x.cloud.video) : list.find((x) => x.id === id && x.cloud && x.cloud.poses);
+      return an ? an.cloud[kind] : null;
+    };
   }
 
   function store() {
@@ -830,6 +870,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${window.Wearables ? Wearables.devicesCard() : ''}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
@@ -881,7 +922,7 @@
 
   function importCard() {
     return `<section class="card" style="margin-bottom:1rem"><div class="row">
-      <div class="main"><strong>⌚ Import from a watch or app</strong><div class="muted small">GPX or TCX files from Garmin, Coros, Polar, Suunto, Apple Health exports or Strava (Activity → Export GPX). Distance, time, climb and heart rate come in automatically.</div></div>
+      <div class="main"><strong>⌚ Import from a watch or app</strong><div class="muted small">GPX or TCX files from Garmin, Coros, Polar, Suunto, Apple Health exports or Strava (Activity → Export GPX). Distance, time, climb and heart rate come in automatically. WHOOP, Garmin, Oura and Polar can also sync by themselves: Settings › Devices.</div></div>
       <label class="btn" style="margin:0;color:var(--text)">Choose files<input type="file" id="activity-import" accept=".gpx,.tcx,application/gpx+xml,application/xml,text/xml" multiple hidden /></label>
     </div></section>`;
   }
@@ -1261,6 +1302,7 @@
       <div class="grid">
         ${readinessCard(a, { coach: true })}
         ${loadCard(a)}
+        ${window.Wearables ? Wearables.coachCard(a) : ''}
         ${Smart.goalCard(a, { compact: true })}
         ${Smart.riskCard(a, { span: 'span-6' })}
         ${Smart.adaptCard(a, { span: 'span-6' })}
@@ -1884,8 +1926,12 @@
     cForm.sleepQuality.value = src.sleepQuality ?? 3;
     cForm.stress.value = src.stress ?? 2;
     cForm.mood.value = src.mood ?? 4;
-    cForm.restingHR.value = src.restingHR ?? '';
-    const devHrv = (a.metrics || []).find((m) => m.key === 'hrv' && m.date === t);
+    // Device numbers for today (wearable sync or imports) pre-fill the blanks.
+    const dev = (key) => (a.metrics || []).find((m) => m.key === key && m.date === t);
+    const devSleep = dev('sleep');
+    if (!existing && devSleep && devSleep.value > 0) cForm.sleep.value = Math.round(devSleep.value * 4) / 4;
+    cForm.restingHR.value = src.restingHR ?? (dev('rhr') ? Math.round(dev('rhr').value) : '');
+    const devHrv = dev('hrv');
     cForm.hrv.value = src.hrv ?? (devHrv ? Math.round(devHrv.value) : '');
     cForm.note.value = src.note ?? '';
     cForm.hydration.value = src.hydration ?? 3;
@@ -2484,10 +2530,11 @@
   });
 
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
-  const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, openAnalyze: (o) => Form.openAnalyze(o) };
+  const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, storeVideo, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
+  if (window.Wearables) Wearables.init(shared);
   BodyUI.init(shared);
   if (window.MobilityUI) window.MobilityUI.init(shared);
   if (window.Tours) window.Tours.init({ go });

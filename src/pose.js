@@ -75,7 +75,14 @@
    * fps / maxSeconds override the sampling (jump tests want ~30 fps over a short clip). { frames, width, height, aspect, duration, fps }
    * src is an object URL (or any same-origin URL) for the video.
    */
-  async function detect(src, { onProgress = () => {}, signal, fps: wantFps, maxSeconds = MAX_SECONDS } = {}) {
+  // Frames analysed per second. Short clips get up to 30 (60 in precise mode, which is slower but
+  // catches fast movements like jumps and sprints); long clips get fewer so phones finish in about a minute.
+  function sampleFps(duration, { precise = false } = {}) {
+    if (precise) return duration > 30 ? 20 : duration > 15 ? 30 : 60;
+    return duration > 60 ? 8 : duration > 30 ? 12 : duration > 15 ? 20 : 30;
+  }
+
+  async function detect(src, { onProgress = () => {}, signal, fps: wantFps, precise = false, maxSeconds = MAX_SECONDS } = {}) {
     const lm = await landmarker();
     const video = document.createElement('video');
     video.muted = true;
@@ -86,8 +93,7 @@
     await once(video, 'loadeddata');
     const duration = Math.min(video.duration || 0, maxSeconds);
     if (!duration || !isFinite(duration)) throw new Error('Could not read the video length.');
-    // Fewer samples for longer clips keeps analysis around a minute on a phone.
-    const fps = wantFps || (duration > 45 ? 8 : duration > 20 ? 12 : 15);
+    const fps = wantFps || sampleFps(duration, { precise });
     const frames = [];
     let lastTs = -1;
     for (let t = 0; t <= duration; t += 1 / fps) {
@@ -113,5 +119,5 @@
     return { frames, width, height, aspect: width / height, duration, fps };
   }
 
-  root.Pose = { detect, landmarker, preload: () => landmarker().then(() => true), MAX_SECONDS };
+  root.Pose = { detect, sampleFps, landmarker, preload: () => landmarker().then(() => true), MAX_SECONDS };
 })(window);

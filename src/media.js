@@ -1,6 +1,7 @@
 /*
  * Video storage. Blobs live in IndexedDB (localStorage is far too small for video);
- * metadata lives in the main app state. Swap this module for cloud storage later.
+ * metadata lives in the main app state. Analyses shared with the coach are also copied to cloud
+ * storage (Cloud.uploadMedia) so they can be replayed on another device.
  */
 (function (root) {
   'use strict';
@@ -61,22 +62,76 @@
     putPoses(id, data) {
       return tx('readwrite', (s) => s.put(data, id), POSES);
     },
-    getPoses(id) {
-      return tx('readonly', (s) => s.get(id), POSES);
+    async getPoses(id) {
+      const local = await tx('readonly', (s) => s.get(id), POSES);
+      if (local) return local;
+      const blob = await fromCloud('poses', id);
+      if (!blob) return local;
+      try {
+        const data = JSON.parse(await blob.text());
+        Media.putPoses(id, data).catch(() => {});
+        return data;
+      } catch {
+        return local;
+      }
+    },
+    /*
+     * Upload an analysis's video and pose data so the coach (or the athlete on another device) can replay it.
+     * Returns { video, poses } cloud paths for the fields that were uploaded.
+     */
+    async share(an) {
+      const Cloud = root.Cloud;
+      if (!Cloud || !Cloud.team || !Cloud.team()) return null;
+      const out = { ...(an.cloud || {}) };
+      if (an.videoId && !out.video) {
+        const blob = await Media.get(an.videoId);
+        if (blob) {
+          const ext = /mp4/.test(blob.type) ? 'mp4' : /webm/.test(blob.type) ? 'webm' : 'mov';
+          out.video = await Cloud.uploadMedia(Cloud.mediaPath(an.athleteId, `${an.videoId}.${ext}`), blob, blob.type || 'video/mp4');
+        }
+      }
+      if (!out.poses) {
+        const poses = await tx('readonly', (s) => s.get(an.id), POSES);
+        if (poses) out.poses = await Cloud.uploadMedia(Cloud.mediaPath(an.athleteId, `${an.id}.poses.json`), JSON.stringify(poses), 'application/json');
+      }
+      return out;
     },
     removePoses(id) {
       return tx('readwrite', (s) => s.delete(id), POSES);
     },
-    // Object URL for a stored video, cached so re-renders don't reload it. Null if missing.
+    // Where a video or pose file lives in the cloud, if it was shared: set by the app. (kind, id) -> path | null
+    cloudPath: () => null,
+    // Object URL for a stored video, cached so re-renders don't reload it. Falls back to the cloud copy
+    // (a coach watching an athlete's shared set on their own device). Null if missing.
     async url(id) {
       if (urlCache.has(id)) return urlCache.get(id);
-      const blob = await Media.get(id);
+      let blob = await Media.get(id);
+      if (!blob) blob = await fromCloud('video', id, (b) => Media.put(id, b));
       if (!blob) return null;
       const url = URL.createObjectURL(blob);
       urlCache.set(id, url);
       return url;
     },
   };
+
+  const pending = new Map();
+  function fromCloud(kind, id, keep) {
+    const path = Media.cloudPath(kind, id);
+    if (!path || !root.Cloud || !root.Cloud.downloadMedia) return Promise.resolve(null);
+    const k = `${kind}:${id}`;
+    if (!pending.has(k))
+      pending.set(
+        k,
+        root.Cloud.downloadMedia(path)
+          .then((b) => {
+            if (b && keep) keep(b).catch(() => {});
+            return b;
+          })
+          .catch(() => null)
+          .finally(() => setTimeout(() => pending.delete(k), 5000))
+      );
+    return pending.get(k);
+  }
 
   root.Media = Media;
 })(typeof window !== 'undefined' ? window : globalThis);

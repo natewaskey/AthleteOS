@@ -27,8 +27,20 @@
     const row = (label, m, fmt) => (m ? `<li><span>${label}</span><span><strong>${fmt(m.value)}</strong> <span class="muted small">${esc(ctx.relDate(m.date))}${m.source === 'camera' ? ' · 📹' : ''}</span></span></li>` : '');
     const rows = [row('Jump height (CMJ)', latest(a, 'cmj'), cm), row('Reactive strength (RSI)', latest(a, 'rsi'), (v) => v.toFixed(2)), row('Single-leg jump, left', latest(a, 'cmj_l'), cm), row('Single-leg jump, right', latest(a, 'cmj_r'), cm)].join('');
     return `<section class="card ${span} jump-card"><div class="card-head"><h3>🦘 Jump testing</h3><button class="btn btn-sm btn-primary" data-jump="open" data-athlete="${a.id}">📹 Test with camera</button></div>
-      ${rows ? `<ul class="pf-vbt">${rows}</ul>` : `<p class="muted" style="margin:0">Film a jump on any phone and get jump height and reactive strength from the flight time, the same way jump mats work. No force plate needed.</p>`}
+      ${rows ? `<ul class="pf-vbt">${rows}</ul>${agreementHTML(a)}` : `<p class="muted" style="margin:0">Film a jump on any phone and get jump height and reactive strength from the flight time, the same way jump mats work. No force plate needed.</p>`}
     </section>`;
+  }
+
+  // How the camera compares with a jump mat or force plate, once a few tests have both readings.
+  function agreementHTML(a) {
+    const R = root.Reliability;
+    if (!R) return '';
+    const pairs = (a.metrics || []).filter((m) => m.key !== 'rsi' && m.extra && m.extra.ref != null).map((m) => ({ app: m.value, ref: m.extra.ref }));
+    if (!pairs.length) return '';
+    const g = R.agreement(pairs);
+    if (g.bias == null) return `<p class="hint" style="margin:.4rem 0 0">1 jump mat / force plate reading saved. Add one more to see how closely the camera agrees.</p>`;
+    const sign = (v) => `${v > 0 ? '+' : ''}${imperial() ? (v / 2.54).toFixed(1) + ' in' : v.toFixed(1) + ' cm'}`;
+    return `<p class="hint" style="margin:.4rem 0 0"><strong>Camera vs reference (${g.n} tests):</strong> reads ${sign(g.bias)} on average, 95% of tests within ${sign(g.lo)} to ${sign(g.hi)}${g.r != null ? ` · r ${g.r}` : ''}.</p>`;
   }
 
   function asymmetryCard(a, { span = 'span-6' } = {}) {
@@ -144,6 +156,7 @@
   function open(athleteId) {
     const a = ctx.athleteById(athleteId) || ctx.me();
     result = null;
+    recorded = null;
     const opts = Object.entries(J.TESTS).map(([id, t]) => `<option value="${id}">${esc(t.label)}</option>`).join('');
     Dialogs.html(
       `<div class="eyebrow">Jump test${coach() ? ` · ${esc(ctx.athleteName(a))}` : ''}</div><h2 id="app-dialog-title">Test with camera</h2>
@@ -151,7 +164,10 @@
       <p class="muted small" data-jump-how style="margin:.4rem 0">${esc(J.TESTS.cmj.how)}</p>
       ${root.ExerciseDemo && root.ExerciseDemo.button ? `<div data-jump-demo>${root.ExerciseDemo.button('test', 'cmj')}</div>` : ''}
       <ul class="hint jump-tips"><li>Phone on a stand or held very still, side-on, about 3 m away at hip height.</li><li>Whole body in frame, feet included, for every jump.</li><li>Slow motion (120 or 240 fps) gives the most precise times. Normal video works too.</li></ul>
-      <label>Video <input type="file" accept="video/*" capture="environment" data-jump-file></label>
+      <div class="row" style="gap:.5rem;flex-wrap:wrap"><button type="button" class="btn btn-sm btn-primary" data-jump="record">📷 Record with camera check</button>
+      <label class="file-pick"><input type="file" accept="video/*" data-jump-file><span class="btn btn-sm">🎥 Choose a video</span><span class="muted file-name" data-jump-name>No video selected</span></label></div>
+      <label class="check"><input type="checkbox" data-jump-precise checked> Precise mode: analyse 60 frames a second (each frame is ~17 ms, so flight times are tighter)</label>
+      <p class="hint" style="margin:.2rem 0 .4rem">Do 3 jumps in one video. The app reports the best, the middle value and how consistent they were, and tells you if a change since last time is bigger than normal test noise.</p>
       <div data-jump-progress hidden><div class="progress"><i style="width:0%"></i></div><p class="muted small" data-status></p></div>
       <p class="banner bad" data-jump-error hidden></p>
       <div data-jump-result></div>
@@ -169,12 +185,43 @@
       $('[data-jump-result]', d).innerHTML = '';
       $('[data-jump="save"]', d).hidden = true;
     });
+    $('[data-jump-file]', d).addEventListener('change', (e) => {
+      recorded = null;
+      const f = e.target.files[0];
+      $('[data-jump-name]', d).textContent = f ? f.name : 'No video selected';
+    });
     if (root.Pose) root.Pose.preload().catch(() => {});
+  }
+
+  let recorded = null; // in-app recording from the camera check
+
+  function record() {
+    const d = Dialogs.el();
+    if (!root.CamCheck) return;
+    const test = $('[data-jump-test]', d).value;
+    root.CamCheck.open({
+      exercise: `jump-${test}`,
+      view: 'side',
+      title: `${J.TESTS[test].label} · camera check`,
+      minFps: 30,
+      wantFps: 120,
+      onVideo: (blob, info) => {
+        recorded = new File([blob], `jump-${Date.now()}.${/mp4/.test(info.type || '') ? 'mp4' : 'webm'}`, { type: info.type || blob.type });
+        const input = $('[data-jump-file]', d);
+        try {
+          const dt = new DataTransfer();
+          dt.items.add(recorded);
+          input.files = dt.files;
+        } catch {}
+        $('[data-jump-name]', d).textContent = `Recorded in app · ${Math.round(info.seconds)} s${info.fps ? ` · ${Math.round(info.fps)} fps` : ''}`;
+        analyze();
+      },
+    });
   }
 
   async function analyze() {
     const d = Dialogs.el();
-    const file = $('[data-jump-file]', d).files[0];
+    const file = $('[data-jump-file]', d).files[0] || recorded;
     const err = $('[data-jump-error]', d);
     const show = (m) => ((err.hidden = false), (err.textContent = m));
     err.hidden = true;
@@ -195,7 +242,7 @@
       status.textContent = 'Loading the pose model…';
       const data = await root.Pose.detect(url, {
         signal: job.signal,
-        fps: 30,
+        precise: $('[data-jump-precise]', d).checked,
         maxSeconds: 20,
         onProgress: (f) => {
           bar.style.width = `${Math.round(f * 100)}%`;
@@ -204,8 +251,9 @@
       });
       const heightCm = a && a.profile && a.profile.heightCm;
       const res = J.analyze(data.frames, { test, heightCm });
+      res.fps = data.fps;
       result = { athleteId, res };
-      $('[data-jump-result]', d).innerHTML = resultHTML(res);
+      $('[data-jump-result]', d).innerHTML = resultHTML(res, a);
       $('[data-jump="save"]', d).hidden = !res.best;
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -218,13 +266,50 @@
     }
   }
 
-  function resultHTML(res) {
+  const keyOf = (test) => (test === 'drop' ? 'rsi' : test === 'cmj-left' ? 'cmj_l' : test === 'cmj-right' ? 'cmj_r' : 'cmj');
+  const valOf = (key, j) => (key === 'rsi' ? j.rsi : j.heightCm);
+  const fmtKey = (key, v) => (v == null ? '—' : key === 'rsi' ? Number(v).toFixed(2) : cm(v));
+
+  // Repeat-trial spread, change since the last test vs test noise, and a box for a jump mat / force plate reading.
+  function reliabilityHTML(res, a) {
+    const R = root.Reliability;
+    if (!R || !res.best) return '';
+    const key = keyOf(res.test);
+    const vals = res.jumps.map((j) => valOf(key, j)).filter((v) => v != null);
+    const t = R.trials(vals);
+    const cvLevel = t.cv == null ? '' : t.cv <= 5 ? 'good' : t.cv <= 10 ? 'warn' : 'bad';
+    const trialLine = t.n >= 2
+      ? `<div><span class="muted small">Middle of ${t.n}</span><strong>${fmtKey(key, t.median)}</strong></div><div><span class="muted small">Consistency (CV)</span><strong class="${cvLevel === 'bad' ? 'bad-t' : cvLevel === 'warn' ? 'warn-t' : ''}">${t.cv}%</strong></div>`
+      : `<div><span class="muted small">Trials</span><strong>1</strong></div>`;
+    const past = (a && a.metrics ? a.metrics : []).filter((m) => m.key === key && m.date < today()).sort((x, y) => (x.date < y.date ? -1 : 1));
+    const prev = past[past.length - 1];
+    const history = past.filter((m) => m.extra && m.extra.jumps).map((m) => ({ jumps: m.extra.jumps.map((j) => valOf(key, j)) }));
+    const noise = R.jumpNoise(key, res.best ? valOf(key, res.best) : null, history);
+    const ch = prev ? R.realChange(prev.value, valOf(key, res.best), noise.te) : null;
+    const changeLine = ch && ch.diff != null
+      ? `<div><span class="muted small">Since ${esc(ctx.relDate(prev.date))}</span><strong class="${ch.real ? (ch.diff > 0 ? 'good-t' : 'bad-t') : ''}">${ch.diff > 0 ? '+' : ''}${key === 'rsi' ? ch.diff.toFixed(2) : imperial() ? (ch.diff / 2.54).toFixed(1) + ' in' : ch.diff.toFixed(1) + ' cm'}</strong></div>`
+      : '';
+    const verdict = ch && ch.mdc != null
+      ? ch.real
+        ? `A real change: bigger than the ${fmtKey(key, ch.mdc)} that ${noise.from === 'yours' ? 'your own repeat tests' : 'this test'} can vary by on its own.`
+        : `Within normal test noise (±${fmtKey(key, ch.mdc)}${noise.from === 'yours' ? ', from your own repeat tests' : ''}), so treat it as no change yet.`
+      : t.n < 3 ? 'Do 3 jumps per test: the middle value is steadier than one jump.' : '';
+    const warn = t.cv != null && t.cv > 10 ? ' The jumps varied a lot: check the setup and that every jump was full effort.' : '';
+    return `<div class="fv-stats jump-rel">${trialLine}${changeLine}</div>
+      ${verdict || warn ? `<p class="hint" style="margin:.3rem 0 0">${esc(verdict + warn)}</p>` : ''}
+      <details class="jump-ref"><summary class="small">Also tested on a jump mat or force plate?</summary>
+        <label class="small">Its reading for the best jump (${key === 'rsi' ? 'RSI' : imperial() ? 'in' : 'cm'}) <input type="number" step="0.01" min="0" data-jump-ref></label>
+        <p class="hint">Saved next to the camera number. After a few, the jump card shows how closely the two agree.</p></details>`;
+  }
+
+  function resultHTML(res, a) {
     const drop = res.test === 'drop';
     const b = res.best;
     const head = b ? `<div class="jump-best hud"><div><div class="muted small">${drop ? 'Best RSI' : 'Best jump'}</div><div class="big">${drop ? b.rsi.toFixed(2) : cm(b.heightCm)}</div></div>${drop ? `<div><div class="muted small">Height · contact</div><div>${cm(b.heightCm)} · ${b.contactMs} ms</div></div>` : `<div><div class="muted small">Flight time</div><div>${b.flightMs} ms</div></div>`}</div>` : '';
     const rows = res.jumps.map((j, i) => `<tr${j === b ? ' class="best"' : ''}><td>${i + 1}</td><td>${cm(j.heightCm)}</td><td>${j.flightMs} ms</td>${drop ? `<td>${j.contactMs != null ? j.contactMs + ' ms' : '—'}</td><td>${j.rsi != null ? j.rsi.toFixed(2) : '—'}</td>` : ''}</tr>`).join('');
     return `${head}${res.jumps.length ? `<table class="pf-table jump-table"><thead><tr><th>#</th><th>Height</th><th>Flight</th>${drop ? '<th>Contact</th><th>RSI</th>' : ''}</tr></thead><tbody>${rows}</tbody></table>` : ''}
       ${res.warnings.map((w) => `<p class="banner" style="margin:.4rem 0 0">${esc(w)}</p>`).join('')}
+      ${reliabilityHTML(res, a)}
       ${b ? '<p class="hint">Height from flight time (g·t²/8). Phone video is typically within 2–3 cm of a jump mat. Compare like with like: same test, same setup.</p>' : ''}`;
   }
 
@@ -233,6 +318,10 @@
     const a = ctx.athleteById(result.athleteId);
     if (!a) return;
     const rows = J.toMetrics(result.res, today());
+    const refEl = $('[data-jump-ref]', Dialogs.el());
+    const refRaw = refEl && refEl.value !== '' ? Number(refEl.value) : null;
+    if (refRaw != null && isFinite(refRaw) && rows[0]) rows[0].extra.ref = rows[0].key === 'rsi' ? refRaw : imperial() ? refRaw * 2.54 : refRaw;
+    if (rows[0] && result.res.fps) rows[0].extra.fps = result.res.fps;
     a.metrics = (a.metrics || []).filter((m) => !(m.date === today() && rows.some((r) => r.key === m.key))).concat(rows);
     ctx.save();
     Dialogs.close();
@@ -246,6 +335,7 @@
     const act = el.dataset.jump;
     if (act === 'open') return open(el.dataset.athlete);
     if (act === 'analyze') return analyze();
+    if (act === 'record') return record();
     if (act === 'save') return save();
     if (act === 'fv') return openFV(el.dataset.athlete);
     if (act === 'fv-save') return saveFV(el.dataset.athlete);

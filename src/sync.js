@@ -660,5 +660,32 @@
     return { baseURL: CFG.url + '/functions/v1/claude', token: mem.auth.access_token, team: mem.team.id, key: CFG.key };
   }
 
-  root.Cloud = { init, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled, aiAvailable: () => aiReady !== false, checkAI };
+  // ---------- media (videos and pose data shared with the coach) ----------
+  // Private Storage bucket "media", paths team/athlete/file. Read and write rules mirror the records table.
+  const mediaPath = (athleteId, name) => (mem.team && athleteId ? `${mem.team.id}/${athleteId}/${name}` : null);
+
+  async function uploadMedia(path, body, type = 'application/octet-stream') {
+    if (!enabled() || !mem.auth || !path) throw new Error('Not signed in');
+    await freshToken();
+    const res = await fetch(`${CFG.url}/storage/v1/object/media/${path}`, { method: 'POST', headers: { apikey: CFG.key, Authorization: `Bearer ${mem.auth.access_token}`, 'Content-Type': type, 'x-upsert': 'true' }, body });
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      const err = new Error(/bucket not found/i.test(t) ? 'Cloud video storage isn’t set up yet (run supabase/schema.sql).' : `Upload failed (${res.status})`);
+      err.status = res.status;
+      throw err;
+    }
+    return path;
+  }
+
+  async function downloadMedia(path) {
+    if (!enabled() || !mem.auth || !path) return null;
+    await freshToken();
+    const res = await fetch(`${CFG.url}/storage/v1/object/authenticated/media/${path}`, { headers: { apikey: CFG.key, Authorization: `Bearer ${mem.auth.access_token}` } });
+    return res.ok ? res.blob() : null;
+  }
+
+  // Signed-in REST call against this project (tables, RPCs, edge functions): api('/rest/v1/...', { method, body }).
+  const api = (path, opts) => http(path, opts);
+
+  root.Cloud = { init, api, mediaPath, uploadMedia, downloadMedia, status, signUp, signIn, signInWithGoogle, hasProvider, guardianCode, guardianLookup, guardianSet, myChildren, awaitingParent, signOut, resetPassword, updatePassword, skipRecovery, memberships, resume, createTeam, joinTeam, claimNewAthlete, inviteCode, logins, newCodes, leaveTeam, syncNow, changed, aiAuth, team: () => mem.team || null, enabled, aiAvailable: () => aiReady !== false, checkAI };
 })(typeof window !== 'undefined' ? window : globalThis);
