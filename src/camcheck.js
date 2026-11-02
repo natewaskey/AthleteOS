@@ -159,7 +159,7 @@
 
   let s = null; // open session
 
-  function open({ exercise = 'squat', view = null, title = '', minFps = 24, wantFps = 60, onVideo } = {}) {
+  function open({ exercise = 'squat', view = null, title = '', minFps = 24, wantFps = 60, onVideo, free = false, hint = '' } = {}) {
     close();
     const d = document.createElement('dialog');
     d.id = 'camcheck';
@@ -181,7 +181,7 @@
     d.addEventListener('click', onClick);
     d.addEventListener('close', () => close(true));
     d.showModal();
-    s = { d, exercise, view, minFps, wantFps, onVideo, facing: 'environment', frames: [], green: 0, stream: null, raf: 0, rec: null, tilt: null, lastEval: null };
+    s = { d, exercise, view, minFps, wantFps, onVideo, free, hint, facing: 'environment', frames: [], green: 0, stream: null, raf: 0, rec: null, tilt: null, lastEval: null };
     start();
   }
 
@@ -246,6 +246,15 @@
   }
 
   function tick(S) {
+    // Free mode (sprint timing): nobody is in the picture yet, so recording is always open and the HUD only aims the phone.
+    if (S.free) {
+      const btn = S.d.querySelector('[data-cc="rec"]');
+      btn.disabled = false;
+      S.d.querySelector('[data-cc-rows]').innerHTML = `<li class="ok"><i aria-hidden="true"></i><div><strong>Finish line</strong><span>The orange line in the middle of the picture is the finish. Line it up with the real line.</span></div></li>${S.fps ? `<li class="${S.fps >= S.minFps ? 'ok' : 'bad'}"><i aria-hidden="true"></i><div><strong>Frame rate</strong><span>${Math.round(S.fps)} fps.</span></div></li>` : ''}`;
+      S.d.querySelector('[data-cc-hint]').textContent = S.hint || 'Press record when ready.';
+      S.d.querySelector('[data-cc-big]').innerHTML = '<span class="cc-line" aria-hidden="true"></span>';
+      return;
+    }
     const res = evaluate(S.frames, S.aspect, { exercise: S.exercise, view: S.view, fps: S.fps, minFps: S.minFps, tilt: S.tilt });
     S.lastEval = res;
     S.d.querySelector('[data-cc-rows]').innerHTML = res.rows.map((r) => `<li class="${r.ok ? 'ok' : 'bad'}"><i aria-hidden="true"></i><div><strong>${esc(r.label)}</strong><span>${esc(r.text)}</span></div></li>`).join('');

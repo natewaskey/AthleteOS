@@ -236,10 +236,24 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 - **Generate with Claude** (optional): add an Anthropic API key in Settings and Claude designs a fully custom program. It streams back as structured JSON that the app validates against a strict schema. The key is stored only in that browser and never exported.
 - **Preview before saving:** week-by-week tabs, editable progression (% per week, reps, RPE, deload every N weeks), change days, drop a session, regenerate for a different variation, then save to the library or assign it. Athletes pick a start date; coaches assign to athletes or whole groups.
 
+### Built for the sport, the position and the athlete
+- **Sport profiles for all 57 sports** (`src/sports.js`), grouped into 17 families (collision, field, court, ice, bat, racket, golf, combat, aquatic, running, cyclic, sprint/power, acrobatic, climbing, snow, gym, mind-body). Each sets the speed work (acceleration, top speed, cutting, lateral), jump volume, rotational and lateral power, arm care, neck and grip work, conditioning by energy system, the built-in prevention routine and in-season rules.
+- **Positions** change the plan: pitchers get arm care every session and landmine press instead of heavy overhead pressing, linemen get starts, sled work and neck strength, goalkeepers get lateral power and reactions, distance runners skip Olympic lifts, and more.
+- **Age and level limits:** youth (under 13), teen and adult groups plus experience cap jump contacts, sprint metres and exercise difficulty. Beginners and youth never get Olympic lifts or depth jumps; youth lift for 8+ reps at moderate effort.
+- **286 exercises**, each with a demo, setup, three cues, the common mistake, movement pattern, equipment, sport tags, positions and easier/harder versions.
+- **"Why this exercise"** on every generated item, and **program checks** that flag anything that doesn't suit the athlete (running for swimmers, lifts above their level, no arm care for throwers, no braking or landing work for team sports, a missing squat/hinge/single-leg/push/pull, too many jumps or sprints) with a one-tap fix.
+- An automatic test builds every sport × goal × level × age combination (over 2,500 programs) and checks these rules on each.
+
+### Feedback that learns
+- **RPE that learns:** lifters can rate each set (RPE). When the camera measured the set's bar speed, the app compares the two and learns whether the athlete rates sets harder or easier than they really are, and next-weight suggestions correct for it.
+- **Session feedback:** finishing a session asks if it was too easy, about right or too hard, and records the real time taken. Repeated "too hard", "too easy" or long sessions turn into a one-tap suggestion to make upcoming sessions lighter, heavier or shorter.
+- **Swap reasons:** swapping an exercise asks why (pain, no equipment, too hard, too easy, preference), reorders the options to match and shows the coach. Pain sends the coach a note.
+- **Jump, sprint and throw counters:** weekly totals against the athlete's age and level limits, with a warning when a week jumps more than 30% over the previous three.
+
 ### Smarter sessions
 - **Auto-adjust:** when readiness is low or pain is reported, the session offers a reduced or recovery version (fewer sets, lighter %1RM) with the reasons. The athlete can apply it or keep the plan.
 - **Exercise swaps:** ⇄ offers alternatives that fit the athlete's equipment and avoid sore or injured areas. Items that conflict with an injury restriction are flagged.
-- **How-to:** ▶ next to any exercise (in workouts, the workout builder and program previews) plays an animated demo of that exercise with setup, three coaching cues and the most common mistake, plus a video search link. All 122 library exercises have one; custom names get the closest match ("DB bench press" plays the bench press). Form checks, camera tests and jump tests have a ▶ Watch how it's done button too.
+- **How-to:** ▶ next to any exercise (in workouts, the workout builder and program previews) plays an animated demo of that exercise with setup, three coaching cues and the most common mistake, plus a video search link. All library exercises have one; custom names get the closest match ("DB bench press" plays the bench press). Form checks, camera tests and jump tests have a ▶ Watch how it's done button too.
 - **Live workout mode:** full-screen, one exercise at a time with big set buttons, a **plate calculator** (lb or kg plates per side), rest timer and **interval timer** (work/rest/rounds with beeps).
 - **Coaches can edit** any assigned session (date, exercises, note to the athlete), filter the calendar by **group** and assign to groups.
 - **Deleting and removing:**
@@ -251,7 +265,9 @@ Athletes and coaches can describe what they want in plain words, e.g. *"6 weeks,
 
 ### Progress, testing & team culture
 - **Progress tab:** check-in and training streaks, badges, estimated-1RM chart per lift, test result charts, body weight and readiness trends, records.
-- **Testing day:** coaches enter results for the whole team (vertical jump, broad jump, 10/40 yd dash, pro-agility, 1RM lifts, mile, push-ups…). This gives **leaderboards** by test and group, and a tested 1RM then drives %1RM loads.
+- **Guided testing day:** pick a battery (speed & power, full combine, strength, youth, return-to-sport hops, fitness). Tests run in the NSCA order (non-fatiguing, agility, power and strength, sprints, endurance, conditioning) with instructions, rest and the right number of trials per athlete; the best trial is saved, and PRs are flagged before saving.
+- **Camera sprint timer (10, 20 and 40 yards):** stand the phone on the finish line and the app times the torso crossing the middle of the picture to a fraction of a frame. Start with a hand start (press record as they move) or from the athlete's first movement in the video; slow-motion video is supported.
+- **Testing day (quick entry):** coaches enter results for the whole team (vertical jump, broad jump, 10/40 yd dash, pro-agility, 1RM lifts, mile, push-ups…). This gives **leaderboards** by test and group, and a tested 1RM then drives %1RM loads.
 - **PRs are detected automatically** from logged workouts and tests, with confetti and a post on the **team wall**. Coaches post shout-outs, and teammates react 🔥.
 - **Weekly coach report:** a printable summary of compliance, load, readiness, pain, injuries, PRs and missed sessions.
 

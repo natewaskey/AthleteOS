@@ -6,6 +6,7 @@
   'use strict';
 
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const PLUS = (typeof module !== 'undefined' && module.exports ? require('./exercises-plus.js') : root.ExercisesPlus) || { ALL: [] };
 
   /*
    * Sport catalog. `metric` says how distance is summarised:
@@ -682,6 +683,7 @@
   const TESTS = [
     { id: 'dash40', name: '40-yard dash', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'split10', name: '10-yard split', kind: 'speed', unit: 'time', better: 'lower' },
+    { id: 'dash20', name: '20-yard dash', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'proagility', name: 'Pro agility (5-10-5)', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'cone3', name: '3-cone drill', kind: 'speed', unit: 'time', better: 'lower' },
     { id: 'vertical', name: 'Vertical jump', kind: 'power', unit: 'jump', better: 'higher' },
@@ -1132,6 +1134,9 @@
     ['Pigeon stretch', 'cooldown', { s: 1, a: 45, e: 1 }],
     ["Child's pose", 'cooldown', { s: 1, a: 60 }],
     ['Box breathing', 'cooldown', { s: 1, a: 120 }],
+    // The expanded library (exercises-plus.js): rotational power, arm care, lateral, strength, plyos, speed,
+    // conditioning by energy system, core, neck/grip/feet, sport warm-ups and youth regressions.
+    ...PLUS.ALL.map((x) => [x.name, x.block, x.d]),
   ].map(([name, block, d, form]) => ({
     name,
     block,
@@ -1160,6 +1165,10 @@
       tempo: String(input.tempo || '').trim().slice(0, 12),
       eachSide: input.eachSide == null ? d.eachSide : !!input.eachSide,
       notes: String(input.notes || '').trim().slice(0, 300),
+      // Why the builder picked it (one line), and why it was swapped in, if it was.
+      ...(input.why ? { why: String(input.why).trim().slice(0, 160) } : {}),
+      ...(input.swapReason ? { swapReason: String(input.swapReason).trim().slice(0, 120) } : {}),
+      ...(input.swappedFrom ? { swappedFrom: String(input.swappedFrom).trim().slice(0, 80) } : {}),
       // Set by formplan.js: a corrective drill or a held weight from a form check.
       ...(input.formFix && typeof input.formFix === 'object' ? { formFix: JSON.parse(JSON.stringify(input.formFix)) } : {}),
     };
@@ -1200,6 +1209,8 @@
 
   function normalizeSetResult(s) {
     const out = { reps: s.reps === '' || s.reps == null ? null : Math.max(0, Number(s.reps) || 0), weightKg: s.weightKg === '' || s.weightKg == null ? null : Math.max(0, Number(s.weightKg) || 0), done: !!s.done };
+    // The lifter's own effort rating for the set (RPE 5-10), compared with bar speed by Feedback.rpeBias.
+    if (s.rpe != null && s.rpe !== '' && Number(s.rpe) >= 1) out.rpe = Math.min(10, Math.max(1, Math.round(Number(s.rpe) * 2) / 2));
     // A set coached live by the camera keeps its form summary.
     if (s.live && typeof s.live === 'object') out.live = { score: s.live.score == null ? null : Math.round(Number(s.live.score)) || 0, good: Math.max(0, Math.round(Number(s.live.good) || 0)), issue: s.live.issue ? String(s.live.issue).slice(0, 60) : null, analysisId: s.live.analysisId ? String(s.live.analysisId) : null, ...(Number(s.live.speed) > 0 ? { speed: +Number(s.live.speed).toFixed(2) } : {}), ...(s.live.loss != null && isFinite(Number(s.live.loss)) ? { loss: +Number(s.live.loss).toFixed(2) } : {}) };
     return out;
@@ -1227,6 +1238,8 @@
             duration: Math.max(0, Math.round(Number(res.duration) || 0)),
             note: String(res.note || '').trim().slice(0, 500),
             workoutId: res.workoutId || null,
+            // How it felt against the plan: too easy / about right / too hard (Feedback.sessionTrend).
+            ...(['easy', 'right', 'hard'].includes(res.feel) ? { feel: res.feel } : {}),
           }
         : null,
       skipReason: String(input.skipReason || '').trim().slice(0, 300),
@@ -1236,6 +1249,7 @@
       week: input.week ? Math.max(1, Math.round(Number(input.week))) : null,
       prescribedBy: input.prescribedBy && typeof input.prescribedBy === 'object' ? { staffId: String(input.prescribedBy.staffId || ''), name: String(input.prescribedBy.name || '').slice(0, 60), role: String(input.prescribedBy.role || ''), creds: String(input.prescribedBy.creds || '').slice(0, 120), certified: !!input.prescribedBy.certified } : null,
       approvedBy: input.approvedBy && typeof input.approvedBy === 'object' ? { name: String(input.approvedBy.name || '').slice(0, 60), creds: String(input.approvedBy.creds || '').slice(0, 120) } : null,
+      ...(input.feedbackApplied && typeof input.feedbackApplied === 'object' ? { feedbackApplied: { kind: String(input.feedbackApplied.kind || ''), at: Number(input.feedbackApplied.at) || Date.now() } } : {}),
       adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [] } : null,
     };
   }

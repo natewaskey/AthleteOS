@@ -75,7 +75,8 @@ test('squat goes below parallel; push-up hands stay on the floor', () => {
 });
 
 test('lookup matches coaches’ own names to the closest demo', () => {
-  assert.equal(H.lookup('DB bench press').name, 'Bench press');
+  assert.equal(H.lookup('DB bench press').name, 'Dumbbell bench press');
+  assert.equal(H.lookup('Barbell bench').name, 'Bench press');
   assert.equal(H.lookup('Rear-foot elevated split squat').name, 'Bulgarian split squat');
   assert.equal(H.lookup('Single leg RDL').name, 'Single-leg RDL');
   assert.equal(H.lookup('Hex bar deadlift').name, 'Trap bar deadlift');

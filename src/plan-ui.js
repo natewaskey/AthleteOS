@@ -558,7 +558,7 @@
       ${a.status === 'skipped' ? `<div class="banner warn">Skipped${a.skipReason ? `: “${esc(a.skipReason)}”` : ''}</div>` : ''}
       ${
         a.result
-          ? `<div class="card result-card"><div class="row"><strong>✓ Completed ${esc(ctx.relTime(a.result.completedAt))}</strong><div class="spacer"></div><span class="muted">${a.result.duration} min · RPE ${a.result.rpe} · load ${a.result.duration * a.result.rpe} AU</span></div>${a.result.note ? `<p style="margin:.4rem 0 0">“${esc(a.result.note)}”</p>` : ''}</div>`
+          ? `<div class="card result-card"><div class="row"><strong>✓ Completed ${esc(ctx.relTime(a.result.completedAt))}</strong><div class="spacer"></div><span class="muted">${a.result.duration} min${C.estimateMinutes(a.plan) ? ` (planned ${C.estimateMinutes(a.plan)})` : ''} · RPE ${a.result.rpe}${a.result.feel && root.Feedback ? ` · ${esc(root.Feedback.FEELS[a.result.feel].toLowerCase())}` : ''} · load ${a.result.duration * a.result.rpe} AU</span></div>${a.result.note ? `<p style="margin:.4rem 0 0">“${esc(a.result.note)}”</p>` : ''}</div>`
           : ''
       }
       <div class="session">${a.plan.blocks
@@ -576,6 +576,7 @@
               <div class="grid-3">
                 <label>Duration (min) <input type="number" name="duration" min="1" value="${a.startedAt ? Math.max(5, Math.round((Date.now() - a.startedAt) / 60000)) : C.estimateMinutes(a.plan)}" /></label>
                 <label>Session effort (RPE) <select name="rpe">${[...Array(10)].map((_, k) => `<option value="${k + 1}" ${k + 1 === 7 ? 'selected' : ''}>${k + 1}</option>`).join('')}</select></label>
+                <fieldset class="span-all feel-pick"><legend>Compared with the plan, it was…</legend>${Object.entries(root.Feedback ? root.Feedback.FEELS : {}).map(([k, v]) => `<label class="day-pick"><input type="radio" name="feel" value="${k}" ${k === 'right' ? 'checked' : ''}/><span>${esc(v)}</span></label>`).join('')}</fieldset>
                 <label class="span-all">How did it go? <input name="note" maxlength="500" placeholder="Anything your coach should know" /></label>
               </div>
               <button class="btn btn-primary" type="submit">Complete workout</button>
@@ -602,6 +603,7 @@
         return `<div class="set-row ${s.done ? 'done' : ''}"><span class="muted small">Set ${k + 1}</span>
           <label><input type="number" min="0" data-set="${k}" data-item="${i.id}" data-sf="reps" value="${reps}" ${doing ? '' : 'disabled'} aria-label="Reps set ${k + 1}"/><small>reps</small></label>
           <label><input type="number" min="0" step="any" data-set="${k}" data-item="${i.id}" data-sf="weight" value="${w}" ${doing ? '' : 'disabled'} aria-label="Weight set ${k + 1}"/><small>${ctx.U().weight}</small></label>
+          <label class="set-rpe"><select data-set="${k}" data-item="${i.id}" data-sf="rpe" ${doing ? '' : 'disabled'} aria-label="Effort (RPE) set ${k + 1}" title="How hard was it? 10 = no reps left, 8 = 2 left"><option value="">RPE</option>${[6, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => `<option value="${v}" ${s.rpe === v ? 'selected' : ''}>${v}</option>`).join('')}</select><small>RPE</small></label>
           ${doing ? `<button class="set-check" data-plan-action="toggle-set" data-assign="${a.id}" data-item="${i.id}" data-set="${k}" aria-pressed="${!!s.done}" aria-label="Set ${k + 1} done">✓</button>` : `<span class="set-check static" aria-hidden="true">${s.done ? '✓' : ''}</span>`}</div>`;
       }).join('')}</div>`;
     } else {
@@ -630,6 +632,7 @@
         <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>${root.ScienceUI ? ' ' + root.ScienceUI.evidenceChip(i.name) : ''}
           <div class="small">${esc(prescription(i, athlete))}</div>
           ${i.notes ? `<div class="muted small">${esc(i.notes)}</div>` : ''}
+          ${i.swapReason && i.swappedFrom ? `<div class="small"><span class="pill ${/pain/i.test(i.swapReason) ? 'warn' : 'info'}">⇄ Swapped from ${esc(i.swappedFrom)}: ${esc(i.swapReason.toLowerCase())}</span></div>` : i.why && ctx.role() === 'athlete' ? `<div class="muted small prog-why">${esc(i.why)}</div>` : ''}
           ${i.formFix && i.formFix.kind === 'hold' ? `<div class="small"><span class="pill hold" title="Comes off when a re-check passes">🔒 Weight held: work on ${esc(i.formFix.labels.join(', ').toLowerCase())}</span></div>` : ''}
           ${sug ? `<div class="small"><span class="pill next-load ${sug.change}" title="${esc(sug.reason)}">${{ up: '▲', same: '＝', down: '▼' }[sug.change]} ${roundPlate(sug.kg)} ${ctx.U().weight} today</span> <span class="muted">${esc(sug.reason)}</span></div>` : ''}
           ${flag ? `<div class="small flag-note">${flag.level === 'bad' ? '⛔' : '⚠️'} ${esc(flag.reason)}</div>` : ''}
@@ -658,6 +661,7 @@
       const k = Number(el.dataset.set);
       const s = (p.sets[k] = p.sets[k] || { reps: null, weightKg: null, done: false });
       if (el.dataset.sf === 'reps') s.reps = el.value === '' ? null : Number(el.value);
+      else if (el.dataset.sf === 'rpe') s.rpe = el.value === '' ? null : Number(el.value);
       else s.weightKg = el.value === '' ? null : C.displayToKg(el.value, ctx.units());
     });
   }
@@ -991,7 +995,9 @@
         const item = a && findItem(a, el.dataset.item);
         if (!item) return;
         saveSetInputs(a);
-        return root.LiveUI.openSwap({ assignment: a, item, athlete: ctx.me(), onDone: (from, to) => {
+        return root.LiveUI.openSwap({ assignment: a, item, athlete: ctx.me(), onDone: (from, to, reason) => {
+          // Pain is something the coach should hear about straight away.
+          if (reason === 'pain' && ctx.state().messages) ctx.state().messages.push(C.normalizeMessage({ athleteId: ctx.me().id, from: 'athlete', text: `⇄ Swapped ${from} for ${to} today because of pain or discomfort.` }));
           ctx.save();
           ctx.toast(`Swapped ${from} → ${to}`);
           rerenderKeepScroll();
@@ -1038,7 +1044,7 @@
     saveSetInputs(a);
     const done = Object.values(a.progress).reduce((s, p) => s + p.sets.filter((x) => x.done).length, 0);
     if (!done && !(await Dialogs.confirm('No sets are ticked off. Complete the workout anyway?', { title: 'Complete workout?', ok: 'Complete' }))) return;
-    const res = { rpe: Number(f.rpe.value), duration: Number(f.duration.value), note: f.note.value.trim() };
+    const res = { rpe: Number(f.rpe.value), duration: Number(f.duration.value), note: f.note.value.trim(), feel: (f.querySelector('[name=feel]:checked') || {}).value || null };
     const w = C.normalizeWorkout(C.workoutFromAssignment(a, res));
     ctx.me().workouts.push(w);
     if (ctx.onWorkoutLogged) ctx.onWorkoutLogged(ctx.me(), w);

@@ -736,6 +736,7 @@
         ${BodyUI.summaryCard(a, { span: 'span-12' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
+        ${window.FeedbackUI ? FeedbackUI.card(a) : ''}
         ${Sci.ageCard(a)}
         ${trendCard(a, 'span-8')}
         <section class="card span-4"><div class="card-head"><h3>Weekly load · 8 weeks</h3></div>${barChart(weeks.map((x) => x.load), weeks.map((x) => fmtDate(x.start, { month: 'numeric', day: 'numeric' })), { unit: ' AU' })}</section>
@@ -1309,6 +1310,7 @@
         ${BodyUI.summaryCard(a, { span: 'span-12' })}
         ${Sci.baselineCard(a)}${Sci.performanceCard(a)}
         ${JumpUI.jumpCard(a)}${JumpUI.asymmetryCard(a)}${JumpUI.fvCard(a)}
+        ${window.FeedbackUI ? FeedbackUI.card(a, { coach: true }) : ''}
         ${Sci.ageCard(a, { span: 'span-12' })}
         <section class="card span-6">
           <div class="card-head"><h3>Body map · ${s.checkin ? 'today' : 'no check-in today'}</h3></div>
@@ -2534,6 +2536,9 @@
   Cal.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
+  if (window.FeedbackUI) FeedbackUI.init(shared);
+  if (window.SprintUI) SprintUI.init(shared);
+  if (window.TestDayUI) TestDayUI.init(shared);
   if (window.Wearables) Wearables.init(shared);
   BodyUI.init(shared);
   if (window.MobilityUI) window.MobilityUI.init(shared);

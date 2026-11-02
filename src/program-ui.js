@@ -19,6 +19,7 @@
   const today = () => C.toISODate(new Date());
   const programs = () => ctx.state().programs;
   const DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const Sports = () => root.Sports;
 
   // What the app already knows about the athlete building a program (null for coaches).
   function athleteData() {
@@ -32,7 +33,7 @@
     const base = {
       // The athlete's main goal sets the starting goal, focus areas and season phase.
       ...((me && me.focus && root.Goals && root.Goals.programDefaults(me.focus)) || { goal: 'general', focus: [], phase: 'general' }),
-      sport: me ? me.sport : 'football', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4,
+      sport: me ? me.sport : 'football', position: (me && me.position) || '', ageGroup: me && C.ageOn(me, today()) != null ? Sports().ageGroup(C.ageOn(me, today())) : 'adult', experience: 'intermediate', daysPerWeek: 3, minutes: 60, weeks: 4,
       equipment: ['barbell', 'dumbbell', 'bench', 'pullup-bar', 'band', 'box', 'med-ball', 'cones', 'kettlebell'], avoidAreas: [], restrictions: [], request: '', engine: 'builtin',
       // An athlete's own jump force-velocity profile steers the program unless they change it.
       fv: (me && root.FV && root.FV.bias(me, today())) || '',
@@ -127,6 +128,8 @@
         <div class="grid-3">
           <label>Main goal <select name="goal">${Object.entries(P.GOALS).map(([k, v]) => `<option value="${k}" ${k === f.goal ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
           <label>Sport <select name="sport">${ctx.sportOptions(f.sport)}</select></label>
+          ${positionSelect(f)}
+          <label>Age group <select name="ageGroup">${Object.entries(Sports().AGE_LABEL).map(([k, v]) => `<option value="${k}" ${k === (f.ageGroup || 'adult') ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
           <label>Experience <select name="experience">${['beginner', 'intermediate', 'advanced'].map((x) => `<option ${x === f.experience ? 'selected' : ''} value="${x}">${x[0].toUpperCase() + x.slice(1)}</option>`).join('')}</select></label>
           <label>Days per week <select name="daysPerWeek">${[1, 2, 3, 4, 5, 6].map((n) => `<option ${n === +f.daysPerWeek ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Minutes per session <select name="minutes">${[30, 45, 60, 75, 90, 120].map((n) => `<option ${n === +f.minutes ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -155,6 +158,14 @@
       </form>`;
   }
 
+  // Positions the sport has (baseball pitcher, football lineman...). Sports without positions show nothing.
+  function positionSelect(f) {
+    const list = Sports().POSITIONS[f.sport];
+    if (!list) return '';
+    const cur = Sports().positionFor(f.sport, f.position);
+    return `<label>Position <select name="position"><option value="">Any / mixed</option>${list.map((x) => `<option value="${x.id}" ${cur && cur.id === x.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>`;
+  }
+
   // Where the emphasis came from, for athletes with a jump force-velocity profile.
   function fvHint() {
     if (ctx.role() !== 'athlete' || !root.FV) return '<p class="hint" style="margin:.2rem 0 .6rem">Force-velocity emphasis comes from an athlete’s loaded jump profile (Progress → Force-velocity profile). Use it when the whole group shares the same deficit.</p>';
@@ -168,7 +179,8 @@
     return {
       goal: fd.get('goal'), sport: fd.get('sport'), experience: fd.get('experience'), daysPerWeek: +fd.get('daysPerWeek'), minutes: +fd.get('minutes'), weeks: +fd.get('weeks'), phase: fd.get('phase'),
       equipment: fd.getAll('equipment'), focus: fd.getAll('focus'), avoidAreas: fd.getAll('avoidAreas'), restrictions: fd.getAll('restrictions'), request: String(fd.get('request') || ''), engine: fd.get('engine') || 'builtin', fv: fd.get('fv') || '',
-      position: ctx.role() === 'athlete' ? ctx.me().position : '',
+      position: String(fd.get('position') || ''), ageGroup: fd.get('ageGroup') || 'adult',
+      age: ctx.role() === 'athlete' ? C.ageOn(ctx.me(), today()) : null,
       useData: fd.get('useData') === 'on',
       peakDate: String(fd.get('peakDate') || ''),
     };
@@ -238,6 +250,7 @@
         </div>
       </div>
       ${p.description ? `<div class="cue coach"><div>${esc(p.description)}</div></div>` : ''}
+      ${warningsHTML(p)}
       ${talkHTML()}
       <section class="card" style="margin-bottom:1rem">
         <h3>Progression</h3>
@@ -262,7 +275,7 @@
             ${plan.blocks
               .map(
                 (b) => `<div class="prog-block"><div class="small"><strong>${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</strong></div>
-                <ul class="prog-items">${b.items.map((i) => `<li><span>${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button></span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
+                <ul class="prog-items">${b.items.map((i) => `<li><span>${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
               )
               .join('')}
             <div class="row" style="margin-top:.5rem">
@@ -274,6 +287,22 @@
           </section>`;
         })
         .join('')}</div>`;
+  }
+
+  // Who the program is checked against: what it was built for, or the athlete viewing it.
+  function checkCtx(p) {
+    const me = ctx.role() === 'athlete' ? ctx.me() : null;
+    if (p.builtFor) return me ? { age: C.ageOn(me, today()) } : {};
+    return me ? { sport: me.sport, position: me.position, age: C.ageOn(me, today()) } : form ? { sport: form.sport, position: form.position, experience: form.experience, ageGroup: form.ageGroup } : {};
+  }
+
+  // Things that don't suit the athlete, each with a one-tap fix.
+  function warningsHTML(p) {
+    const w = P.checkProgram(p, checkCtx(p));
+    if (!w.length) return '';
+    return `<section class="card prog-warnings" aria-label="Program checks"><h3>Program checks</h3>
+      <ul>${w.map((x) => `<li class="${x.level}"><span>${x.level === 'warn' ? '⚠️' : 'ℹ️'} ${esc(x.text)}</span>${x.fix ? `<button type="button" class="btn btn-sm" data-prog-action="fix" data-id="${esc(x.id)}">${esc(x.fix.label)}</button>` : ''}</li>`).join('')}</ul>
+      ${w.length > 1 ? '<button type="button" class="btn btn-sm btn-ghost" data-prog-action="fix-all">Fix all</button>' : ''}</section>`;
   }
 
   // The block bar: one segment per training block, sized by its weeks.
@@ -518,6 +547,16 @@
         if (talk) preview = talk.before;
         talk = null;
         return rerender();
+      case 'fix':
+      case 'fix-all': {
+        const c = checkCtx(preview);
+        const ids = el.dataset.progAction === 'fix' ? [el.dataset.id] : P.checkProgram(preview, c).map((x) => x.id);
+        const before = preview;
+        for (const id of ids) preview = P.applyFix(preview, id, c);
+        preview.id = before.id;
+        ctx.toast(ids.length === 1 ? 'Fixed' : `Fixed ${ids.length} things`);
+        return rerender();
+      }
       case 'drop-session':
         preview.sessions.splice(+el.dataset.si, 1);
         return rerender();
@@ -532,6 +571,12 @@
 
   function onChange(e) {
     const el = e.target;
+    // A new sport brings its own positions.
+    if (el.name === 'sport' && el.form && el.form.id === 'gen-form' && e.type === 'change') {
+      form = readForm(el.form);
+      form.position = '';
+      return rerender();
+    }
     if (!preview) return;
     if (el.dataset.progField) {
       const f = el.dataset.progField;

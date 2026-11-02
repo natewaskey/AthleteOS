@@ -13,7 +13,12 @@
 (function (root) {
   'use strict';
 
-  const C = typeof module !== 'undefined' && module.exports ? require('./core.js') : root.Core;
+  const node = typeof module !== 'undefined' && module.exports;
+  const C = node ? require('./core.js') : root.Core;
+  const S = node ? require('./sports.js') : root.Sports;
+  const PLUS = (node ? require('./exercises-plus.js') : root.ExercisesPlus) || { ALL: [], LINKS: {}, TAGS: {}, entry: () => null };
+  // Loaded lazily: prevention.js is loaded after this file in the browser.
+  const Prev = () => (node ? require('./prevention.js') : root.Prevention);
 
   // ---------- exercise metadata ----------
 
@@ -42,6 +47,9 @@
     bike: { label: 'Bike', stress: [] },
     row: { label: 'Row', stress: ['lower-back'] },
     'conditioning-upper': { label: 'Upper conditioning', stress: ['shoulder'] },
+    swim: { label: 'Swimming', stress: ['shoulder'] },
+    'bodyweight-cond': { label: 'Bodyweight conditioning', stress: ['wrist', 'shoulder', 'knee'] },
+    grip: { label: 'Grip', stress: ['forearm'] },
     mobility: { label: 'Mobility', stress: [] },
     recovery: { label: 'Recovery', stress: [] },
   };
@@ -56,7 +64,7 @@
   const EQUIPMENT = {
     none: 'Bodyweight', barbell: 'Barbell + rack', dumbbell: 'Dumbbells', kettlebell: 'Kettlebells', bench: 'Bench', 'pullup-bar': 'Pull-up bar', band: 'Bands',
     box: 'Plyo box', 'med-ball': 'Medicine ball', sled: 'Sled', machine: 'Cable / machines', cones: 'Cones / ladder', field: 'Field or track', bike: 'Bike / air bike',
-    rower: 'Rower', rope: 'Jump rope / ropes', 'foam-roller': 'Foam roller', hurdles: 'Mini hurdles',
+    rower: 'Rower', rope: 'Jump rope / ropes', 'foam-roller': 'Foam roller', hurdles: 'Mini hurdles', slideboard: 'Slide board / sliders', pool: 'Pool',
   };
 
   // [pattern, equipment...] per library exercise. Unlisted warm-up / mobility / cool-down items are
@@ -84,6 +92,38 @@
     'Tempo runs (110s)': ['run', 'field'], '300-yard shuttle': ['run', 'field'], 'Bike intervals': ['bike', 'bike'], 'Row intervals': ['row', 'rower'], 'Assault bike sprint': ['bike', 'bike'],
     'Sled push': ['sprint', 'sled'], 'Jump rope': ['plyo', 'rope'], 'Battle ropes': ['conditioning-upper', 'rope'], 'Stadium stairs': ['run', 'field'], 'Easy run': ['run', 'field'],
   };
+
+  for (const x of PLUS.ALL) META[x.name] = [x.pattern, ...x.equip];
+
+  // Exercise level 1 (anyone) to 3 (advanced only) for the original library; new exercises carry their own.
+  const LEVEL = {
+    'Power clean': 3, 'Hang clean': 3, 'Hang snatch': 3, 'Clean pull': 3, 'Depth jump': 3,
+    'Push press': 2, Bounding: 2, 'Single-leg hop': 2, 'Tuck jumps': 2, 'Hurdle hops': 2, 'Clap push-up': 2, 'Copenhagen plank': 2, 'Lateral bound (skater)': 2,
+    Deadlift: 2, 'Back squat': 2, 'Front squat': 2, 'Bench press': 2, 'Overhead press': 2, 'Barbell row': 2, 'Trap bar deadlift': 2, 'Romanian deadlift': 2,
+    'Pull-up': 2, 'Chin-up': 2, Dips: 2, 'Ab wheel rollout': 2, 'Hanging leg raise': 2, 'Sled sprint': 2, 'Jump squat': 2, 'Bulgarian split squat': 2,
+  };
+  function level(name) {
+    const lib = C.libraryEntry(name);
+    const n = lib ? lib.name : name;
+    const x = PLUS.entry(n);
+    return x ? x.lvl : LEVEL[n] || 1;
+  }
+  // Easier and harder versions of an exercise (null when there isn't one in the library).
+  function links(name) {
+    const lib = C.libraryEntry(name);
+    const n = lib ? lib.name : name;
+    const x = PLUS.entry(n);
+    const l = PLUS.LINKS[n] || [];
+    const ok = (v) => (v && C.libraryEntry(v) ? C.libraryEntry(v).name : null);
+    return { easier: ok(x ? x.reg : l[0]), harder: ok(x ? x.prog : l[1]) };
+  }
+  // Sport families, goals and positions an exercise is tagged for.
+  function tags(name) {
+    const lib = C.libraryEntry(name);
+    const n = lib ? lib.name : name;
+    const x = PLUS.entry(n);
+    return x ? { families: x.f, goals: x.g, positions: x.pos, youth: x.youth } : { families: PLUS.TAGS[n] || [], goals: [], positions: [], youth: false };
+  }
 
   function meta(name) {
     const lib = C.libraryEntry(name);
@@ -147,7 +187,8 @@
 
   function cues(name) {
     const lib = C.libraryEntry(name);
-    return CUES[lib ? lib.name : name] || PATTERN_CUES[meta(name).pattern] || ['Move with control', 'Full range of motion', 'Stop if you feel pain'];
+    const x = PLUS.entry(lib ? lib.name : name);
+    return CUES[lib ? lib.name : name] || (x && x.cues) || PATTERN_CUES[meta(name).pattern] || ['Move with control', 'Full range of motion', 'Stop if you feel pain'];
   }
 
   function demoLink(name) {
@@ -157,12 +198,12 @@
   // ---------- swaps & restrictions ----------
 
   const RESTRICTIONS = {
-    'no-jumping': { label: 'No jumping / landing', patterns: ['plyo', 'plyo-upper', 'olympic'] },
+    'no-jumping': { label: 'No jumping / landing', patterns: ['plyo', 'plyo-upper', 'olympic', 'bodyweight-cond'] },
     'no-running': { label: 'No running / sprinting', patterns: ['sprint', 'run', 'cod', 'drill'] },
     'no-overhead': { label: 'No overhead work', patterns: ['push-v', 'olympic', 'pull-v'] },
     'no-lower-load': { label: 'No loaded lower body', patterns: ['squat', 'hinge', 'lunge', 'olympic'] },
     'no-upper-load': { label: 'No loaded upper body', patterns: ['push-h', 'push-v', 'pull-h', 'pull-v', 'olympic', 'carry'] },
-    'upper-only': { label: 'Upper body only', patterns: ['squat', 'hinge', 'lunge', 'olympic', 'plyo', 'sprint', 'cod', 'drill', 'run', 'calf', 'hamstring-iso', 'adductor'] },
+    'upper-only': { label: 'Upper body only', patterns: ['squat', 'hinge', 'lunge', 'olympic', 'plyo', 'sprint', 'cod', 'drill', 'run', 'calf', 'hamstring-iso', 'adductor', 'bodyweight-cond'] },
     'no-contact': { label: 'No contact practice', patterns: [] },
     'rest': { label: 'Full rest', patterns: Object.keys(PATTERNS).filter((p) => !['mobility', 'recovery'].includes(p)) },
   };
@@ -187,7 +228,9 @@
   const PATTERN_FAMILY = {
     squat: ['squat', 'lunge'], lunge: ['lunge', 'squat'], hinge: ['hinge', 'hamstring-iso'], 'push-h': ['push-h'], 'push-v': ['push-v', 'push-h'], 'pull-h': ['pull-h', 'pull-v'],
     'pull-v': ['pull-v', 'pull-h'], olympic: ['olympic', 'ballistic', 'plyo'], plyo: ['plyo', 'ballistic'], sprint: ['sprint', 'bike'], cod: ['cod', 'sprint'], run: ['run', 'bike', 'row'],
-    core: ['core', 'core-rot'], 'core-rot': ['core-rot', 'core'], carry: ['carry', 'core'],
+    core: ['core', 'core-rot'], 'core-rot': ['core-rot', 'core'], carry: ['carry', 'grip', 'core'], grip: ['grip', 'carry'],
+    swim: ['swim', 'bike', 'row'], 'bodyweight-cond': ['bodyweight-cond', 'bike', 'row'], bike: ['bike', 'row'], row: ['row', 'bike'], ballistic: ['ballistic', 'core-rot'],
+    'hamstring-iso': ['hamstring-iso', 'hinge'], adductor: ['adductor'], calf: ['calf'], 'plyo-upper': ['plyo-upper', 'ballistic'], drill: ['drill'], 'conditioning-upper': ['conditioning-upper', 'bike'],
   };
 
   // Joint-friendly options from other families when the whole family is ruled out.
@@ -205,6 +248,9 @@
     cod: ['Bike intervals', 'Assault bike sprint'],
     run: ['Bike intervals', 'Row intervals', 'Assault bike sprint'],
     drill: ['Bike intervals'],
+    swim: ['Bike intervals', 'Row intervals'],
+    'bodyweight-cond': ['Bike intervals', 'Row intervals'],
+    'hamstring-iso': ['Single-leg glute bridge', 'Glute bridge'],
   };
 
   // Alternatives in the same movement family that fit the equipment and avoid the conflict areas,
@@ -388,6 +434,8 @@
         .sort((a, b) => a.day - b.day),
       source: ['manual', 'generator', 'claude'].includes(input.source) ? input.source : 'manual',
       createdAt: Number(input.createdAt) || Date.now(),
+      // Who the generator built it for (sport, position, level, age group, goal), used by checkProgram.
+      ...(input.builtFor && typeof input.builtFor === 'object' ? { builtFor: { sport: String(input.builtFor.sport || 'other'), position: String(input.builtFor.position || ''), experience: String(input.builtFor.experience || 'intermediate'), ageGroup: input.builtFor.ageGroup || null, goal: String(input.builtFor.goal || 'general') } } : {}),
     };
   }
 
@@ -780,19 +828,53 @@
   };
 
   const MAIN = {
-    squat: ['Back squat', 'Front squat', 'Goblet squat', 'Split squat'],
+    squat: ['Back squat', 'Front squat', 'Safety bar squat', 'Goblet squat', 'Split squat'],
     hinge: ['Trap bar deadlift', 'Deadlift', 'Romanian deadlift', 'Single-leg RDL', 'Kettlebell swing'],
-    lunge: ['Bulgarian split squat', 'Walking lunge', 'Step-up', 'Split squat'],
-    'push-h': ['Bench press', 'Incline dumbbell press', 'Push-up', 'Dips'],
-    'push-v': ['Overhead press', 'Push press', 'Landmine press'],
-    'pull-h': ['Barbell row', 'Dumbbell row', 'Face pull'],
-    'pull-v': ['Pull-up', 'Chin-up', 'Lat pulldown'],
+    lunge: ['Bulgarian split squat', 'Walking lunge', 'Reverse lunge', 'Step-up', 'Split squat'],
+    'push-h': ['Bench press', 'Incline dumbbell press', 'Close-grip bench press', 'Push-up', 'Dips'],
+    'push-v': ['Overhead press', 'Push press', 'Landmine press', 'Half-kneeling dumbbell press'],
+    'pull-h': ['Barbell row', 'Dumbbell row', 'Chest-supported row', 'Inverted row', 'Face pull'],
+    'pull-v': ['Pull-up', 'Chin-up', 'Neutral-grip pull-up', 'Lat pulldown', 'Band-assisted pull-up'],
     olympic: ['Power clean', 'Hang clean', 'Kettlebell swing', 'Med ball slam'],
   };
+  // Beginners, youth and return-to-play: no barbell Olympic lifts, easier versions first.
+  const GENTLE = {
+    squat: ['Goblet squat', 'Goblet box squat', 'Split squat', 'Step-up', 'Bodyweight squat', 'Front squat'],
+    hinge: ['Single-leg RDL', 'Kettlebell swing', 'Hip thrust', 'Romanian deadlift', 'Single-leg hip thrust', 'Nordic hamstring curl'],
+    lunge: ['Split squat', 'Reverse lunge', 'Step-up', 'Walking lunge', 'Step-down'],
+    'push-h': ['Push-up', 'Incline push-up', 'Dumbbell bench press', 'Incline dumbbell press', 'Dips'],
+    'push-v': ['Half-kneeling dumbbell press', 'Landmine press', 'Overhead press'],
+    'pull-h': ['Dumbbell row', 'Inverted row', 'Band row', 'Face pull', 'Barbell row'],
+    'pull-v': ['Lat pulldown', 'Band-assisted pull-up', 'Pull-up negative', 'Chin-up', 'Pull-up'],
+    olympic: ['Kettlebell swing', 'Med ball slam'],
+  };
+  const SPEED_LISTS = {
+    accel: ['Acceleration sprint', 'Falling start sprint', 'Sled sprint', 'Hill sprint', 'Half-kneeling start', 'Band-resisted sprint'],
+    accelGentle: ['Falling start sprint', 'Acceleration sprint', 'Half-kneeling start', 'Partner chase'],
+    cod: ['Pro agility (5-10-5)', '45° cut drill', '3-cone drill (L-drill)', 'Mirror drill', 'Lateral shuffle'],
+    lateral: ['Shuffle to sprint', 'Lateral shuffle', 'Crossover step drill', 'Mirror drill', 'Split-step reaction', 'Defensive slide'],
+    maxV: ['Flying sprint', 'Wicket runs', 'Curved sprint', 'Backpedal to sprint'],
+    second: ['T-drill', 'Agility ladder: in-in-out-out', 'Reaction ball drops', 'Ball-drop sprint', 'Agility ladder: Icky shuffle'],
+  };
+  const JUMPS = {
+    default: ['Box jump', 'Broad jump', 'Lateral bound (skater)', 'Hurdle hops', 'Pogo hops', 'Drop landing (stick it)'],
+    vertical: ['Box jump', 'Countermovement jump', 'Broad jump', 'Hurdle hops', 'Depth jump'],
+    lateral: ['Lateral bound (skater)', 'Lateral hurdle hops', 'Lateral box jump', 'Lateral bound and stick'],
+    gentle: ['Jump and stick', 'Snap-down', 'Box jump', 'Broad jump and stick', 'Countermovement jump', 'Line hops'],
+  };
+  const ROT_POWER = { full: ['Med ball scoop toss', 'Med ball rotational throw', 'Med ball step-behind rotational throw', 'Landmine rotation', 'Cable woodchop', 'Med ball shot put throw'], gentle: ['Half-kneeling med ball rotational throw', 'Med ball rotational throw', 'Half-kneeling Pallof press', 'Pallof press'] };
+  const GRIP = ['Farmer carry', 'Dead hang', 'Plate pinch hold', 'Suitcase carry', 'Towel hang'];
+  // Equipment the sport itself brings (a swimmer has a pool, a cyclist a bike).
+  const SPORT_GEAR = { swim: ['pool'], 'open-water': ['pool'], 'water-polo': ['pool'], surf: ['pool'], bike: ['bike'], mtb: ['bike'], 'indoor-bike': ['bike'], row: ['rower'] };
+  const ENERGY_LABEL = { alactic: 'Short, all-out efforts', glycolytic: 'Hard 30–90 second efforts', aerobic: 'Aerobic', mixed: 'Repeat-effort' };
+  const ROT_FOR = { bat: 'swinging and throwing', racket: 'strokes and serves', golf: 'the swing', combat: 'punches and throws', collision: 'contact and throwing', ice: 'shooting and checking', field: 'kicking, shooting and passing', aquatic: 'throwing and turning', sprint: 'throws events', court: 'spiking and passing' };
 
   /*
    * generateProgram(input) -> program (normalizeProgram shape) using the exercise library.
-   * input: { goal, sport, experience, daysPerWeek, minutes, weeks, equipment[], focus[], avoidAreas[], restrictions[], request, phase }
+   * input: { goal, sport, position, age | ageGroup, experience, daysPerWeek, minutes, weeks, equipment[], focus[], avoidAreas[], restrictions[], request, phase, fv, variation, peakDate }
+   * The sport's profile (sports.js) decides the speed work, jumps, rotational and lateral work, arm care, neck and grip,
+   * conditioning by energy system and the built-in prevention routine; the position adjusts it; age, level and phase cap
+   * the jump and sprint volume. Every item carries a one-line `why`.
    */
   function generateProgram(input = {}) {
     const req = parseRequest(input.request);
@@ -808,45 +890,55 @@
     let equipment = Array.isArray(input.equipment) && input.equipment.length ? [...input.equipment] : Object.keys(EQUIPMENT);
     if (req.equipment) equipment = req.equipment;
     if (req.noBarbell) equipment = equipment.filter((e) => e !== 'barbell');
-    // Bodyweight and open space (a field, park or track) are always assumed available.
-    const gear = new Set(['none', 'field', ...equipment]);
+    const sport = C.sportInfo(input.sport || 'other');
+    // Bodyweight and open space (a field, park or track) are always assumed available, plus the sport's own gear.
+    const gear = new Set(['none', 'field', ...equipment, ...(SPORT_GEAR[sport.id] || [])]);
     const focus = new Set([...(input.focus || []), ...req.focus]);
     const avoid = [...new Set([...(input.avoidAreas || []), ...req.avoid])];
     const restrictions = [...new Set([...(input.restrictions || []), ...req.restrictions])];
-    const sport = C.sportInfo(input.sport || 'other');
+    const prof = S.profile(sport.id, input.position);
+    const pos = prof.position || null;
+    const phaseIn = input.phase || (goal === 'in-season' ? 'in' : goal === 'return' ? 'rehab' : 'general');
+    const inSeason = goal === 'in-season' || phaseIn === 'in';
+    const lim = S.limits({ age: input.age, ageGroup: input.ageGroup, experience: exp, phase: phaseIn, goal });
+    const youth = lim.ageGroup === 'youth';
     const scheme = { ...SCHEMES[goal] };
-    if (exp === 'beginner') {
+    if (exp === 'beginner' || youth) {
       scheme.sets = Math.max(2, scheme.sets - 2);
       if (scheme.load[0] === 'pct') scheme.load = ['rpe', 7];
     }
-    if (exp === 'advanced' && goal !== 'return') scheme.sets += 1;
+    // Youth lifting: moderate loads for 8-12 clean reps, never heavy triples.
+    if (youth) {
+      scheme.reps = Math.max(scheme.reps, 8);
+      scheme.load = ['rpe', Math.min(scheme.load[1], 7)];
+      scheme.acc = [scheme.acc[0], Math.max(scheme.acc[1], 10), 'rpe', 7];
+    }
+    if (exp === 'advanced' && goal !== 'return' && !youth) scheme.sets += 1;
 
-    // Areas to protect exclude movements that load them most (their primary stress), and
-    // restrictions exclude whole movement patterns.
+    // Areas to protect exclude movements that load them most (their primary stress), restrictions exclude whole
+    // movement patterns, and the sport, position and level rule out what doesn't suit them.
+    const noNames = new Set((pos && pos.noNames) || []);
     const ok = (name) => {
       const m = meta(name);
       if (!C.libraryEntry(name)) return false;
       if (!m.equipment.every((e) => gear.has(e))) return false;
       if (stressAreas(name, { primaryOnly: true }).some((a) => avoid.includes(a))) return false;
       if (conflict(name, { injuries: restrictions.length ? [{ label: 'your limitations', restrictions }] : [] })) return false;
+      if (m.pattern && prof.noPatterns.includes(m.pattern)) return false;
+      if (level(name) > lim.maxLevel) return false;
+      if (noNames.has(C.libraryEntry(name).name)) return false;
       return true;
     };
     const pick = (list, used) => list.find((n) => ok(n) && !used.has(n)) || null;
-    const gentle = exp === 'beginner' || goal === 'return';
+    const gentle = exp === 'beginner' || goal === 'return' || youth;
     const fv = !gentle && ['force', 'velocity'].includes(input.fv) ? input.fv : null;
-    const main = gentle
-      ? {
-          squat: ['Goblet squat', 'Split squat', 'Step-up', 'Front squat'],
-          hinge: ['Single-leg RDL', 'Kettlebell swing', 'Hip thrust', 'Romanian deadlift', 'Nordic hamstring curl'],
-          lunge: ['Split squat', 'Step-up', 'Walking lunge'],
-          'push-h': ['Push-up', 'Incline dumbbell press', 'Dips'],
-          'push-v': ['Overhead press'],
-          'pull-h': ['Dumbbell row', 'Face pull', 'Barbell row'],
-          'pull-v': ['Lat pulldown', 'Chin-up', 'Pull-up'],
-          olympic: ['Kettlebell swing', 'Med ball slam'],
-        }
-      : MAIN;
-    const slot = (key, used) => pick(main[key] ? rot(main[key]) : [], used) || pick(FALLBACK[key] || [], used);
+    const main = gentle ? GENTLE : MAIN;
+    const swapFor = (key) => (pos && pos.swap && pos.swap[key] && ok(pos.swap[key]) ? pos.swap[key] : null);
+    const slot = (key, used, first = []) => {
+      const sw = swapFor(key);
+      if (sw && !used.has(sw)) return sw;
+      return pick(first, used) || pick(main[key] ? rot(main[key]) : [], used) || pick(FALLBACK[key] || [], used);
+    };
     let v = 0;
     const variation = Math.max(0, Math.round(Number(input.variation) || 0));
     // Rotate through each list so repeated sessions (and "regenerate") vary the exercise choice.
@@ -861,125 +953,237 @@
       if (extra.loadType === 'pct' && !meta(name).equipment.includes('barbell')) return { ...extra, loadType: 'rpe', loadValue: 8 };
       return extra;
     };
-    const lift = (name, group, extra, eachSide) => C.normalizePlanItem({ name, group, ...loadFor(name, extra), ...(eachSide ? { eachSide: true } : {}) }, 'strength');
+    const lift = (name, group, extra, eachSide, why) => C.normalizePlanItem({ name, group, ...loadFor(name, extra), ...(eachSide ? { eachSide: true } : {}), why }, 'strength');
     const fromBlock = (block, used, n, filter = () => true) =>
-      C.EXERCISE_LIBRARY.filter((x) => x.block === block && ok(x.name) && !used.has(x.name) && filter(x)).slice(0, n).map((x) => x.name);
+      C.EXERCISE_LIBRARY.filter((x) => x.block === block && ok(x.name) && !used.has(x.name) && filter(x) && !PLUS.entry(x.name)).slice(0, n).map((x) => x.name);
+
+    // ---- what this sport needs ----
+    const sp = prof.speed;
+    const canSprint = !prof.noPatterns.includes('sprint');
+    const anySpeed = sp.accel || sp.maxV || sp.cod || sp.lateral;
+    const wantsSpeed = canSprint && (focus.has('speed') || focus.has('agility') || goal === 'speed' || (anySpeed && goal !== 'return' && goal !== 'endurance'));
+    const plyoF = prof.plyo * (inSeason ? prof.inSeason.plyo : 1);
+    const wantsPlyo = !prof.noPatterns.includes('plyo') && (focus.has('plyo') || goal === 'power' || goal === 'speed' || (plyoF >= 0.5 && goal !== 'return' && goal !== 'endurance'));
+    const wantsCond = (focus.has('conditioning') || goal === 'endurance' || goal === 'general') && !(inSeason && !prof.inSeason.cond);
+    const sportName = sport.id === 'other' ? 'your training' : sport.label.toLowerCase();
+    const WHY = {
+      warmup: 'Warm-up: raises body temperature and opens up the hips and shoulders.',
+      cooldown: 'Cool-down: brings the heart rate down.',
+      accel: `Acceleration: the first steps decide most plays in ${sportName}.`,
+      maxV: `Top-speed sprinting for ${sportName}.`,
+      cod: `Cutting and change of direction for ${sportName}.`,
+      lateral: `Side-to-side quickness: ${sportName} is played in every direction.`,
+      decel: 'Braking and landing control: most non-contact knee injuries happen when slowing down.',
+      plyo: goal === 'power' ? 'Jump training for explosive power.' : `Jump training for power in ${sportName}.`,
+      lateralJump: `Lateral power for ${sportName}.`,
+      rot: `Rotational power for ${ROT_FOR[prof.family] || sportName}.`,
+      olympic: 'Olympic-style lift for total-body power.',
+      arm: prof.family === 'aquatic' ? 'Shoulder care: rotator cuff and shoulder-blade strength for the most-loaded joint in swimming.' : 'Arm care: keeps the throwing shoulder and elbow healthy.',
+      neck: 'Neck strength: linked to fewer concussions in contact sports.',
+      grip: `Grip strength for ${sportName}.`,
+      core: prof.rot >= 0.5 ? 'Trunk strength that resists rotation, so hip power reaches the arms.' : 'Trunk strength to transfer force between the legs and arms.',
+      cond: `${ENERGY_LABEL[prof.energy] || 'Repeat-effort'} conditioning, matched to ${sportName}${prof.noPatterns.includes('run') ? ' (no running for swimmers)' : ''}.`,
+      mobility: 'Mobility focus you asked for.',
+      strides: 'Strides: fast, relaxed running to keep your stride smooth.',
+    };
+    const strengthWhy = (key, main) => ({
+      squat: main ? `Main squat for ${GOALS[goal].toLowerCase()}: the base for sprinting, jumping and contact.` : 'Squat strength.',
+      hinge: main ? 'Main hinge: hamstrings and glutes drive sprinting and jumping.' : 'Hamstrings and glutes for speed and injury resilience.',
+      lunge: prof.lat >= 0.6 ? 'Single-leg and lateral strength: sport happens on one leg at a time.' : 'Single-leg strength: sport happens on one leg at a time.',
+      'push-h': 'Upper-body pressing strength.',
+      'push-v': swapFor('push-v') ? `${pos.label}: landmine press instead of heavy overhead pressing.` : 'Overhead strength and shoulder control.',
+      'pull-h': 'Rowing strength: balances pressing and protects the shoulders.',
+      'pull-v': 'Vertical pulling strength for the back and shoulders.',
+    })[key];
+
+    // Prevention routine items for this sport, spread across the week.
+    const P0 = Prev();
+    const routineItems = [];
+    for (const rid of prof.routines || []) {
+      const r = P0 && P0.ROUTINES[rid];
+      if (!r) continue;
+      for (const n of r.items) if (!routineItems.some((x) => x.name === n) && ok(n)) routineItems.push({ name: n, why: `${r.name}: ${r.why}.` });
+    }
+    const armItems = prof.arm ? S.ARM_CARE.filter(ok) : [];
 
     // Session templates by split.
-    const powerSport = sport.team || ['sprints', 'track', 'track-field', 'basketball', 'volleyball', 'football', 'soccer'].includes(sport.id);
-    const wantsSpeed = focus.has('speed') || focus.has('agility') || goal === 'speed' || (powerSport && goal !== 'return' && goal !== 'endurance');
-    const wantsPlyo = focus.has('plyo') || goal === 'power' || goal === 'speed' || (powerSport && goal !== 'return');
-    const wantsCond = focus.has('conditioning') || goal === 'endurance' || goal === 'general';
     const splits = {
-      1: ['full'], 2: ['full', 'full'], 3: goal === 'speed' ? ['lower', 'speed', 'upper'] : ['full', 'full', 'full'],
+      1: ['full'], 2: ['full', 'full'], 3: goal === 'speed' && canSprint ? ['lower', 'speed', 'upper'] : ['full', 'full', 'full'],
       4: ['lower', 'upper', 'lower', 'upper'], 5: ['lower', 'upper', wantsSpeed ? 'speed' : 'conditioning', 'lower', 'upper'],
       6: ['lower', 'upper', wantsSpeed ? 'speed' : 'conditioning', 'lower', 'upper', 'recovery'],
     };
-    if (goal === 'in-season') splits[days] = days >= 3 ? ['full', 'speed', 'full'].slice(0, days) : ['full', 'full'].slice(0, days);
+    if (goal === 'in-season') splits[days] = days >= 3 ? ['full', canSprint ? 'speed' : 'conditioning', 'full'].slice(0, Math.min(days, prof.inSeason.maxLift + 1)) : ['full', 'full'].slice(0, days);
     const kinds = (splits[days] || splits[3]).slice(0, days);
+
+    // Position extras go to the sessions they fit, spread out.
+    const extrasFor = kinds.map(() => []);
+    for (const n of ((pos && pos.extras) || []).filter(ok)) {
+      const lib = C.libraryEntry(n);
+      const m = meta(n);
+      const lower = ['speed', 'plyo'].includes(lib.block) || ['squat', 'hinge', 'lunge', 'sprint', 'cod'].includes(m.pattern);
+      const upper = ['push-h', 'push-v', 'pull-h', 'pull-v'].includes(m.pattern);
+      const fits = kinds.map((k, i) => [k, i]).filter(([k]) => k !== 'recovery' && (lower ? k !== 'upper' : upper ? k !== 'lower' && k !== 'speed' : true)).map(([, i]) => i);
+      if (!fits.length) continue;
+      const best = fits.reduce((a, b) => (extrasFor[b].length < extrasFor[a].length ? b : a));
+      extrasFor[best].push(n);
+    }
+
     const variants = { full: 0, lower: 0, upper: 0 };
     const sessions = kinds.map((kind, idx) => {
       const used = new Set();
       v = variants[kind] = (variants[kind] ?? 0) + 1;
       const blocks = [];
-      const add = (type, names, extra = {}) => {
-        const items = names.filter(Boolean).map((n) => (used.add(n), C.normalizePlanItem({ name: n, ...extra }, type)));
+      const add = (type, names, extra = {}, why = '') => {
+        const items = names.filter(Boolean).map((n) => (used.add(n), C.normalizePlanItem({ name: n, ...extra, why: typeof why === 'function' ? why(n) : why }, type)));
         if (!items.length) return items;
         const existing = blocks.find((b) => b.type === type);
         if (existing) existing.items.push(...items);
         else blocks.push({ type, items });
         return items;
       };
-      add('warmup', fromBlock('warmup', used, 3, (x) => (kind === 'upper' ? !/leg|lunge/i.test(x.name) : true)));
+      // Warm-up: general prep, then this sport's prep (arm care, neck, the prevention routine).
+      const prep = [];
+      const lowerDay = kind === 'lower' || kind === 'full' || kind === 'speed';
+      if (prof.decel && lowerDay && v === 1) prep.push({ name: pick(S.DECEL.slice(1).filter((n) => level(n) <= lim.maxLevel), new Set()), why: WHY.decel, sets: 2 });
+      if (armItems.length && kind !== 'recovery') for (let k = 0; k < 2; k++) prep.push({ name: armItems[(idx * 2 + k) % armItems.length], why: WHY.arm });
+      if (prof.neck && kind !== 'recovery' && idx % 2 === 0) prep.push({ name: pick(exp === 'beginner' || youth ? ['Neck isometrics'] : ['4-way neck (band)', 'Neck isometrics'], new Set()), why: WHY.neck });
+      const rItems = routineItems.filter((x) => !(prof.neck && /neck/i.test(x.name))).filter((x) => lowerDay || !['plyo', 'sprint', 'hamstring-iso', 'adductor', 'calf'].includes(meta(x.name).pattern));
+      if (rItems.length && kind !== 'recovery') for (let k = 0; k < Math.min(2, rItems.length); k++) prep.push(rItems[(idx * 2 + k) % rItems.length]);
+      if (prof.strides && lowerDay && v === 1 && canSprint) prep.push({ name: 'Strides', why: WHY.strides });
+      const prepNames = prep.filter((x) => x.name && ok(x.name));
+      add('warmup', fromBlock('warmup', used, prepNames.length ? 2 : 3, (x) => (kind === 'upper' ? !/leg|lunge/i.test(x.name) : true)), {}, WHY.warmup);
+      for (const x of prepNames) if (!used.has(x.name)) add('warmup', [x.name], { sets: x.sets || 1, restSec: 20 }, x.why);
       if (kind === 'recovery') {
-        add('mobility', fromBlock('mobility', used, 5));
-        add('cooldown', fromBlock('cooldown', used, 2));
+        add('mobility', fromBlock('mobility', used, 5), {}, 'Mobility and recovery between hard days.');
+        add('cooldown', fromBlock('cooldown', used, 2), {}, WHY.cooldown);
         return { day: DAY_LAYOUT[days][idx], plan: C.normalizePlan({ name: 'Recovery & mobility', blocks }) };
       }
+      const accelList = gentle ? SPEED_LISTS.accelGentle : rot(SPEED_LISTS.accel);
       if (kind === 'speed' || ((kind === 'lower' || kind === 'full') && wantsSpeed && v === 1)) {
-        const speed = [];
-        if (focus.has('agility') || goal === 'speed' || sport.team) speed.push(pick(['Pro agility (5-10-5)', '3-cone drill (L-drill)', 'Agility ladder: Icky shuffle', 'Lateral shuffle', 'Mirror drill'], used));
-        speed.unshift(pick(['Acceleration sprint', 'Sled sprint', 'Hill sprint'], used) || pick(FALLBACK.speed, used));
-        if (kind === 'speed') speed.push(pick(['Flying sprint', 'Backpedal to sprint'], used), pick(['T-drill', 'Agility ladder: in-in-out-out', 'Reaction ball drops'], used));
-        add('speed', speed);
+        const cod = focus.has('agility') || goal === 'speed' || sp.cod || sp.lateral;
+        if (sp.accel || goal === 'speed' || focus.has('speed') || !cod) add('speed', [pick(accelList, used) || pick(FALLBACK.sprint, used)], {}, WHY.accel);
+        if (cod) add('speed', [pick(sp.lateral && (!sp.cod || v % 2 === 0) ? SPEED_LISTS.lateral : SPEED_LISTS.cod, used)], {}, sp.lateral && !sp.cod ? WHY.lateral : WHY.cod);
+        if (kind === 'speed') {
+          if (sp.maxV || goal === 'speed' || focus.has('speed')) add('speed', [pick(SPEED_LISTS.maxV, used)], {}, WHY.maxV);
+          add('speed', [pick(SPEED_LISTS.second, used)], {}, WHY.cod);
+        }
+        if (kind === 'speed' && prof.decel && ok('Sprint to stop (deceleration)') && !used.has('Sprint to stop (deceleration)')) add('speed', ['Sprint to stop (deceleration)'], {}, WHY.decel);
       }
       if (wantsPlyo && kind !== 'upper') {
-        const jump = pick(rot(['Box jump', 'Broad jump', 'Lateral bound (skater)', 'Hurdle hops', 'Pogo hops', 'Drop landing (stick it)']), used);
-        const plyo = [jump, kind === 'speed' ? pick(['Single-leg hop', 'Lateral bound (skater)', 'Pogo hops'], used) : null].filter(Boolean);
-        if (plyo.length) add('plyo', plyo);
-        else if (pick(FALLBACK.plyo, used)) add('power', [pick(FALLBACK.plyo, used)]);
+        const lateralDay = prof.lat >= 0.6 && (v + idx) % 2 === 1;
+        const list = gentle ? JUMPS.gentle : lateralDay ? JUMPS.lateral : prof.lat >= 0.6 ? JUMPS.vertical : JUMPS.default;
+        const jump = pick(rot(list), used);
+        const second = kind === 'speed' ? pick(gentle ? ['Single-leg lateral hop and stick', 'Line hops'] : ['Single-leg hop', 'Lateral bound (skater)', 'Pogo hops'], used) : null;
+        const extra = plyoF < 0.6 ? { sets: 2 } : {};
+        const items = add('plyo', [jump, second], extra, (n) => (S.LATERAL.includes(n) ? WHY.lateralJump : WHY.plyo));
+        if (!items.length && pick(FALLBACK.plyo, used)) add('power', [pick(FALLBACK.plyo, used)], {}, WHY.plyo);
       }
       if (kind === 'speed') {
-        add('core', [pick(['Pallof press', 'Side plank', 'Dead bug'], used)]);
-        add('cooldown', fromBlock('cooldown', used, 1));
+        if (prof.rot >= 0.5) add('power', [pick(gentle ? ROT_POWER.gentle : rot(ROT_POWER.full), used)], {}, WHY.rot);
+        add('core', [pick(['Pallof press', 'Side plank', 'Dead bug'], used)], {}, WHY.core);
+        for (const n of extrasFor[idx]) if (!used.has(n)) add(C.libraryEntry(n).block, [n], {}, pos.note);
+        add('cooldown', fromBlock('cooldown', used, 1), {}, WHY.cooldown);
         return { day: DAY_LAYOUT[days][idx], plan: C.normalizePlan({ name: 'Speed & agility', blocks }) };
       }
       if (kind === 'conditioning') {
-        add('conditioning', [pick(['Tempo runs (110s)', 'Bike intervals', 'Row intervals', 'Assault bike sprint'], used), pick(['Sled push', 'Jump rope', 'Battle ropes', 'Stadium stairs'], used)]);
-        add('core', [pick(['Plank', 'Dead bug', 'Russian twist'], used), pick(['Side plank', 'Bird dog', 'Hollow hold'], used)]);
-        add('cooldown', fromBlock('cooldown', used, 1));
+        const cond = prof.cond.filter((n) => ok(n) && !used.has(n));
+        add('conditioning', [cond[0] || pick(['Mountain climbers', 'Burpees', 'Bear crawl', 'Jump rope'], used), cond[1] || null], {}, WHY.cond);
+        add('core', [pick(['Plank', 'Dead bug', 'Russian twist'], used), pick(['Side plank', 'Bird dog', 'Hollow hold'], used)], {}, WHY.core);
+        for (const n of extrasFor[idx]) if (!used.has(n)) add(C.libraryEntry(n).block, [n], {}, pos.note);
+        add('cooldown', fromBlock('cooldown', used, 1), {}, WHY.cooldown);
         return { day: DAY_LAYOUT[days][idx], plan: C.normalizePlan({ name: 'Conditioning + core', blocks }) };
       }
+      // Rotation-first sports (golf, throwing, racket) get their rotational power ahead of the Olympic-style lift.
+      const rotFirst = prof.rot >= 0.8 && kind !== 'upper' && !restrictions.includes('upper-only');
+      if (rotFirst) add('power', [pick(gentle ? ROT_POWER.gentle : rot(ROT_POWER.full), used)], {}, WHY.rot);
       if ((goal === 'power' || goal === 'speed') && kind !== 'upper' && !gentle) {
         const ol = pick(main.olympic, used);
-        if (ol) add('power', [ol], loadFor(ol, { sets: scheme.sets, amount: 3, loadType: 'pct', loadValue: 70, restSec: 150 }));
+        if (ol) add('power', [ol], loadFor(ol, { sets: scheme.sets, amount: 3, loadType: 'pct', loadValue: 70, restSec: 150 }), WHY.olympic);
       }
+      if (rotFirst) { /* already added */ } else if (prof.rot >= 0.5 && kind !== 'upper' && !restrictions.includes('upper-only')) add('power', [pick(gentle ? ROT_POWER.gentle : rot(ROT_POWER.full), used)], {}, WHY.rot);
+      else if (prof.rot >= 0.8 && kind === 'upper') add('power', [pick(gentle ? ROT_POWER.gentle : rot(ROT_POWER.full), used)], {}, WHY.rot);
       let loadExtra = { sets: scheme.sets, amount: scheme.reps, loadType: scheme.load[0], loadValue: scheme.load[1], restSec: scheme.rest };
       // Force-velocity profile: lean the main lifts toward the side of the curve that's lacking.
       if (fv === 'force') loadExtra = { ...loadExtra, amount: Math.min(loadExtra.amount, 4), loadValue: loadExtra.loadType === 'pct' ? Math.max(loadExtra.loadValue, 85) : Math.max(loadExtra.loadValue, 8.5), restSec: Math.max(loadExtra.restSec, 180), notes: 'Heavy: force focus from your jump profile.' };
       if (fv === 'velocity') loadExtra = { ...loadExtra, amount: Math.min(loadExtra.amount, 5), loadValue: loadExtra.loadType === 'pct' ? Math.min(loadExtra.loadValue, 70) : Math.min(loadExtra.loadValue, 7), notes: 'Lighter and fast: drive up as quickly as you can (speed focus from your jump profile).' };
       if (fv === 'velocity' && kind !== 'upper') {
         const fast = pick(['Jump squat', 'Med ball slam', 'Broad jump'], used);
-        if (fast) add('power', [fast], { sets: 4, amount: 5, restSec: 120, ...(fast === 'Jump squat' ? { loadType: 'rpe', loadValue: 5, notes: 'Light load (about 20–30% of your squat max). Every rep as high and fast as possible.' } : { notes: 'Max intent on every rep.' }) });
+        if (fast) add('power', [fast], { sets: 4, amount: 5, restSec: 120, ...(fast === 'Jump squat' ? { loadType: 'rpe', loadValue: 5, notes: 'Light load (about 20–30% of your squat max). Every rep as high and fast as possible.' } : { notes: 'Max intent on every rep.' }) }, 'Fast, light work for your velocity deficit (jump profile).');
       }
       const accExtra = { sets: scheme.acc[0], amount: scheme.acc[1], loadType: scheme.acc[2], loadValue: scheme.acc[3], restSec: 75 };
       const strength = [];
-      const put = (key, group, extra, eachSide) => {
-        const n = slot(key, used);
-        if (n) (used.add(n), strength.push(lift(n, group, extra, eachSide)));
+      const put = (key, group, extra, eachSide, isMain, first = []) => {
+        const n = slot(key, used, first);
+        if (n) (used.add(n), strength.push(lift(n, group, extra, eachSide, strengthWhy(key, isMain))));
       };
+      const lateralFirst = prof.lat >= 0.6 && v % 2 === 0 ? S.LAT_STRENGTH.slice(0, 3) : [];
       if (kind === 'lower' || kind === 'full') {
-        put('squat', 'A1', loadExtra);
-        put('hinge', 'B1', kind === 'full' ? accExtra : loadExtra);
+        // Full-body weeks alternate a squat day and a single-leg day so every pattern is covered.
+        if (kind === 'full' && v % 2 === 0) put('lunge', 'A1', loadExtra, true, true, lateralFirst);
+        else put('squat', 'A1', loadExtra, false, true);
+        put('hinge', 'B1', kind === 'full' ? accExtra : loadExtra, false, kind !== 'full');
       }
       if (kind === 'upper' || kind === 'full') {
-        put('push-h', kind === 'full' ? 'C1' : 'A1', kind === 'upper' ? loadExtra : accExtra);
-        put('pull-v', kind === 'full' ? 'C2' : 'A2', accExtra);
+        put('push-h', kind === 'full' ? 'C1' : 'A1', kind === 'upper' ? loadExtra : accExtra, false, kind === 'upper');
+        put('pull-v', kind === 'full' ? 'C2' : 'A2', accExtra, false, false);
         if (kind === 'upper') {
-          put('push-v', 'B1', accExtra);
-          put('pull-h', 'B2', accExtra);
+          put('push-v', 'B1', accExtra, false, false);
+          put('pull-h', 'B2', accExtra, false, false);
         }
       }
       if (kind === 'lower') {
-        put('lunge', 'C1', accExtra, true);
-        const ham = pick(['Nordic hamstring curl', 'Copenhagen plank', 'Calf raise'], used);
-        if (ham) (used.add(ham), strength.push(lift(ham, 'C2', {})));
+        put('lunge', 'C1', accExtra, true, false, lateralFirst);
+        const hamList = youth ? ['Nordic hamstring curl', 'Copenhagen short lever', 'Slider hamstring curl', 'Calf raise'] : ['field', 'ice', 'snow'].includes(prof.family) && v % 2 === 0 ? ['Copenhagen plank', 'Nordic hamstring curl', 'Calf raise'] : ['Nordic hamstring curl', 'Copenhagen plank', 'Calf raise'];
+        const ham = pick(hamList, used);
+        if (ham) (used.add(ham), strength.push(lift(ham, 'C2', {}, false, meta(ham).pattern === 'adductor' ? 'Groin strength: fewer adductor strains.' : meta(ham).pattern === 'calf' ? 'Calf and Achilles strength.' : 'Hamstring resilience: Nordics halve hamstring strains.')));
+      }
+      if (prof.grip >= 0.5 && (kind === 'upper' || kind === 'full')) {
+        const g = pick(rot(GRIP), used);
+        if (g) (used.add(g), strength.push(lift(g, 'D1', {}, false, WHY.grip)));
+      }
+      for (const n of extrasFor[idx]) {
+        if (used.has(n)) continue;
+        const lib = C.libraryEntry(n);
+        if (lib.block === 'strength') (used.add(n), strength.push(lift(n, '', {}, false, pos.note)));
+        else add(lib.block, [n], {}, pos.note);
       }
       if (strength.length) blocks.push({ type: 'strength', items: strength });
-      add('core', [pick(v % 2 ? ['Pallof press', 'Dead bug', 'Plank'] : ['Side plank', 'Hanging leg raise', 'Ab wheel rollout'], used), focus.has('core') ? pick(['Hollow hold', 'Bird dog', 'Russian twist'], used) : null]);
-      if (wantsCond && kind === 'full' && days <= 3) add('conditioning', [pick(['Bike intervals', 'Tempo runs (110s)', 'Row intervals', 'Jump rope'], used)]);
-      if (focus.has('mobility')) add('mobility', fromBlock('mobility', used, 2));
-      add('cooldown', fromBlock('cooldown', used, 1));
+      const coreList = prof.rot >= 0.5 ? (v % 2 ? ['Pallof press', 'Half-kneeling Pallof press', 'Dead bug', 'Plank'] : ['Side plank', 'Landmine rotation', 'Russian twist', 'Dead bug']) : v % 2 ? ['Pallof press', 'Dead bug', 'Plank'] : ['Side plank', 'Hanging leg raise', 'Ab wheel rollout'];
+      add('core', [pick(coreList, used), focus.has('core') ? pick(['Hollow hold', 'Bird dog', 'Russian twist'], used) : null], {}, WHY.core);
+      if (wantsCond && kind === 'full' && days <= 3) {
+        const c = prof.cond.find((n) => ok(n) && !used.has(n));
+        if (c) add('conditioning', [c], {}, WHY.cond);
+      }
+      if (focus.has('mobility')) add('mobility', fromBlock('mobility', used, 2), {}, WHY.mobility);
+      add('cooldown', fromBlock('cooldown', used, 1, (x) => !prof.noPatterns.includes(meta(x.name).pattern)), {}, WHY.cooldown);
       const name = kind === 'full' ? `Full body ${String.fromCharCode(64 + v)}` : kind === 'lower' ? `Lower body ${v}` : `Upper body ${v}`;
       return { day: DAY_LAYOUT[days][idx], plan: trimToTime(C.normalizePlan({ name, blocks }), minutes) };
     });
+
+    // Jump and sprint volume stays within the limits for the athlete's age, level and phase.
+    capVolume(sessions, lim);
 
     const progression = goal === 'return'
       ? { pctPerWeek: 0, kgPerWeek: 1.13, rpePerWeek: 0.5, deloadEvery: 0 }
       : goal === 'in-season'
         ? { pctPerWeek: 0, kgPerWeek: 0, rpePerWeek: 0, deloadEvery: 0 }
         : { pctPerWeek: goal === 'hypertrophy' ? 1.5 : 2.5, kgPerWeek: exp === 'beginner' ? 2.27 : 1.13, rpePerWeek: 0.5, deloadEvery: weeks >= 4 ? 4 : 0 };
-    const phase = peakDate ? 'peak' : input.phase || (goal === 'in-season' ? 'in' : goal === 'return' ? 'rehab' : 'general');
+    const phase = peakDate ? 'peak' : phaseIn;
     // Six weeks or more (or a peak date) run as training blocks instead of one repeating week.
     const blocky = !['in-season', 'return'].includes(goal) && input.periodize !== false && (peakDate ? weeks >= 2 : weeks >= 6);
     const cycle = blocky ? periodize(weeks, { peak: !!peakDate }) : null;
     const why = [
+      sport.id !== 'other' ? `Built for ${sport.label.toLowerCase()}${pos ? ` (${pos.label.toLowerCase()})` : ''}: ${prof.qualities.slice(0, 3).join(', ').toLowerCase()}.` : '',
       `${days} days/week, about ${minutes} min each, for ${weeks} weeks${peakDate ? `, peaking for ${peakDate}` : ''}.`,
       cycle && cycle.length > 1 ? `Runs in blocks: ${cycle.map((b) => `${CYCLE_KINDS[b.kind].label.toLowerCase()} (${b.weeks} wk)`).join(', then ')}. Accessory lifts change each block.` : '',
       wantsSpeed ? 'Speed and agility come first in the session, while you’re fresh.' : '',
       wantsPlyo ? 'Jumps before lifting to train power.' : '',
+      routineItems.length ? `Warm-ups include the ${(prof.routines || []).map((r) => P0 && P0.ROUTINES[r] && P0.ROUTINES[r].name).filter(Boolean).join(' and ')}.` : '',
+      inSeason ? `In season: ${prof.inSeason.note}` : '',
       cycle ? 'Loads build within each block, with a lighter week at the end of long blocks.' : progression.deloadEvery ? `Loads build each week with a lighter deload every ${progression.deloadEvery}th week.` : '',
       avoid.length || restrictions.length ? 'Exercises that stress your limitations were left out.' : '',
+      youth || exp === 'beginner' ? `Jumps stay under ${lim.jumpsPerSession} contacts a session and sprints under ${lim.sprintPerSession} m, with easier versions of advanced lifts.` : '',
+      pos ? pos.note : '',
       fv === 'force' ? 'Your jump force-velocity profile shows a force deficit, so main lifts are heavier (fewer reps, higher loads).' : '',
       fv === 'velocity' ? 'Your jump force-velocity profile shows a velocity deficit, so there’s extra fast, light work and main lifts are moved for speed.' : '',
     ].filter(Boolean).join(' ');
@@ -994,7 +1198,42 @@
       equipment,
       sessions,
       source: 'generator',
+      builtFor: { sport: sport.id, position: pos ? pos.id : '', experience: exp, ageGroup: lim.ageGroup, goal },
     });
+  }
+
+  // Lower plyo and sprint sets (then drop items) until each session and the week fit the limits.
+  function capVolume(sessions, lim) {
+    const countOf = (plan) => S.counts(plan, meta);
+    const shrink = (plan, pattern) => {
+      for (const b of plan.blocks) {
+        for (let k = b.items.length - 1; k >= 0; k--) {
+          const i = b.items[k];
+          if (meta(i.name).pattern !== pattern) continue;
+          if (i.sets > 2) { i.sets -= 1; return true; }
+        }
+      }
+      for (const b of plan.blocks) {
+        for (let k = b.items.length - 1; k >= 0; k--) {
+          if (meta(b.items[k].name).pattern !== pattern) continue;
+          const i = b.items[k];
+          if (i.sets > 1) { i.sets -= 1; return true; }
+          b.items.splice(k, 1);
+          return true;
+        }
+      }
+      return false;
+    };
+    for (const [key, pattern, perS, perW] of [['jumps', 'plyo', lim.jumpsPerSession, lim.jumpsPerWeek], ['sprint', 'sprint', lim.sprintPerSession, lim.sprintPerWeek]]) {
+      for (const s of sessions) for (let g = 0; g < 40 && countOf(s.plan)[key] > perS; g++) if (!shrink(s.plan, pattern)) break;
+      for (let g = 0; g < 80; g++) {
+        const total = sessions.reduce((t, s) => t + countOf(s.plan)[key], 0);
+        if (total <= perW) break;
+        const top = sessions.reduce((a, b) => (countOf(b.plan)[key] > countOf(a.plan)[key] ? b : a));
+        if (!shrink(top.plan, pattern)) break;
+      }
+    }
+    for (const s of sessions) s.plan.blocks = s.plan.blocks.filter((b) => b.items.length);
   }
 
   // Drop accessory work from the end until the session fits the time budget.
@@ -1013,6 +1252,29 @@
           break;
         }
       }
+      // Then the extras around the main lifts: long warm-ups, a third speed drill, a second jump or power move.
+      if (!cut) {
+        for (const [type, keep] of [['warmup', 4], ['speed', 2], ['power', 1], ['plyo', 1], ['warmup', 3], ['speed', 1]]) {
+          const b = blocks.find((x) => x.type === type && x.items.length > keep);
+          if (!b) continue;
+          if (type === 'warmup') {
+            // General warm-up items go before sport prep, and later prep items before earlier (more important) ones.
+            const general = b.items.map((i, k) => [i, k]).filter(([i]) => /^Warm-up:/.test(i.why || ''));
+            b.items.splice(general.length > 1 ? general[general.length - 1][1] : b.items.length - 1, 1);
+          } else b.items.pop();
+          cut = true;
+          break;
+        }
+      }
+      // Then fewer sets before fewer lifts, so a session keeps its squat, hinge and single-leg (or push and pull) work.
+      for (const [floor, keepLifts] of [[3, 3], [2, 3]]) {
+        if (cut) break;
+        const all = blocks.filter((b) => !['warmup', 'cooldown'].includes(b.type)).flatMap((b) => b.items);
+        const big = all.filter((i) => i.sets > floor).sort((x, y) => y.sets - x.sets)[0];
+        if (big) { big.sets -= 1; cut = true; break; }
+        const st = blocks.find((x) => x.type === 'strength' && x.items.length > keepLifts + 1);
+        if (st) { st.items.pop(); cut = true; break; }
+      }
       if (!cut) {
         const s = blocks.find((x) => x.type === 'strength' && x.items.length > 2);
         if (s) s.items.pop();
@@ -1025,6 +1287,128 @@
       p = C.normalizePlan(p);
     }
     return p;
+  }
+
+  // ---------- program checks for coaches ----------
+
+  const ARM_FAMILIES = ['bat', 'racket', 'aquatic', 'court'];
+  const allItemsOf = (program) => (program.sessions || []).flatMap((s, si) => (s.plan.blocks || []).flatMap((b) => (b.items || []).map((i) => ({ i, b, s, si }))));
+
+  /*
+   * checkProgram(program, ctx?) -> [{ id, level: 'warn' | 'info', text, fix?: { label } }]
+   * Looks for things that don't suit the athlete it's for: running for swimmers, lifts above their level, no arm care for
+   * throwing and overhead sports, no braking or landing work for team sports, a missing squat/hinge/single-leg/push/pull, and
+   * jump or sprint volume above the limits for their age and level. ctx overrides program.builtFor:
+   * { sport, position, experience, age, ageGroup, goal, phase }. Fix any warning with applyFix(program, id, ctx).
+   */
+  function checkProgram(program, ctx = {}) {
+    if (!program || !Array.isArray(program.sessions)) return [];
+    const c = checkContext(program, ctx);
+    const { prof, lim } = c;
+    const out = [];
+    const items = allItemsOf(program);
+    const names = new Set(items.map((x) => x.i.name));
+    const pats = new Set(items.map((x) => meta(x.i.name).pattern));
+    const banned = items.filter((x) => prof.noPatterns.includes(meta(x.i.name).pattern));
+    if (banned.length) {
+      const what = [...new Set(banned.map((x) => x.i.name))];
+      const run = banned.some((x) => ['run', 'sprint', 'drill', 'cod'].includes(meta(x.i.name).pattern));
+      out.push({ id: 'sport-fit', level: 'warn', text: `${what.slice(0, 3).join(', ')}${what.length > 3 ? ` and ${what.length - 3} more` : ''} ${what.length === 1 ? "doesn't" : "don't"} suit ${prof.label.toLowerCase()}${run && prof.family === 'aquatic' ? ' (no running for swimmers)' : ''}.`, fix: { label: 'Swap for sport-fit options' } });
+    }
+    const tooHard = [...new Set(items.filter((x) => C.libraryEntry(x.i.name) && level(x.i.name) > lim.maxLevel).map((x) => x.i.name))];
+    if (tooHard.length) out.push({ id: 'level', level: 'warn', text: `${tooHard.slice(0, 3).join(', ')}${tooHard.length > 3 ? ` and ${tooHard.length - 3} more` : ''} ${tooHard.length === 1 ? 'is' : 'are'} too advanced for a ${c.ageGroup === 'youth' ? 'youth athlete' : c.experience}.`, fix: { label: 'Use easier versions' } });
+    if (prof.arm) {
+      const armSessions = program.sessions.filter((s) => s.plan.blocks.some((b) => b.items.some((i) => S.ARM_CARE.includes(i.name)))).length;
+      const lifting = program.sessions.filter((s) => !/recovery/i.test(s.plan.name)).length;
+      if (armSessions < Math.min(lifting, 2)) out.push({ id: 'arm-care', level: 'warn', text: `Throwing and overhead athletes need arm care (cuff and shoulder-blade work) most sessions. This program has it in ${armSessions} of ${lifting}.`, fix: { label: 'Add arm care to warm-ups' } });
+    }
+    if (prof.decel && !items.some((x) => S.DECEL.includes(x.i.name) || /decel|stick|snap-down|landing/i.test(x.i.name))) {
+      out.push({ id: 'decel', level: 'warn', text: 'No braking or landing work. Most non-contact knee injuries in team sports happen when slowing down or landing.', fix: { label: 'Add landing drills' } });
+    }
+    const need = [['squat', 'squat'], ['hinge', 'hinge'], ['lunge', 'single-leg'], [['push-h', 'push-v'], 'push'], [['pull-h', 'pull-v'], 'pull']];
+    const missing = need.filter(([p]) => ![].concat(p).some((x) => pats.has(x))).map(([, l]) => l);
+    if (missing.length && !program.sessions.every((s) => /recovery|speed|conditioning/i.test(s.plan.name))) {
+      out.push({ id: 'coverage', level: 'info', text: `No ${missing.join(', ')} movement in the week. Covering all five keeps strength balanced.`, fix: { label: `Add ${missing.length === 1 ? 'it' : 'them'}` } });
+    }
+    const counts = program.sessions.map((s) => S.counts(s.plan, meta));
+    const wk = counts.reduce((t, x) => ({ jumps: t.jumps + x.jumps, sprint: t.sprint + x.sprint }), { jumps: 0, sprint: 0 });
+    const maxJ = Math.max(0, ...counts.map((x) => x.jumps));
+    const maxS = Math.max(0, ...counts.map((x) => x.sprint));
+    const who = c.ageGroup === 'youth' ? 'a youth athlete' : c.ageGroup === 'teen' && c.experience === 'beginner' ? 'a teen beginner' : `a ${c.experience}`;
+    if (maxJ > lim.jumpsPerSession || wk.jumps > lim.jumpsPerWeek) out.push({ id: 'jumps', level: 'warn', text: `About ${maxJ > lim.jumpsPerSession ? `${maxJ} jumps in one session` : `${wk.jumps} jumps a week`}. The limit for ${who} is ${lim.jumpsPerSession} a session and ${lim.jumpsPerWeek} a week.`, fix: { label: 'Cut to the limit' } });
+    if (maxS > lim.sprintPerSession || wk.sprint > lim.sprintPerWeek) out.push({ id: 'sprint', level: 'warn', text: `About ${maxS > lim.sprintPerSession ? `${maxS} m of sprinting in one session` : `${wk.sprint} m of sprinting a week`}. The limit for ${who} is ${lim.sprintPerSession} m a session and ${lim.sprintPerWeek} m a week.`, fix: { label: 'Cut to the limit' } });
+    return out;
+  }
+
+  function checkContext(program, ctx) {
+    const b = program.builtFor || {};
+    const sport = ctx.sport || b.sport || 'other';
+    const experience = ctx.experience || b.experience || 'intermediate';
+    const prof = S.profile(sport, ctx.position != null ? ctx.position : b.position);
+    const goal = ctx.goal || b.goal || 'general';
+    const lim = S.limits({ age: ctx.age, ageGroup: ctx.ageGroup || b.ageGroup, experience, phase: ctx.phase || program.phase, goal });
+    return { sport, experience, prof, goal, lim, ageGroup: lim.ageGroup };
+  }
+
+  // applyFix(program, id, ctx?) -> a new program with that warning fixed (the original is untouched).
+  function applyFix(program, id, ctx = {}) {
+    const p = normalizeProgram(JSON.parse(JSON.stringify(program)));
+    const c = checkContext(p, ctx);
+    const { prof, lim } = c;
+    const fitOk = (n) => n && C.libraryEntry(n) && !prof.noPatterns.includes(meta(n).pattern) && level(n) <= lim.maxLevel && meta(n).equipment.every((e) => e === 'none' || e === 'field' || !p.equipment.length || p.equipment.includes(e) || (e === 'pool' && prof.family === 'aquatic'));
+    const used = (s) => new Set(s.plan.blocks.flatMap((b) => b.items.map((i) => i.name)));
+    const swapTo = (i, n) => Object.assign(i, C.normalizePlanItem({ ...i, name: n, why: i.why, swapReason: '' }, 'strength'), { name: n });
+    const replace = (x, cands) => {
+      const u = used(x.s);
+      const n = cands.find((v) => fitOk(v) && !u.has(v));
+      if (n) swapTo(x.i, n);
+      else x.b.items.splice(x.b.items.indexOf(x.i), 1);
+    };
+    const addTo = (s, type, names, extra, why) => {
+      const u = used(s);
+      const list = names.filter((n) => fitOk(n) && !u.has(n));
+      if (!list.length) return;
+      let b = s.plan.blocks.find((x) => x.type === type);
+      if (!b) {
+        b = { type, items: [] };
+        const at = type === 'warmup' ? 0 : Math.max(0, s.plan.blocks.findIndex((x) => x.type === 'strength'));
+        s.plan.blocks.splice(type === 'warmup' ? 0 : at, 0, b);
+      }
+      b.items.push(...list.map((n) => C.normalizePlanItem({ name: n, ...extra, why }, type)));
+    };
+    const lifting = p.sessions.filter((s) => !/recovery/i.test(s.plan.name));
+    if (id === 'sport-fit') {
+      for (const x of allItemsOf(p).filter((x) => prof.noPatterns.includes(meta(x.i.name).pattern))) {
+        const pat = meta(x.i.name).pattern;
+        const cands = ['run', 'bike', 'row', 'swim', 'bodyweight-cond'].includes(pat) || x.b.type === 'conditioning' ? [...prof.cond, 'Mountain climbers', 'Burpees', 'Bear crawl'] : [...alternatives(x.i.name), ...S.ROT];
+        replace(x, cands);
+      }
+    } else if (id === 'level') {
+      for (const x of allItemsOf(p).filter((x) => C.libraryEntry(x.i.name) && level(x.i.name) > lim.maxLevel)) {
+        const chain = [];
+        let n = x.i.name;
+        for (let k = 0; k < 3 && n; k++) (n = links(n).easier) && chain.push(n);
+        replace(x, [...chain, ...(GENTLE[meta(x.i.name).pattern] || []), ...alternatives(x.i.name)]);
+        if (x.i.loadType === 'pct') Object.assign(x.i, { loadType: 'rpe', loadValue: 7 });
+      }
+    } else if (id === 'arm-care') {
+      lifting.forEach((s, k) => addTo(s, 'warmup', [S.ARM_CARE[(k * 2) % S.ARM_CARE.length], S.ARM_CARE[(k * 2 + 1) % S.ARM_CARE.length]].filter((n) => !used(s).has(n)), { sets: 1, restSec: 20 }, prof.family === 'aquatic' ? 'Shoulder care: rotator cuff and shoulder-blade strength.' : 'Arm care: keeps the throwing shoulder and elbow healthy.'));
+    } else if (id === 'decel') {
+      const lower = lifting.filter((s) => s.plan.blocks.some((b) => b.items.some((i) => ['squat', 'hinge', 'lunge', 'sprint', 'plyo'].includes(meta(i.name).pattern))));
+      (lower.length ? lower : lifting).slice(0, 2).forEach((s, k) => addTo(s, 'warmup', [S.DECEL.slice(1)[k % 3]], { sets: 2 }, 'Braking and landing control: most non-contact knee injuries happen when slowing down.'));
+    } else if (id === 'coverage') {
+      const pats = new Set(allItemsOf(p).map((x) => meta(x.i.name).pattern));
+      const list = (c.experience === 'beginner' || c.ageGroup === 'youth') ? GENTLE : MAIN;
+      const need = [['squat', 'lower'], ['hinge', 'lower'], ['lunge', 'lower'], ['push-h', 'upper', 'push-v'], ['pull-h', 'upper', 'pull-v']];
+      need.forEach(([pat, half, alt], k) => {
+        if (pats.has(pat) || (alt && pats.has(alt))) return;
+        const target = lifting.find((s) => (half === 'lower' ? !/upper/i.test(s.plan.name) : !/lower/i.test(s.plan.name)) && !/speed|conditioning/i.test(s.plan.name)) || lifting[k % Math.max(1, lifting.length)];
+        if (target) addTo(target, 'strength', list[pat] || FALLBACK[pat] || [], { sets: 3, amount: 8, loadType: 'rpe', loadValue: 7 }, 'Added so the week covers squat, hinge, single-leg, push and pull.');
+      });
+    } else if (id === 'jumps' || id === 'sprint') {
+      capVolume(p.sessions, lim);
+    }
+    return normalizeProgram(p);
   }
 
   // ---------- AI (Claude) program schema & validation ----------
@@ -1239,6 +1623,7 @@
     CYCLE_KINDS, periodize, cycleWeek, weekIsDeload, normalizeCycle, TEMPLATES, fromTemplate, programProgress,
     weeklyReport,
     parseRequest, generateProgram, trimToTime, buildAIRequest, programFromAI,
+    level, links, tags, checkProgram, applyFix, capVolume,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = Program;

@@ -1211,6 +1211,443 @@
     },
   });
 
+  // ---------- expanded library (exercises-plus.js) ----------
+  // squats & single leg
+  keyed('bw-squat', 'side', 3, rep({ uaA: 100, faA: 95 }, { ...squat(1, 28), uaA: 90, faA: 88 }));
+  keyed('wall-sit', 'side', 6, [[0, { t: 0, n: 0, thA: 92, shA: 180, uaA: 178, faA: 178 }], [0.5, { t: 1, n: 0, thA: 92, shA: 181, uaA: 176, faA: 176 }]], (j) => [{ type: 'wall', x: j.hip[0] - 0.075 }], { hud: (u) => ({ timer: `${Math.floor(u * 40)} s` }) });
+  keyed('sl-squat', 'side', 3.6, rep({ uaA: 95, faA: 90, thB: 150, shB: 165, ftB: 100 }, { ...squat(0.95, 40), uaA: 88, faA: 86, thB: 92, shB: 96, ftB: 60 }, { down: 0.42, hold: 0.1 }));
+  def('good-morning', {
+    sec: 3.4,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }), u).v;
+      const j = pose(hinge(0.95 * d, 14), 'side', 'ankleA');
+      const barAt = add(j.neck, 0.035, angle(j.hip, j.neck) - 90);
+      reach(j, 'A', barAt, 'down');
+      reach(j, 'B', barAt, 'down');
+      return { joints: j, props: [{ type: 'barbell', at: barAt, r: 0.085 }] };
+    },
+  });
+  def('reverse-nordic', {
+    sec: 4,
+    frame(u) {
+      const d = sample([[0, { v: 0 }], [0.5, { v: 1 }], [0.62, { v: 1 }], [0.92, { v: 0 }]], u).v;
+      const knee = [0, 0.03];
+      const ang = lerp(0, -38, d); // the body tips back from the knees in one line
+      const hip = add(knee, L.thigh, ang);
+      const neck = add(hip, L.trunk, ang);
+      const j = { hip, hipA: hip, hipB: hip, kneeA: knee, kneeB: knee, ankleA: [-L.shin, 0.04], ankleB: [-L.shin, 0.04], toeA: [-L.shin - 0.07, 0.01], toeB: [-L.shin - 0.07, 0.01], heelA: [-L.shin - 0.01, 0.06], heelB: [-L.shin - 0.01, 0.06], neck, shA: neck, shB: neck, head: add(neck, L.neck + L.head, ang) };
+      const chest = add(neck, 0.1, ang + 160);
+      reach(j, 'A', [chest[0] + 0.05, chest[1]], 'down');
+      j.elbowB = j.elbowA;
+      j.wristB = j.wristA;
+      return { joints: j, props: [], hud: { label: 'Straight line from knees to head' } };
+    },
+  });
+  def('leg-press', {
+    sec: 3,
+    frame(u) {
+      const d = sample(rep({ v: 1 }, { v: 0 }, { down: 0.4, hold: 0.08 }), u).v; // 1 = legs extended
+      const hip = [0, 0.34];
+      const j = pose({ t: -52, n: -40, y: hip[1], x: hip[0] }, 'side', 'hip');
+      const sled = 42; // direction the platform travels
+      const foot = add(hip, lerp(0.24, 0.43, d), sled);
+      step(j, 'A', foot, sled - 70, 'up');
+      step(j, 'B', foot, sled - 70, 'up');
+      reach(j, 'A', [hip[0] + 0.06, hip[1] - 0.04], 'down');
+      j.elbowB = j.elbowA;
+      j.wristB = j.wristA;
+      const perp = sled - 90;
+      return { joints: j, props: [{ type: 'incline', a: [hip[0] - 0.02, hip[1] - 0.04], b: add([hip[0] - 0.02, hip[1] - 0.04], 0.42, -52) }, { type: 'pole', a: add(foot, 0.13, perp), b: add(foot, 0.13, perp + 180) }, { type: 'pole', a: [hip[0] + 0.6, 0.02], b: add([hip[0] + 0.6, 0.02], 0.5, -22), thin: true }] };
+    },
+  });
+  def('lateral-lunge', {
+    view: 'front',
+    sec: 3.4,
+    anchor: 'hip',
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.38, hold: 0.14 }), u).v;
+      const hx = lerp(0, 0.22, d), hy = lerp(0.505, 0.4, d);
+      const j = pose({ t: lerp(0, 5, d), y: hy, x: hx }, 'front', 'hip');
+      step(j, 'A', [lerp(0.12, 0.5, d), L.ankleH * 0.4], 'front', 'fwd');
+      step(j, 'B', [-0.1, L.ankleH * 0.4], 'front', 'back');
+      const hands = [hx, j.shA[1] - 0.17];
+      reach(j, 'A', hands, 'down');
+      reach(j, 'B', hands, 'down');
+      return { joints: j, props: [] };
+    },
+  });
+  def('slider-curl', {
+    sec: 3.2,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.42, hold: 0.08 }), u).v;
+      const shoulder = [-0.3, 0.04];
+      const hipX = lerp(0.04, -0.05, d), hipY = lerp(0.22, 0.14, d);
+      const tdir = angle([hipX, hipY], shoulder);
+      const j = pose({ t: tdir, n: tdir + 20, y: hipY, x: hipX }, 'side', 'hip');
+      const heel = [lerp(0.3, 0.4, d), 0.075];
+      step(j, 'A', heel, 20, 'up');
+      step(j, 'B', heel, 20, 'up');
+      reach(j, 'A', [j.shA[0] + 0.32, 0.01], 'up');
+      j.elbowB = j.elbowA;
+      j.wristB = j.wristA;
+      return { joints: j, props: [{ type: 'towel', at: [heel[0], 0.012] }], hud: { label: 'Hips stay up' } };
+    },
+  });
+
+  // presses, pulls and rotation
+  def('landmine-press', {
+    sec: 2.8,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.38, hold: 0.12 }), u).v;
+      const j = pose({ t: lerp(6, 14, d), n: 6, thA: 165, shA: 192, thB: 196, shB: 196, ftB: 160 }, 'side', 'ankleA');
+      const anchor = [0.95, 0.03];
+      const start = [j.shA[0] + 0.07, j.shA[1] - 0.05];
+      const R = dist(anchor, start);
+      const a0 = Math.atan2(start[1] - anchor[1], start[0] - anchor[0]);
+      const a = a0 - 0.42 * d;
+      const hand = [anchor[0] + R * Math.cos(a), anchor[1] + R * Math.sin(a)];
+      reach(j, 'A', hand, 'down');
+      const tip = [anchor[0] + (R + 0.06) * Math.cos(a), anchor[1] + (R + 0.06) * Math.sin(a)];
+      return { joints: j, props: [{ type: 'pole', a: anchor, b: tip }] };
+    },
+  });
+  def('landmine-rot', {
+    view: 'front',
+    sec: 3.2,
+    frame(u) {
+      const k = Math.sin(u * TAU);
+      const j = pose({ t: k * 6, ...squatF(0.15, 12) }, 'front', 'feet');
+      const top = j.shA[1] + 0.2, low = j.hip[1] + 0.08;
+      const hands = [k * 0.34, lerp(top, low, Math.abs(k))];
+      reach(j, 'A', hands, 'down');
+      reach(j, 'B', hands, 'down');
+      return { joints: j, props: [{ type: 'pole', a: [0, 0.03], b: [hands[0] * 1.12, hands[1] + 0.05] }], hud: { label: 'Arms long, hips face forward' } };
+    },
+  });
+  def('woodchop', {
+    view: 'front',
+    sec: 2.6,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.4, hold: 0.08 }), u).v;
+      const j = pose({ t: lerp(-6, 8, d), ...squatF(lerp(0.1, 0.35, d), 14) }, 'front', 'feet');
+      const hands = mixP([0.32, j.shA[1] + 0.22], [-0.24, j.hip[1] - 0.02], d);
+      reach(j, 'A', hands, 'down');
+      reach(j, 'B', hands, 'down');
+      return { joints: j, props: [{ type: 'cable', a: hands, b: [0.78, 1.5] }] };
+    },
+  });
+  def('mb-scoop', {
+    view: 'front',
+    sec: 2,
+    frame(u) {
+      const k = sample([[0, { t: 0, v: 0, s: 0.2 }], [0.35, { t: -10, v: -1, s: 0.45 }], [0.55, { t: 6, v: 0.8, s: 0.2 }], [0.85, { t: 0, v: 0, s: 0.2 }]], u);
+      const j = pose({ t: k.t, ...squatF(k.s, 14) }, 'front', 'feet');
+      const ball = [k.v * 0.3, j.hip[1] - 0.05 + Math.max(0, k.v) * 0.06];
+      reach(j, 'A', ball, 'down');
+      reach(j, 'B', ball, 'down');
+      const thrown = u > 0.55 && u < 0.85;
+      return { joints: j, props: [{ type: 'ball', p: thrown ? [0.3 + (u - 0.55) * 2.4, ball[1] + 0.03 + (u - 0.55) * 0.3] : ball, r: 0.06 }, { type: 'wall', x: 1.05 }], hud: { label: 'Hips first, arms last' } };
+    },
+  });
+  keyed('mb-shotput', 'side', 1.9, [[0, { ...squat(0.25, -6), uaA: 205, faA: 25 }], [0.25, { ...squat(0.4, -12), uaA: 210, faA: 18 }], [0.45, { t: 14, n: 10, ftA: 150, uaA: 62, faA: 58 }], [0.75, { ...squat(0.25, -6), uaA: 205, faA: 25 }]], null, {
+    propsU: (j, u) => [{ type: 'ball', p: u < 0.45 || u > 0.93 ? [j.wristA[0] + 0.02, j.wristA[1] + 0.03] : [j.wristA[0] + (u - 0.45) * 2.4, j.wristA[1] + Math.sin(((u - 0.45) / 0.48) * Math.PI) * 0.15], r: 0.06 }],
+  });
+  keyed('mb-overhead-back', 'side', 2, [[0, { uaA: 95, faA: 95 }], [0.3, { ...squat(0.6, 45), uaA: 186, faA: 186 }], [0.5, { t: -10, n: -10, uaA: -18, faA: -22, ftA: 155, air: 0.03 }], [0.8, { uaA: 95, faA: 95 }]], null, {
+    propsU: (j, u) => [{ type: 'ball', p: u < 0.5 || u > 0.92 ? [j.wristA[0], j.wristA[1] + 0.03] : [j.wristA[0] - (u - 0.5) * 2.2, j.wristA[1] + Math.sin(((u - 0.5) / 0.42) * Math.PI) * 0.25], r: 0.06 }],
+  });
+  def('inverted-row', {
+    sec: 2.6,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.4, hold: 0.12 }), u).v;
+      const barY = 0.75;
+      const ankle = [-0.55, 0.04];
+      const len = L.shin + L.thigh + L.trunk;
+      const shY = lerp(barY - (L.ua + L.fa) + 0.01, barY - 0.07, d);
+      const ang = Math.asin(clamp((shY - ankle[1]) / len, -1, 1)); // body angle above the floor
+      const dirv = [Math.cos(ang), Math.sin(ang)];
+      const at = (k) => [ankle[0] + dirv[0] * k, ankle[1] + dirv[1] * k];
+      const knee = at(L.shin), hip = at(L.shin + L.thigh), neck = at(len);
+      const j = fig({ hip, neck, head: [neck[0] + dirv[0] * (L.neck + L.head), neck[1] + dirv[1] * (L.neck + L.head)], kneeA: knee, ankleA: ankle, heelA: [ankle[0] - 0.01, 0.01], toeA: [ankle[0] + 0.02, 0.1] });
+      // the bar sits over the shoulders at the bottom of the rep
+      const angB = Math.asin(clamp((barY - (L.ua + L.fa) + 0.01 - ankle[1]) / len, -1, 1));
+      const barX = ankle[0] + Math.cos(angB) * len + 0.02;
+      reach(j, 'A', [barX, barY], 'down');
+      reach(j, 'B', [barX, barY], 'down');
+      return { joints: j, props: [{ type: 'pullbar', x0: barX - 0.3, x1: barX + 0.3, y: barY }] };
+    },
+  });
+  def('dead-hang', {
+    sec: 4,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.35, hold: 0.2 }), u).v;
+      const barY = 1.32;
+      const hipY = barY - 0.06 - (L.ua + L.fa) - L.trunk + 0.035 * d;
+      const j = pose({ t: -2, thA: 182, shA: 186, ftA: 150, y: hipY, x: -0.01 }, 'side', 'hip');
+      reach(j, 'A', [0, barY], 'back');
+      reach(j, 'B', [0, barY], 'back');
+      return { joints: j, props: [{ type: 'pullbar', x0: -0.35, x1: 0.35, y: barY }], hud: { label: d > 0.5 ? 'Shoulders down, arms straight' : 'Grip hard, breathe' } };
+    },
+  });
+
+  // arm care
+  def('ytw', {
+    sec: 6,
+    frame(u) {
+      const ph = Math.floor(u * 3);
+      const w = (u * 3) % 1;
+      const lift = sample(rep({ v: 0 }, { v: 1 }, { down: 0.35, hold: 0.25 }), w).v;
+      const benchH = 0.3;
+      const j = pose({ rot: 90, t: 0, n: 2, y: benchH + 0.05, x: 0, thA: 180, shA: 180, ftA: 95 }, 'side', 'hip');
+      const sh = j.shA;
+      if (ph === 0) {
+        // Y: straight arms reach forward in line with the body
+        const a = lerp(180, 100, lift);
+        j.elbowA = add(sh, L.ua, a);
+        j.wristA = add(j.elbowA, L.fa, a);
+      } else if (ph === 1) {
+        // T: arms out to the sides (pointing at you), so they look short
+        const a = lerp(180, 175, lift);
+        const k = lerp(1, 0.25, lift);
+        j.elbowA = add(sh, L.ua * k, a);
+        j.wristA = add(j.elbowA, L.fa * k, a);
+      } else {
+        // W: elbows bend and squeeze back toward the hips
+        j.elbowA = add(sh, L.ua, lerp(180, 235, lift));
+        j.wristA = add(j.elbowA, L.fa, lerp(180, 120, lift));
+      }
+      j.elbowB = j.elbowA;
+      j.wristB = j.wristA;
+      return { joints: j, props: [{ type: 'bench', x0: -0.62, x1: 0.1, h: benchH }], hud: { label: ['Y', 'T', 'W'][ph] + ': thumbs up, squeeze the shoulder blades' } };
+    },
+  });
+  def('side-er', {
+    sec: 2.8,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.35, hold: 0.15 }), u).v;
+      // Lying on your side, seen from the front: the top forearm turns from across the belly up to the ceiling.
+      const neck = [-0.15, 0.15], hip = [0.15, 0.13];
+      const elbow = [neck[0] + L.ua, 0.17];
+      const wrist = add(elbow, L.fa, lerp(160, 8, d));
+      const j = fig({ hip, neck, head: [neck[0] - 0.11, 0.14], kneeA: [hip[0] + 0.2, 0.07], ankleA: [hip[0] + 0.4, 0.05], toeA: [hip[0] + 0.45, 0.08], elbowA: elbow, wristA: wrist, elbowB: [neck[0] - 0.06, 0.03], wristB: [neck[0] - 0.13, 0.12] });
+      return { joints: j, props: [{ type: 'towel', at: elbow }, { type: 'dumbbell', at: wrist }], hud: { label: 'Elbow stays on your side' } };
+    },
+  });
+  def('er-9090', {
+    view: 'front',
+    sec: 2.6,
+    frame(u) {
+      const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.38, hold: 0.12 }), u).v;
+      const j = pose({}, 'front', 'feet');
+      j.elbowA = [j.shA[0] + L.ua, j.shA[1] - 0.01];
+      // forearm turns from pointing at you (looks short) to straight up
+      const phi = lerp(80, 0, d) * D2R;
+      j.wristA = [j.elbowA[0] + 0.01, j.elbowA[1] + L.fa * Math.cos(phi) + 0.01];
+      return { joints: j, props: [{ type: 'band', a: 'wristA', b: [j.elbowA[0] + 0.12, j.elbowA[1] - 0.12] }], hud: { label: 'Elbow at shoulder height' } };
+    },
+  });
+  keyed('scaption', 'front', 2.6, rep({ uaA: 172, faA: 172 }, { uaA: 104, faA: 101 }), () => [db('wristA'), db('wristB')], { anchor: 'feet' });
+  def('wall-dribble', {
+    sec: 1,
+    frame(u) {
+      const o = Math.sin(u * TAU * 2) * 3;
+      const j = pose({ uaA: 88 + o, faA: 70 + o }, 'side', 'ankleA');
+      const ball = [j.wristA[0] + 0.045, j.wristA[1] + 0.01];
+      return { joints: j, props: [{ type: 'ball', p: ball, r: 0.04 }, { type: 'wall', x: j.wristA[0] + 0.095 + Math.max(0, o) * 0.002 }], hud: { label: 'Small, fast taps' } };
+    },
+  });
+  def('cross-body', {
+    view: 'front',
+    sec: 5,
+    frame(u) {
+      const b = Math.sin(u * TAU) * 0.008;
+      const j = pose({ t: 0, n: 0 }, 'front', 'feet');
+      reach(j, 'A', [j.shB[0] - 0.05 - b, j.shB[1] - 0.05], 'down');
+      j.elbowB = add(j.shB, L.ua, -200);
+      reach(j, 'B', [j.elbowA[0], j.elbowA[1] + 0.02], 'down');
+      return { joints: j, props: [], hud: { timer: `${Math.floor(u * 30)} s` } };
+    },
+  });
+
+  // speed & warm-up drills
+  def('wall-drill', {
+    sec: 1.6,
+    anchor: 'hip',
+    frame(u) {
+      const A = { t: 45, n: 45, thA: 222, shA: 222, ftA: 165, thB: 135, shB: 205, ftB: 155 };
+      const p = sample([[0, A], [0.38, A], [0.5, swap(A)], [0.88, swap(A)]], u);
+      const j = pose(p, 'side', 'hip');
+      const wallX = j.shA[0] + 0.24;
+      reach(j, 'A', [wallX, j.shA[1] + 0.04], 'down');
+      reach(j, 'B', [wallX, j.shA[1] + 0.04], 'down');
+      return { joints: j, props: [{ type: 'wall', x: wallX }], hud: { label: 'Straight line heel to head, punch the foot down' } };
+    },
+  });
+  def('decel', {
+    sec: 2.6,
+    anchor: 'hip',
+    frame(u) {
+      const stop = { t: 24, n: 14, thA: 108, shA: 204, ftA: 115, thB: 205, shB: 232, ftB: 165, uaA: 150, faA: 110, uaB: 205, faB: 120 };
+      if (u < 0.5) {
+        const j = pose(runPose((u * 5) % 1, { amp: 45, swing: 70, mid: 162, arm: 50, lean: 14 }), 'side', 'hip');
+        return { joints: j, props: [{ type: 'scroll', speed: 1.6, u, sec: 2.6 }], hud: { label: 'Sprint in' } };
+      }
+      const w = clamp((u - 0.5) / 0.14, 0, 1);
+      const p = sample([[0, runPose(0, { amp: 45, swing: 70, mid: 162, arm: 50, lean: 14 })], [0.5, stop]], w * 0.5);
+      const j = pose(p, 'side', 'hip');
+      return { joints: j, props: [{ type: 'scroll', speed: 1.6 * (1 - w), u, sec: 2.6 }], hud: { label: w < 1 ? 'Short, fast braking steps' : 'Hips low, chest over knees: stick it' } };
+    },
+  });
+  runDef('butt-kicks', 0.5, { amp: 12, swing: 140, flex: 30, mid: 175, arm: 40, lean: 2, speed: 0.6, bounce: 0.03 });
+  def('knee-hug', {
+    sec: 3,
+    frame(u) {
+      const side = u < 0.5 ? 'B' : 'A';
+      const st = side === 'B' ? 'A' : 'B';
+      const w = sample(rep({ v: 0 }, { v: 1 }, { down: 0.3, hold: 0.25, up: 0.3 }), (u * 2) % 1).v;
+      const p = { t: 0, n: 0 };
+      p['th' + side] = lerp(180, 55, w);
+      p['sh' + side] = lerp(180, 200, w);
+      p['ft' + side] = lerp(115, 150, w);
+      p['ft' + st] = lerp(115, 150, w);
+      const j = pose(p, 'side', 'ankle' + st);
+      const shin = mixP(j['knee' + side], j['ankle' + side], 0.35);
+      reach(j, 'A', shin, 'down');
+      reach(j, 'B', shin, 'down');
+      return { joints: j, props: [] };
+    },
+  });
+  def('quad-pull', {
+    sec: 3,
+    frame(u) {
+      const side = u < 0.5 ? 'B' : 'A';
+      const st = side === 'B' ? 'A' : 'B';
+      const w = sample(rep({ v: 0 }, { v: 1 }, { down: 0.3, hold: 0.25, up: 0.3 }), (u * 2) % 1).v;
+      const p = { t: 0, n: 0 };
+      p['th' + side] = lerp(180, 186, w);
+      p['sh' + side] = lerp(180, 12, w);
+      p['ft' + side] = lerp(115, 30, w);
+      p['ua' + st] = lerp(180, 120, w);
+      p['fa' + st] = lerp(180, 110, w);
+      const j = pose(p, 'side', 'ankle' + st);
+      reach(j, side, [j['ankle' + side][0] - 0.01, j['ankle' + side][1] - 0.02], 'back');
+      return { joints: j, props: [] };
+    },
+  });
+  def('trunk-rotation', {
+    view: 'front',
+    sec: 2.6,
+    frame(u) {
+      const th = Math.sin(u * TAU) * 65 * D2R;
+      const j = pose({ ...squatF(0.08, 10) }, 'front', 'feet');
+      const c = Math.cos(th);
+      j.shA = [j.neck[0] + 0.1 * c, j.neck[1]];
+      j.shB = [j.neck[0] - 0.1 * c, j.neck[1]];
+      const a = [j.neck[0] + 0.36 * c, j.neck[1] + 0.02], b = [j.neck[0] - 0.36 * c, j.neck[1] + 0.02];
+      reach(j, 'A', [j.neck[0] + 0.25 * c, j.neck[1] + 0.02], 'down');
+      reach(j, 'B', [j.neck[0] - 0.25 * c, j.neck[1] + 0.02], 'down');
+      return { joints: j, props: [{ type: 'pole', a, b }], hud: { label: 'Turn the chest, head still' } };
+    },
+  });
+
+  // conditioning
+  def('swim', {
+    sec: 1.6,
+    anchor: 'hip',
+    frame(u) {
+      const a = u * 360;
+      const kick = Math.sin(u * TAU * 3) * 9;
+      const j = pose({ rot: 90, t: 0, n: 8, y: 0.36, x: 0, uaA: 90 + a, faA: 90 + a + 10 * Math.sin(u * TAU), uaB: 270 + a, faB: 270 + a, thA: 180 + kick, shA: 186 + kick, thB: 180 - kick, shB: 186 - kick, ftA: 200, ftB: 200 }, 'side', 'hip');
+      return { joints: j, props: [{ type: 'line', a: [-0.9, 0.39], b: [0.9, 0.39] }, { type: 'scroll', speed: 0.6, u, sec: 1.6 }], hud: { label: 'Long body, steady kick' } };
+    },
+  });
+  keyed('shadow-box', 'side', 1.6, (() => {
+    const g = { t: 5, n: 2, thA: 170, shA: 190, thB: 194, shB: 194, ftB: 150, uaA: 150, faA: 15, uaB: 160, faB: 22 };
+    return [[0, g], [0.12, { ...g, uaA: 88, faA: 88 }], [0.26, g], [0.45, { ...g, t: 12, uaB: 86, faB: 86 }], [0.6, g], [0.8, { ...g, air: 0.015 }]];
+  })(), null, { anchor: 'feet' });
+  function mixJ(a, b, w) {
+    const out = {};
+    for (const k of Object.keys(a)) out[k] = b[k] ? mixP(a[k], b[k], w) : a[k];
+    return out;
+  }
+  def('sprawl', {
+    sec: 2.4,
+    frame(u) {
+      const k = sample([[0, { v: 0 }], [0.25, { v: 1 }], [0.55, { v: 1 }], [0.85, { v: 0 }]], u).v;
+      const stance = pose({ ...squat(0.45, 38), uaA: 145, faA: 110 }, 'side', 'ankleA');
+      const down = floorBody(L.ua + L.fa - 0.02, 'hand', 14);
+      shift(down, stance.shA[0] + 0.12 - down.shA[0], 0);
+      const j = mixJ(stance, down, k);
+      if (k > 0.5) {
+        reach(j, 'A', [down.shA[0] + 0.01, 0], 'up');
+        reach(j, 'B', [down.shA[0] + 0.01, 0], 'up');
+      }
+      return { joints: j, props: [], hud: { label: k > 0.9 ? 'Hips to the floor, chest up' : '' } };
+    },
+  });
+  def('burpee', {
+    sec: 3,
+    frame(u) {
+      const stand = pose({}, 'side', 'ankleA');
+      const crouch = pose({ ...squat(1.05, 55), uaA: 165, faA: 165 }, 'side', 'ankleA');
+      reach(crouch, 'A', [crouch.kneeA[0] + 0.08, 0], 'up');
+      reach(crouch, 'B', [crouch.kneeA[0] + 0.08, 0], 'up');
+      const plank = floorBody(L.ua + L.fa - 0.004, 'hand');
+      shift(plank, crouch.wristA[0] - plank.wristA[0], 0);
+      const jump = pose({ uaA: 10, faA: 5, ftA: 160, air: 0.1 }, 'side', 'ankleA');
+      const k = sample([[0, { v: 0 }], [0.15, { v: 1 }], [0.3, { v: 2 }], [0.42, { v: 2 }], [0.56, { v: 3 }], [0.72, { v: 4 }], [0.86, { v: 5 }]], u).v;
+      const seq = [stand, crouch, plank, crouch, jump, stand];
+      const i = Math.min(4, Math.floor(k));
+      const j = mixJ(seq[i], seq[i + 1], k - i);
+      return { joints: j, props: [] };
+    },
+  });
+  def('mountain-climber', {
+    sec: 0.9,
+    frame(u) {
+      const j = floorBody(L.ua + L.fa - 0.004, 'hand');
+      const s = u < 0.5 ? 'A' : 'B';
+      const w = Math.sin(((u * 2) % 1) * Math.PI);
+      // the knee drives forward under the chest, the foot comes off the floor behind it
+      const hip = j['hip' + s];
+      const n360 = (a) => ((a % 360) + 360) % 360;
+      const kneeAng = lerp(n360(angle(hip, j['knee' + s])), 125, w);
+      const knee = add(hip, L.thigh, kneeAng);
+      const shinAng = lerp(n360(angle(j['knee' + s], j['ankle' + s])), 290, w);
+      const ft = lerp(n360(angle(j['ankle' + s], j['toe' + s])), 250, w);
+      j['knee' + s] = [knee[0], Math.max(0.03, knee[1])];
+      j['ankle' + s] = add(j['knee' + s], L.shin, shinAng);
+      j['toe' + s] = add(j['ankle' + s], L.footT, ft);
+      j['heel' + s] = add(j['ankle' + s], L.heelB, ft + 130);
+      const low = Math.min(...['ankle', 'toe', 'heel'].map((k) => j[k + s][1]));
+      if (low < 0.005) for (const k of ['ankle', 'toe', 'heel']) j[k + s] = [j[k + s][0], j[k + s][1] + 0.005 - low];
+      return { joints: j, props: [] };
+    },
+  });
+  function bearFrame(u, crawl) {
+    const a = u * TAU;
+    const hipY = L.thigh + 0.06;
+    const j = pose({ rot: 90, t: 3, n: 12, y: hipY, x: 0 }, 'side', 'hip');
+    const s = crawl ? Math.sin(a) : 0;
+    step(j, 'A', [-L.shin * 0.92 + s * 0.05, L.ankleH], 240, 'fwd');
+    step(j, 'B', [-L.shin * 0.92 - s * 0.05, L.ankleH], 240, 'fwd');
+    reach(j, 'A', [j.shA[0] - s * 0.05, 0], 'fwd');
+    reach(j, 'B', [j.shB[0] + s * 0.05, 0], 'fwd');
+    return { joints: j, props: crawl ? [{ type: 'scroll', speed: 0.35, u, sec: 1.4 }] : [], hud: crawl ? { label: 'Knees an inch off the floor' } : { timer: `${Math.floor(u * 30)} s` } };
+  }
+  def('bear-crawl', { sec: 1.4, frame: (u) => bearFrame(u, true) });
+  def('bear-hold', { sec: 5, frame: (u) => bearFrame(u, false) });
+  def('shoulder-tap', {
+    sec: 1.6,
+    frame(u) {
+      const j = floorBody(L.ua + L.fa - 0.004, 'hand');
+      const s = u < 0.5 ? 'A' : 'B';
+      const w = Math.sin(((u * 2) % 1) * Math.PI);
+      const hand = [j.shA[0] + 0.01, 0];
+      reach(j, s, mixP(hand, [j.shA[0] - 0.02, j.shA[1] - 0.03], w), 'up');
+      return { joints: j, props: [{ type: 'line', a: j.ankleA, b: j.neck }], hud: { label: 'Hips don’t rock' } };
+    },
+  });
+
   // camera tests without a screen demo
   def('aslr', {
     sec: 4,
@@ -1355,6 +1792,7 @@
     if (p.type === 'rope') pts.push([0.2, 1.2], [-0.2, 0]);
     if (p.type === 'slope') pts.push([-0.6, 0], [0.6, 0]);
     if (p.type === 'scroll') pts.push([-0.45, 0], [0.45, 0]);
+    if (p.type === 'pole' || p.type === 'line') pts.push(p.a, p.b);
     return pts;
   }
 
@@ -1550,6 +1988,10 @@
           line([pr.x - 0.25, pr.y], [pr.x + 0.25, pr.y], c.muted, 5);
           line([pr.x - 0.22, pr.y], [pr.x - 0.22, 0], c.prop, 4);
           line([pr.x + 0.22, pr.y], [pr.x + 0.22, 0], c.prop, 4);
+          break;
+        case 'pole':
+          line(pr.a, pr.b, c.muted, pr.thin ? 3 : 6);
+          disc(pr.a, 0.02, c.prop);
           break;
         case 'dowel': {
           const d = [pr.b[0] - pr.a[0], pr.b[1] - pr.a[1]];

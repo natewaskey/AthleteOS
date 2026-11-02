@@ -14,7 +14,7 @@ test('swaps, adds and removes exercises from plain language', () => {
   assert.deepEqual(r.unknown, []);
   assert.equal(r.changes.length, 3);
   assert.ok(!names(r.program).includes('Bench press'));
-  assert.ok(names(r.program).includes('Dumbbell bench'));
+  assert.ok(names(r.program).includes('Dumbbell bench press'), 'now a library exercise');
   assert.ok(r.program.sessions.find((s) => s.day === 0).plan.blocks.some((b) => b.items.some((i) => i.name === 'Copenhagen plank')));
   assert.ok(!names(r.program).includes('Trap bar deadlift'));
   assert.equal(r.program.id, p.id);

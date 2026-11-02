@@ -1344,6 +1344,12 @@ span.set-bubble { cursor: default; }
 .prog-items { list-style: none; margin: 0.2rem 0 0; padding: 0; font-size: 0.85rem; }
 .prog-items li { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.2rem 0; border-top: 1px dashed var(--border); }
 .prog-items li:first-child { border-top: 0; }
+.prog-why { display: block; color: var(--muted); font-size: 0.75rem; line-height: 1.3; margin-top: 0.1rem; }
+.prog-warnings { margin-bottom: 1rem; border-left: 3px solid var(--accent); }
+.prog-warnings ul { list-style: none; margin: 0.3rem 0 0.4rem; padding: 0; }
+.prog-warnings li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.4rem 0; border-top: 1px solid var(--border); font-size: 0.88rem; }
+.prog-warnings li:first-child { border-top: 0; }
+.prog-warnings li .btn { flex: none; }
 .prog-items li .muted { text-align: right; }
 .progress i.indeterminate { width: 40%; animation: indet 1.2s ease-in-out infinite; }
 @keyframes indet { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
@@ -2842,3 +2848,35 @@ dialog.camcheck { width: min(980px, 96vw); }
 .wear-spark { margin-top: .6rem; display: flex; flex-direction: column; gap: .2rem; }
 .wear-spark .spark { width: 100%; height: 40px; }
 .wear-coach .bad-t, .jump-rel .bad-t { color: var(--bad); }
+
+/* Swap reasons, set RPE, session feel, training feedback card */
+button.chip[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.swap-reasons { gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.set-row .set-rpe select { width: 3.7rem; padding: 0.4rem 0.2rem; text-align: center; }
+.set-row .set-rpe small { display: none; }
+.set-row .set-check { margin-left: auto; flex: none; }
+@media (max-width: 420px) { .set-row input { width: 3.6rem; } .set-row > .muted { width: 2.6rem; } .set-row label small { font-size: 0.7rem; } }
+.feel-pick { border: 0; padding: 0; margin: 0.2rem 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.feel-pick legend { font-size: 0.85rem; margin-bottom: 0.3rem; width: 100%; }
+.feel-pick .day-pick { flex: 1 1 auto; }
+.fb-meter { display: grid; grid-template-columns: 5.5rem 1fr auto; align-items: center; gap: 0.5rem; font-size: 0.85rem; margin: 0.35rem 0; }
+.fb-meter .bar { height: 0.5rem; border-radius: 999px; background: var(--surface-2); overflow: hidden; position: relative; }
+.fb-meter .bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.fb-meter .bar i.over { background: var(--bad, #e5484d); }
+.fb-meter .num { font-variant-numeric: tabular-nums; font-family: var(--mono, ui-monospace, monospace); }
+.fb-list { list-style: none; margin: 0.3rem 0 0; padding: 0; font-size: 0.85rem; }
+.fb-list li { padding: 0.25rem 0; border-top: 1px solid var(--border); }
+.fb-list li:first-child { border-top: 0; }
+.cc-big:has(.cc-line) { top: 0; bottom: 0; }
+.cc-line { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.result-big { display: flex; align-items: baseline; gap: 0.6rem; margin-top: 0.6rem; }
+.result-big .num { font-family: var(--mono, ui-monospace, monospace); font-size: 2.2rem; font-weight: 700; }
+.td-steps { display: flex; gap: 0.3rem; flex-wrap: wrap; margin: 0.4rem 0 0.8rem; }
+.td-steps span { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.td-steps span.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.td-steps span.done { color: var(--text); }
+.td-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.td-table th, .td-table td { padding: 0.35rem 0.3rem; border-top: 1px solid var(--border); text-align: left; }
+.td-table input { width: 100%; min-width: 3.6rem; padding: 0.35rem; }
+.td-table td.best { font-family: var(--mono, ui-monospace, monospace); white-space: nowrap; }
+.td-scroll { overflow-x: auto; margin: 0 -0.25rem; padding: 0 0.25rem; }
