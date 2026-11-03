@@ -83,3 +83,13 @@ test('lookup matches coaches’ own names to the closest demo', () => {
   assert.equal(H.lookup('back squat').exact, true);
   assert.equal(H.lookup('Underwater basket weaving'), null);
 });
+
+test('every library exercise plays an animation of its own', () => {
+  const owner = {};
+  for (const x of C.EXERCISE_LIBRARY) {
+    const h = H.lookup(x.name);
+    assert.ok(!owner[h.demo], `${x.name} borrows the ${h.demo} animation from ${owner[h.demo]}`);
+    owner[h.demo] = x.name;
+  }
+  assert.ok(Object.keys(owner).length >= 286);
+});

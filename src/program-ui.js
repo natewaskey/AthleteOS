@@ -12,6 +12,7 @@
   let talk = null; // last change made by describing it: { before, changes, unknown, by }
   let previewWeek = 0;
   let busy = null; // AbortController while generating
+  let justBuilt = false; // the next preview render assembles itself on screen
 
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -195,6 +196,8 @@
     if (form.engine !== 'claude') {
       preview = P.generateProgram(form);
       previewWeek = 0;
+      await buildSteps(prog, btn, preview);
+      justBuilt = true;
       return ctx.go('plan', 'program:preview');
     }
     const known = form.useData ? athleteData() : null;
@@ -231,9 +234,37 @@
     }
   }
 
+  // The built-in generator is instant; show what it did, step by step, as the program comes together.
+  async function buildSteps(prog, btn, p) {
+    const reduced = root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prog || reduced) return;
+    const sport = (C.SPORT_INFO[p.sport || (form && form.sport)] || {}).label || 'your sport';
+    const n = p.sessions.reduce((t, s) => t + s.plan.blocks.reduce((u, b) => u + b.items.length, 0), 0);
+    const checks = P.checkProgram(p, checkCtx(p)).length;
+    const steps = [
+      'Reading the profile and the request',
+      `Matching exercises to ${sport}`,
+      `Placing ${n} exercises across ${p.sessions.length} days`,
+      p.cycle ? `Laying out ${p.cycle.map((b) => P.CYCLE_KINDS[b.kind].label.toLowerCase()).join(', ')}` : `Setting ${p.weeks} weeks of progression`,
+      checks ? `Running program checks: ${checks} to look at` : 'Running program checks: all clear',
+    ];
+    prog.hidden = false;
+    btn.disabled = true;
+    prog.innerHTML = `<ol class="build-steps">${steps.map((t) => `<li>${esc(t)}</li>`).join('')}</ol>`;
+    const items = [...prog.querySelectorAll('li')];
+    for (let i = 0; i < items.length; i++) {
+      items[i].classList.add('on');
+      await new Promise((r) => setTimeout(r, 260));
+      items[i].classList.add('done');
+    }
+    await new Promise((r) => setTimeout(r, 160));
+  }
+
   // ---------- preview / saved program ----------
 
   function programHTML(p, saved) {
+    const built = justBuilt;
+    if (built) setTimeout(() => (justBuilt = false), 0);
     const coach = ctx.role() === 'coach';
     const w = Math.min(previewWeek, p.weeks - 1);
     const prog = p.progression;
@@ -267,15 +298,15 @@
       </section>
       <div class="week-tabs" role="tablist">${Array.from({ length: p.weeks }, (_, i) => `<button role="tab" data-prog-week="${i}" aria-selected="${i === w}">W${i + 1}${P.weekIsDeload(i, prog, p.cycle) ? ' ↓' : ''}</button>`).join('')}</div>
       <p class="muted small">${weekNote(p, w)}</p>
-      <div class="program-week">${p.sessions
+      <div class="program-week${built ? ' assembling' : ''}">${p.sessions
         .map((s, si) => {
           const plan = P.progressPlan(s.plan, w, prog, p.cycle, { equipment: p.equipment });
-          return `<section class="card program-session">
+          return `<section class="card program-session" style="--i:${si}">
             <div class="card-head"><h3>${DAY[s.day]} · ${esc(s.plan.name)}</h3><span class="muted small">${C.estimateMinutes(plan)} min</span></div>
             ${plan.blocks
               .map(
                 (b) => `<div class="prog-block"><div class="small"><strong>${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</strong></div>
-                <ul class="prog-items">${b.items.map((i) => `<li><span>${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
+                <ul class="prog-items">${b.items.map((i) => `<li><span>${root.ExerciseDemo && root.ExerciseDemo.thumb ? root.ExerciseDemo.thumb(i.name, 'prog-thumb') : ''}${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
               )
               .join('')}
             <div class="row" style="margin-top:.5rem">
@@ -309,7 +340,16 @@
   function cycleHTML(p, w) {
     if (!p.cycle) return '';
     const at = P.cycleWeek(p.cycle, w);
-    return `<div class="cycle-bar" role="list" aria-label="Training blocks">${p.cycle.map((b, k) => `<div role="listitem" class="cycle-seg ${b.kind} ${k === at.block ? 'on' : ''}" style="flex:${b.weeks}" title="${esc(P.CYCLE_KINDS[b.kind].why)}"><strong>${esc(P.CYCLE_KINDS[b.kind].label)}</strong><span>${b.weeks} wk</span></div>`).join('')}</div>
+    const edit = p === preview && p.cycle.length > 1;
+    return `<div class="cycle-bar${edit ? ' editable' : ''}" role="list" aria-label="Training blocks" data-cycle-bar>${p.cycle
+      .map(
+        (b, k) =>
+          `<div role="listitem" class="cycle-seg ${b.kind} ${k === at.block ? 'on' : ''}" style="flex:${b.weeks}" title="${esc(P.CYCLE_KINDS[b.kind].why)}"><strong>${esc(P.CYCLE_KINDS[b.kind].label)}</strong><span>${b.weeks} wk</span></div>${
+            edit && k < p.cycle.length - 1 ? `<span class="cycle-handle" role="slider" tabindex="0" data-cycle-handle="${k}" aria-label="Move the line between ${esc(P.CYCLE_KINDS[b.kind].label)} and ${esc(P.CYCLE_KINDS[p.cycle[k + 1].kind].label)}" aria-valuemin="1" aria-valuemax="${b.weeks + p.cycle[k + 1].weeks - 1}" aria-valuenow="${b.weeks}" aria-valuetext="${b.weeks} weeks of ${esc(P.CYCLE_KINDS[b.kind].label)}"></span>` : ''
+          }`
+      )
+      .join('')}</div>
+      ${edit ? '<p class="hint" style="margin:.35rem 0 0">Drag the lines between blocks (or use the arrow keys) to reshape the season. The program checks rerun when you let go.</p>' : ''}
       ${p.peakDate ? `<p class="small muted" style="margin:.4rem 0 0">🎯 Peaks for ${esc(ctx.fmtDate(p.peakDate))}. Start it the week of ${esc(ctx.fmtDate(peakStart(p)))} to land the taper on time.</p>` : ''}`;
   }
 
@@ -622,10 +662,73 @@
     window.scrollTo(0, y);
   }
 
+  // ---------- season timeline: drag the boundaries between training blocks ----------
+  function moveBoundary(k, weeks) {
+    const c = preview && preview.cycle;
+    if (!c || !c[k + 1]) return false;
+    const pair = c[k].weeks + c[k + 1].weeks;
+    const a = Math.max(1, Math.min(pair - 1, Math.round(weeks)));
+    if (a === c[k].weeks) return false;
+    c[k].weeks = a;
+    c[k + 1].weeks = pair - a;
+    return true;
+  }
+  function paintBar(bar) {
+    const segs = [...bar.querySelectorAll('.cycle-seg')];
+    preview.cycle.forEach((b, i) => {
+      if (!segs[i]) return;
+      segs[i].style.flex = b.weeks;
+      segs[i].querySelector('span').textContent = `${b.weeks} wk`;
+    });
+  }
+  function onPointerDown(e) {
+    const h = e.target.closest('[data-cycle-handle]');
+    if (!h || !preview || !preview.cycle) return;
+    e.preventDefault();
+    const bar = h.closest('[data-cycle-bar]');
+    const k = +h.dataset.cycleHandle;
+    const rect = bar.getBoundingClientRect();
+    const total = preview.cycle.reduce((t, b) => t + b.weeks, 0);
+    const before = preview.cycle.slice(0, k).reduce((t, b) => t + b.weeks, 0);
+    bar.classList.add('dragging');
+    let moved = false;
+    const move = (ev) => {
+      const wk = ((ev.clientX - rect.left) / rect.width) * total - before;
+      if (moveBoundary(k, wk)) {
+        moved = true;
+        paintBar(bar);
+        if (root.Motion) root.Motion.haptic('tap');
+      }
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      bar.classList.remove('dragging');
+      if (moved) rerender();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  }
+  function onKeyDown(e) {
+    const h = e.target.closest && e.target.closest('[data-cycle-handle]');
+    if (!h || !preview || !preview.cycle || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    e.preventDefault();
+    const k = +h.dataset.cycleHandle;
+    if (moveBoundary(k, preview.cycle[k].weeks + (e.key === 'ArrowRight' ? 1 : -1))) {
+      rerender();
+      const again = document.querySelector(`[data-cycle-handle="${k}"]`);
+      if (again) again.focus();
+    }
+  }
+
   function init(c) {
     ctx = c;
     C = c.C;
     P = root.Program;
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
     document.addEventListener('input', onChange);
@@ -638,5 +741,5 @@
     if (busy) busy.abort();
   }
 
-  root.ProgramUI = { init, view, reset, listHTML };
+  root.ProgramUI = { init, view, reset, listHTML, _moveBoundary: moveBoundary };
 })(window);

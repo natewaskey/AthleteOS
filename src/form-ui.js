@@ -288,6 +288,7 @@
       ${(result.warnings || []).map((w) => `<div class="banner warn">${esc(w)}</div>`).join('')}
       ${programCard(an)}
       ${(() => { const f = firstOf(an); return f ? `<div class="row" style="margin-bottom:.5rem"><span class="muted small">First ${esc(exInfo(an.exercise).label.toLowerCase())} check: score ${f.score}</span>${ghostButton(f.id, an.id, '👻 Compare with your first check')}</div>` : ''; })()}
+      ${root.Demo3D && root.Demo3D.supported() ? `<div class="replay-row"><button type="button" class="btn btn-sm replay-3d-btn" data-form-3d="${esc(an.id)}"><span class="cube" aria-hidden="true"></span> 3D replay</button><span class="muted small">Spin your best rep in 3D next to the model rep.</span></div>` : ''}
       <div class="grid">
         <section class="card span-7 player-card">${playerCard(an, result)}</section>
         <section class="card span-5">
@@ -1031,7 +1032,7 @@
     return dialog;
   }
 
-  function openAnalyze({ exercise = 'squat', videoId = null, view = 'auto' } = {}) {
+  function openAnalyze({ exercise = 'squat', videoId = null, view = 'auto', file = null } = {}) {
     const d = ensureDialog();
     const me = ctx.me();
     const vids = ctx.state().videos.filter((v) => v.athleteId === me.id).sort((a, b) => b.ts - a.ts);
@@ -1059,7 +1060,7 @@
         <select name="view"><option value="auto">Auto-detect</option><option value="side" ${view === 'side' ? 'selected' : ''}>Side-on</option><option value="front" ${view === 'front' ? 'selected' : ''}>Front-on</option></select></details>
       <label class="check"><input type="checkbox" name="precise" ${uiState.precise ? 'checked' : ''}/> Precise mode: analyse up to 60 frames a second (slower, best for fast lifts and jumps)</label>
       <p class="hint">Runs entirely on this device. Videos up to ${root.Pose ? root.Pose.MAX_SECONDS : 90} s are analysed; for best results keep your whole body in frame with the camera steady.</p>
-      <div id="analyze-progress" hidden><div class="progress"><i style="width:0%"></i></div><p class="small muted" data-status>Loading the pose model…</p></div>
+      <div id="analyze-progress" hidden><div class="scan-box" aria-hidden="true"><canvas class="scan-canvas"></canvas><i class="scan-line"></i><span class="scan-tag">SCANNING · ON DEVICE</span></div><div class="progress"><i style="width:0%"></i></div><p class="small muted" data-status>Loading the pose model…</p></div>
       <p class="pain-text small" id="analyze-error" hidden></p>
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Analyze</button></div>
     </form>`;
@@ -1095,6 +1096,18 @@
       runAnalysis(form);
     });
     d.showModal();
+    // A video shared to Motiq from another app goes straight in.
+    if (file) {
+      let set = false;
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        form.file.files = dt.files;
+        set = form.file.files.length === 1;
+      } catch {}
+      if (!set) form._recorded = file;
+      $('[data-file-name]', form).textContent = `Shared to Motiq · ${file.name} · ${(file.size / 1e6).toFixed(1)} MB`;
+    }
     // Warm up the model while the athlete picks a video.
     if (root.Pose) root.Pose.preload().catch(() => {});
   }
@@ -1153,8 +1166,9 @@
       const data = await root.Pose.detect(url, {
         signal: controller.signal,
         precise: uiState.precise,
-        onProgress: (f) => {
+        onProgress: (f, seen) => {
           bar.style.width = `${Math.round(f * 100)}%`;
+          scanDraw(prog, seen);
           status.textContent = `Tracking your movement… ${Math.round(f * 100)}%`;
         },
       });
@@ -1175,6 +1189,43 @@
       prog.hidden = true;
       if (err && err.name === 'AbortError') return;
       showError(err && err.message ? err.message : 'Something went wrong while analysing.');
+    }
+  }
+
+  // Scan effect while a video is analysed: the frame being read, with the joints found so far.
+  function scanDraw(prog, seen) {
+    const cv = prog && prog.querySelector('.scan-canvas');
+    if (!cv || !seen || !seen.video || !seen.video.videoWidth) return;
+    const v = seen.video;
+    const w = (cv.width = cv.clientWidth * (devicePixelRatio || 1) || 320);
+    const h = (cv.height = Math.round((w * v.videoHeight) / v.videoWidth));
+    const g = cv.getContext('2d');
+    try {
+      g.drawImage(v, 0, 0, w, h);
+    } catch {
+      return;
+    }
+    g.fillStyle = 'rgba(8,10,14,.45)';
+    g.fillRect(0, 0, w, h);
+    const lm = seen.lm;
+    if (!lm) return;
+    const P = (i) => [lm[i][0] * w, lm[i][1] * h];
+    g.strokeStyle = 'rgba(56,242,255,.9)';
+    g.lineWidth = Math.max(2, w / 200);
+    g.lineCap = 'round';
+    for (const [a, b] of [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]]) {
+      if ((lm[a][3] ?? 1) < 0.4 || (lm[b][3] ?? 1) < 0.4) continue;
+      g.beginPath();
+      g.moveTo(...P(a));
+      g.lineTo(...P(b));
+      g.stroke();
+    }
+    g.fillStyle = '#dff8ff';
+    for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
+      if ((lm[i][3] ?? 1) < 0.4) continue;
+      g.beginPath();
+      g.arc(...P(i), g.lineWidth * 1.1, 0, Math.PI * 2);
+      g.fill();
     }
   }
 
@@ -1278,9 +1329,122 @@
     loop();
   }
   let ghostRaf = 0;
+
+  // 3D replay: the best rep from the video as a 3D figure you can spin, with the model rep beside it (or overlaid).
+  // Depth comes from the pose model's estimate from one camera, so it is approximate; height and timing are real.
+  async function open3D(id) {
+    const an = byId(id);
+    const D3 = root.Demo3D;
+    if (!an || !D3 || !root.Dialogs) return;
+    let data, result;
+    try {
+      data = await loadFrames(an);
+      result = computeResult(an, data);
+      await D3.load();
+    } catch (err) {
+      return ctx.toast(err && err.message ? err.message : 'The pose data for this check isn’t on this device.');
+    }
+    const frames = (result.framesRef || data.frames || []).filter((f) => f && f.lm && f.lm.length >= 33);
+    if (frames.length < 3) return ctx.toast('Not enough tracked frames for a 3D replay.');
+    const reps = result.reps || [];
+    const best = reps.length ? reps.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a)) : null;
+    const range = { rep: best ? [best.start, best.end] : [0, frames.length - 1], all: [0, frames.length - 1] };
+    const aspect = data.aspect || 16 / 9;
+    // one scale and origin for the whole clip, so the figure moves through space
+    const first = D3.fromLandmarks(frames[range.rep[0]].lm, aspect);
+    const norm = D3.normalise(first.P);
+    const k = first.P.hip[1] ? norm.hip[1] / first.P.hip[1] : 1;
+    const scale = isFinite(k) && k > 0 ? k : 1;
+    const facing = result.facing === -1 ? -1 : 1;
+    const poseAt = (i) => {
+      const r = D3.fromLandmarks(frames[i].lm, aspect, first.origin);
+      const P = {};
+      for (const [n, p] of Object.entries(r.P)) P[n] = [p[0] * scale * facing, p[1] * scale, p[2] * scale];
+      return P;
+    };
+    const how = root.HowTo && root.HowTo.forForm(an.exercise);
+    const ED = root.ExerciseDemo;
+    const model = how && ED && ED.DEMOS[how.demo] && ED.DEMOS[how.demo].view !== 'top' ? how.demo : null;
+    const st = { mode: 'rep', layout: 'side', speed: 1, t0: performance.now(), raf: 0, view: null };
+    root.Dialogs.html(
+      `<h2 id="app-dialog-title"><span class="cube" aria-hidden="true"></span> ${esc(exInfo(an.exercise).label)} in 3D</h2>
+      <div class="demo-stage"><canvas class="demo-canvas v3d-canvas replay3d" data-replay3d role="img" aria-label="3D replay of your rep. Drag to turn it."></canvas>
+        <div class="replay-legend small"><span><i class="you"></i> You${best ? ` · rep ${best.n}` : ''}</span>${model ? '<span><i class="model"></i> Model rep</span>' : ''}</div>
+        <span class="v3d-hint">Drag to turn · pinch or scroll to zoom</span></div>
+      <div class="row demo-controls" style="margin-top:.5rem">
+        ${D3.controls('replay')}
+        <div class="segmented" role="group" aria-label="Clip"><button type="button" data-replay-clip="rep" aria-pressed="true">Best rep</button><button type="button" data-replay-clip="all" aria-pressed="false">Whole set</button></div>
+        ${model ? `<div class="segmented" role="group" aria-label="Model"><button type="button" data-replay-layout="side" aria-pressed="true">Beside</button><button type="button" data-replay-layout="overlay" aria-pressed="false">Overlay</button><button type="button" data-replay-layout="off" aria-pressed="false">Off</button></div>` : ''}
+        <div class="segmented" role="group" aria-label="Speed"><button type="button" data-replay-speed="0.5">0.5×</button><button type="button" data-replay-speed="1" aria-pressed="true">1×</button></div>
+      </div>
+      <p class="hint" style="margin:.4rem 0 0">Depth is estimated from a single camera, so turn it to look at the shape, not exact millimetres. The model rep is lined up to start and finish with yours.</p>
+      <div class="dialog-actions"><button type="button" class="btn btn-primary" data-dlg-cancel>Close</button></div>`,
+      { wide: true }
+    ).then(() => {
+      cancelAnimationFrame(st.raf);
+      if (st.view) st.view.dispose();
+    });
+    const dlg = root.Dialogs.el();
+    const cv = $('[data-replay3d]', dlg);
+    cv.style.height = `${Math.round(Math.min(460, Math.max(280, innerHeight * 0.5)))}px`;
+    st.view = D3.viewer(cv);
+    st.view.frameTo([0, 0.55, 0], 1.1);
+    st.view.orbit.dist = 3.2;
+    const fps = data.fps || (frames.length > 1 ? 1 / Math.max(1e-3, frames[1].t - frames[0].t) : 30);
+    dlg.addEventListener('click', (e) => {
+      const cam = e.target.closest('[data-replay-cam]');
+      if (cam) {
+        const v = cam.dataset.replayCam;
+        if (v === 'spin') st.view.orbit.auto = !st.view.orbit.auto;
+        else st.view.setView(v);
+        dlg.querySelectorAll('[data-replay-cam]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.replayCam === 'spin' ? st.view.orbit.auto : b === cam)));
+      }
+      const clip = e.target.closest('[data-replay-clip]');
+      if (clip) {
+        st.mode = clip.dataset.replayClip;
+        st.t0 = performance.now();
+        dlg.querySelectorAll('[data-replay-clip]').forEach((b) => b.setAttribute('aria-pressed', String(b === clip)));
+      }
+      const lay = e.target.closest('[data-replay-layout]');
+      if (lay) {
+        st.layout = lay.dataset.replayLayout;
+        dlg.querySelectorAll('[data-replay-layout]').forEach((b) => b.setAttribute('aria-pressed', String(b === lay)));
+      }
+      const sp = e.target.closest('[data-replay-speed]');
+      if (sp) {
+        st.speed = +sp.dataset.replaySpeed;
+        dlg.querySelectorAll('[data-replay-speed]').forEach((b) => b.setAttribute('aria-pressed', String(b === sp)));
+      }
+    });
+    const loop = (now) => {
+      if (!cv.isConnected) return;
+      const [a, b] = range[st.mode];
+      const n = b - a + 1;
+      const dur = Math.max(0.6, n / fps) + 0.6; // brief pause at the end of each loop
+      const tt = (((now - st.t0) / 1000) * st.speed) % dur;
+      const u = Math.min(1, tt / Math.max(0.6, n / fps));
+      const i = Math.min(b, a + Math.floor(u * (n - 1)));
+      const s = D3.skeleton(poseAt(i));
+      if (model && st.layout !== 'off') {
+        const f = ED.frame(model, u * ED.DEMOS[model].sec);
+        const m = D3.build(f);
+        if (m) {
+          const dz = st.layout === 'side' ? -0.75 : 0;
+          const move = (p) => [p[0], p[1], p[2] + dz];
+          for (const g of m.segs) s.prims.push({ kind: 'cyl', a: move(g.a), b: move(g.b), r: g.r * 0.92, tone: 'ghost' });
+          if (m.head.c) s.prims.push({ kind: 'sph', c: move(m.head.c), r: m.head.r, tone: 'ghost' });
+        }
+      }
+      st.view.show(s);
+      st.raf = requestAnimationFrame(loop);
+    };
+    st.raf = requestAnimationFrame(loop);
+  }
   const C = () => ctx.C;
 
   async function onClick(e) {
+    const r3 = e.target.closest('[data-form-3d]');
+    if (r3) return open3D(r3.getAttribute('data-form-3d'));
     const gh = e.target.closest('[data-form-ghost]');
     if (gh) {
       const [x, y] = gh.dataset.formGhost.split(':');

@@ -129,7 +129,7 @@
       ${
         demo
           ? `<canvas class="demo-canvas howto-canvas" role="img" aria-label="Animated demo of ${esc(how.name)}"></canvas>
-            <div class="row howto-controls"><button type="button" class="btn btn-sm" data-howto-play>⏸ Pause</button><div class="segmented" role="group" aria-label="Speed"><button type="button" data-howto-speed="0.5">0.5×</button><button type="button" data-howto-speed="1" aria-pressed="true">1×</button></div>${how.exact ? '' : `<span class="muted small">Closest demo: ${esc(how.name)}</span>`}</div>`
+            <div class="row howto-controls"><button type="button" class="btn btn-sm" data-howto-play>⏸ Pause</button><div class="segmented" role="group" aria-label="Speed"><button type="button" data-howto-speed="0.5">0.5×</button><button type="button" data-howto-speed="1" aria-pressed="true">1×</button></div>${root.Demo3D && ED.DEMOS[demo].view !== 'top' ? `<button type="button" class="btn btn-sm btn-ghost" data-howto-demo="${esc(name)}" data-howto-kind="name" data-howto-mode="3d">3D view</button>` : ''}${how.exact ? '' : `<span class="muted small">Closest demo: ${esc(how.name)}</span>`}</div>`
           : form
             ? '<canvas id="howto-demo" width="480" height="300" aria-label="Animated demo of good form"></canvas><p class="hint">Animated demo of good technique. Film yourself and use 📐 Check form to compare.</p>'
             : ''

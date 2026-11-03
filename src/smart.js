@@ -229,7 +229,9 @@
     const clauses = s.split(/\bthen\b|\band then\b|\bfollowed by\b|\bplus\b|[,;]|\.(?!\d)|\band\b/);
     for (let c of clauses) {
       let weight = null;
-      const wm = c.match(/(?:at|with|@)\s*(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kgs?|kilos?|kilograms?)?/) || c.match(/(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kgs?|kilos?|kilograms?)\b/);
+      // "squat 3x5 225": a bare number straight after sets x reps is the load
+      c = c.replace(/(\d+\s*(?:x|by)\s*\d+)\s+(\d{2,4}(?:\.\d+)?)(?!\s*(?:min|sec|m\b|s\b|reps?|sets?))/, '$1 at $2');
+      const wm = c.match(/(?:\bat|\bwith|@)\s*(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kgs?|kilos?|kilograms?)?/) || c.match(/(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kgs?|kilos?|kilograms?)\b/);
       if (wm) {
         const n = Number(wm[1]);
         const kg = wm[2] ? /^k/.test(wm[2]) : units === 'metric';
