@@ -14,6 +14,14 @@
   let C = null;
   let tab = 'balance';
   let picked = null; // body-map area tapped
+  let mapMode = (() => {
+    try {
+      return localStorage.getItem('motiq.bodyMap') || '2d';
+    } catch {
+      return '2d';
+    }
+  })();
+  let v3 = null; // live 3D body viewer
   let tlArea = ''; // timeline filter
   let tlAll = false;
   const $ = (sel, el = document) => el.querySelector(sel);
@@ -103,8 +111,15 @@
         ? `<div class="area-detail muted small">${esc(C.BODY_AREA_LABEL[picked])}: nothing flagged.</div>`
         : `<p class="muted small" style="margin:.4rem 0 0">Tap an area to see the evidence behind it.</p>`;
     const n = Object.keys(map.areas).length;
-    return `<section class="card span-6 balance-map-card"><div class="card-head"><h3>🧍 Body balance map ${root.Explain ? root.Explain.btn('connected') : ''}</h3><span class="muted small">${n ? `${n} area${n > 1 ? 's' : ''} flagged` : 'All clear'}</span></div>
-      <div class="balance-map">${root.BodyMap.render(map.levels, { interactive: true, describe })}</div>${legend}${detail}
+    const can3d = !!(root.Demo3D && root.Demo3D.supported && root.Demo3D.supported());
+    const mode = can3d ? mapMode : '2d';
+    const toggle = can3d ? `<div class="segmented" role="group" aria-label="Map view"><button type="button" data-body-map="2d" aria-pressed="${mode === '2d'}">2D</button><button type="button" data-body-map="3d" aria-pressed="${mode === '3d'}">3D</button></div>` : '';
+    const levels = esc(JSON.stringify(map.levels || {}));
+    const mapHTML = mode === '3d'
+      ? `<div class="body3d-wrap"><canvas class="body3d" data-body3d="${levels}" data-picked="${esc(picked || '')}" role="img" aria-label="3D body map. ${n} areas flagged. Drag to turn it; tap a glowing spot to see why."></canvas><span class="v3d-hint">Drag to turn · tap a glowing spot</span></div>`
+      : `<div class="balance-map">${root.BodyMap.render(map.levels, { interactive: true, describe })}</div>`;
+    return `<section class="card span-6 balance-map-card"><div class="card-head"><h3>🧍 Body balance map ${root.Explain ? root.Explain.btn('connected') : ''}</h3><span class="muted small">${n ? `${n} area${n > 1 ? 's' : ''} flagged` : 'All clear'}</span>${toggle}</div>
+      ${mapHTML}${legend}${detail}
       <p class="hint" style="margin:.5rem 0 0">Built from ${you('your', 'their')} left/right tests, movement screen, check-in soreness and pain, injuries, form checks, training balance, body-region load, strength ratios and pain monitoring.</p></section>`;
   }
 
@@ -384,7 +399,64 @@
 
   // ---------- events ----------
 
+  // Start (or keep) the 3D body map after each render.
+  function mount() {
+    const cv = document.querySelector('canvas[data-body3d]');
+    if (!cv) {
+      if (v3) v3.stop();
+      return;
+    }
+    if (v3 && v3.canvas === cv) return;
+    if (v3) v3.stop();
+    const D3 = root.Demo3D;
+    const levels = JSON.parse(cv.dataset.body3d || '{}');
+    const pick = cv.dataset.picked || null;
+    const me = { canvas: cv, raf: 0, view: null, stop() { cancelAnimationFrame(me.raf); if (me.view) me.view.dispose(); if (v3 === me) v3 = null; } };
+    v3 = me;
+    D3.load().then(() => {
+      if (v3 !== me || !cv.isConnected) return;
+      me.view = D3.viewer(cv, { auto: !pick });
+      me.view.frameTo([0, 0.58, 0], 1.0);
+      me.view.orbit.dist = 2.6;
+      me.view.orbit.yaw = 0.9;
+      const scene = D3.bodyScene(levels, pick);
+      let down = null;
+      cv.addEventListener('pointerdown', (e) => (down = [e.clientX, e.clientY]));
+      cv.addEventListener('pointerup', (e) => {
+        if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 6) return;
+        let best = null, bd = 28;
+        for (const [id, lvl] of Object.entries(levels)) {
+          if (!lvl || !scene.spots[id]) continue;
+          const [x, y] = me.view.project(scene.spots[id]);
+          const d = Math.hypot(x - e.clientX, y - e.clientY);
+          if (d < bd) (bd = d), (best = id);
+        }
+        if (best) {
+          picked = picked === best ? null : best;
+          ctx.render();
+        }
+      });
+      const loop = () => {
+        if (!cv.isConnected) return me.stop();
+        me.view.show(scene);
+        me.raf = requestAnimationFrame(loop);
+      };
+      loop();
+    }).catch(() => {
+      mapMode = '2d';
+      ctx.render();
+    });
+  }
+
   function onClick(e) {
+    const mm = e.target.closest('[data-body-map]');
+    if (mm) {
+      mapMode = mm.dataset.bodyMap;
+      try {
+        localStorage.setItem('motiq.bodyMap', mapMode);
+      } catch {}
+      return ctx.render();
+    }
     const t = e.target.closest('[data-body-tab]');
     if (t) {
       tab = t.dataset.bodyTab;
@@ -498,5 +570,5 @@
     document.addEventListener('keydown', onKey);
   }
 
-  root.BodyUI = { init, view, summaryCard, setTab: (t) => (tab = t) };
+  root.BodyUI = { init, view, summaryCard, mount, setTab: (t) => (tab = t) };
 })(window);

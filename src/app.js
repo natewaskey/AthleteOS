@@ -1611,6 +1611,7 @@
     Plan.mount();
     Screens.mount();
     if (window.ExerciseDemo && window.ExerciseDemo.mount) window.ExerciseDemo.mount();
+    if (window.BodyUI && window.BodyUI.mount) window.BodyUI.mount();
     if (window.Tours) window.Tours.maybeStart(ui.tab, role());
     if (window.Shell) Shell.maybeInstallBanner();
     const th = $('#thread');

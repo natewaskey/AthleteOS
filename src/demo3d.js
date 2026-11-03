@@ -292,7 +292,55 @@
     return { P, segs, balls, head: { c: P.head, r: 0.06 }, prims: [], hud: {} };
   }
 
-  const Demo3D = { build, lift, fit, propPrims, fromLandmarks, normalise, skeleton, BONES };
+  // 3D body map: the standing figure with a hotspot for every body-map area. Athlete's left = near side (A).
+  function bodySpots(P) {
+    const mid = (a, b, t = 0.5) => a.map((v, i) => v + (b[i] - v) * t);
+    const off = (p, dx = 0, dy = 0, dz = 0) => [p[0] + dx, p[1] + dy, p[2] + dz];
+    const S = {
+      head: off(P.head, 0.02, 0.01),
+      neck: off(mid(P.neck, P.head, 0.3), 0.02),
+      chest: off(mid(P.neck, P.hip, 0.22), 0.075),
+      abs: off(mid(P.neck, P.hip, 0.62), 0.07),
+      hips: off(P.hip, 0.07, 0.01),
+      'upper-back': off(mid(P.neck, P.hip, 0.22), -0.075),
+      'lower-back': off(mid(P.neck, P.hip, 0.68), -0.07),
+      glutes: off(P.hip, -0.08, -0.03),
+    };
+    for (const [s, k] of [['l', 'A'], ['r', 'B']]) {
+      const sg = k === 'A' ? 1 : -1;
+      S[`shoulder-${s}`] = off(P['sh' + k], 0, 0.02, sg * 0.03);
+      S[`bicep-${s}`] = off(mid(P['sh' + k], P['elbow' + k]), 0.04);
+      S[`tricep-${s}`] = off(mid(P['sh' + k], P['elbow' + k]), -0.04);
+      S[`forearm-${s}`] = off(mid(P['elbow' + k], P['wrist' + k]), 0.02);
+      S[`wrist-${s}`] = P['wrist' + k];
+      S[`quad-${s}`] = off(mid(P['hip' + k], P['knee' + k], 0.45), 0.055);
+      S[`hamstring-${s}`] = off(mid(P['hip' + k], P['knee' + k], 0.5), -0.055);
+      S[`knee-${s}`] = off(P['knee' + k], 0.04);
+      S[`shin-${s}`] = off(mid(P['knee' + k], P['ankle' + k]), 0.045);
+      S[`calf-${s}`] = off(mid(P['knee' + k], P['ankle' + k], 0.35), -0.05);
+      S[`ankle-${s}`] = off(P['ankle' + k], 0, 0, sg * 0.03);
+    }
+    return S;
+  }
+  // levels: { areaId: 0-3 }. picked: an area id to ring.
+  function bodyScene(levels = {}, picked = null) {
+    const E = ED();
+    const P = lift(E.pose({ uaA: 172, faA: 170, uaB: 188, faB: 190 }, 'side', 'ankleA'), 'side');
+    for (const k of ['elbowA', 'wristA']) P[k][2] += 0.05;
+    for (const k of ['elbowB', 'wristB']) P[k][2] -= 0.05;
+    const s = skeleton(P);
+    s.head.r = E.L.head * 1.05;
+    const spots = bodySpots(P);
+    s.spots = spots;
+    for (const [id, lvl] of Object.entries(levels)) {
+      if (!lvl || !spots[id]) continue;
+      s.prims.push({ kind: 'sph', c: spots[id], r: 0.03 + 0.012 * lvl, tone: 'lvl' + lvl, name: id });
+    }
+    if (picked && spots[picked]) s.prims.push({ kind: 'sph', c: spots[picked], r: 0.075, tone: 'ring' });
+    return s;
+  }
+
+  const Demo3D = { build, lift, fit, propPrims, fromLandmarks, normalise, skeleton, bodySpots, bodyScene, BONES };
 
   // ---------- browser renderer ----------
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -363,7 +411,7 @@
       scene.add(shadow);
 
       const mat = (color, o = {}) => new T.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.1, ...o });
-      const M = { A: mat(ice), B: mat(iceFar), trunk: mat(ice), w: mat(accent, { emissive: accent, emissiveIntensity: 0.15 }), k: mat(kit, { roughness: 0.7 }), g: mat(band), f: mat(fx, { roughness: 1 }), water: mat(new T.Color('#3b8fd8'), { transparent: true, opacity: 0.22, depthWrite: false }), glass: mat(kit, { transparent: true, opacity: 0.32, depthWrite: false }), heat: mat(new T.Color('#ff3b3b'), { emissive: new T.Color('#ff2a2a'), emissiveIntensity: 0.8 }) };
+      const M = { A: mat(ice), B: mat(iceFar), trunk: mat(ice), w: mat(accent, { emissive: accent, emissiveIntensity: 0.15 }), k: mat(kit, { roughness: 0.7 }), g: mat(band), f: mat(fx, { roughness: 1 }), water: mat(new T.Color('#3b8fd8'), { transparent: true, opacity: 0.22, depthWrite: false }), glass: mat(kit, { transparent: true, opacity: 0.32, depthWrite: false }), lvl1: mat(new T.Color(cssVar('--mild', '#e7b416')), { emissive: new T.Color(cssVar('--mild', '#e7b416')), emissiveIntensity: 0.6 }), lvl2: mat(new T.Color(cssVar('--sore', '#f07c1f')), { emissive: new T.Color(cssVar('--sore', '#f07c1f')), emissiveIntensity: 0.7 }), lvl3: mat(new T.Color(cssVar('--pain', '#d63a3a')), { emissive: new T.Color(cssVar('--pain', '#d63a3a')), emissiveIntensity: 0.9 }), ring: mat(new T.Color('#ffffff'), { transparent: true, opacity: 0.25, depthWrite: false }), heat: mat(new T.Color('#ff3b3b'), { emissive: new T.Color('#ff2a2a'), emissiveIntensity: 0.8 }) };
       const G = { cyl: new T.CylinderGeometry(1, 1, 1, 18, 1), sph: new T.SphereGeometry(1, 24, 16), box: new T.BoxGeometry(1, 1, 1), cone: new T.ConeGeometry(1, 1, 18) };
       const pools = { cyl: [], sph: [], box: [], cone: [] };
       const used = { cyl: 0, sph: 0, box: 0, cone: 0 };
@@ -512,7 +560,14 @@
         for (const m of Object.values(M)) m.dispose();
         shadowTex.dispose();
       }
-      return { show, setView, frameTo, orbit, dispose, renderer };
+      // Screen position of a 3D point (for tapping hotspots).
+      const pv = new T.Vector3();
+      function project(p) {
+        pv.set(...p).project(cam);
+        const r = canvas.getBoundingClientRect();
+        return [r.left + ((pv.x + 1) / 2) * r.width, r.top + ((1 - pv.y) / 2) * r.height, pv.z];
+      }
+      return { show, setView, frameTo, orbit, dispose, renderer, project };
     }
 
     // Controls row shared by every 3D view.

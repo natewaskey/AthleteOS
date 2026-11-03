@@ -49,3 +49,11 @@ test('MediaPipe landmarks map to a standing skeleton', () => {
   assert.ok(P.head[1] > P.hip[1] && P.hip[1] > P.kneeA[1] && P.kneeA[1] > P.ankleA[1]);
   assert.ok(Math.abs(P.ankleA[1] - P.kneeA[1] - (P.kneeA[1] - P.hipA[1]) * 1) < 0.2);
 });
+
+test('3D body map has a spot for every body-map area and lights the flagged ones', () => {
+  const C = require('../src/core.js');
+  const s = D3.bodyScene({ 'knee-l': 3, 'lower-back': 2 }, 'knee-l');
+  for (const id of Object.keys(C.BODY_AREA_LABEL)) assert.ok(s.spots[id], `spot for ${id}`);
+  assert.equal(s.prims.filter((p) => p.tone === 'lvl3').length, 1);
+  assert.equal(s.prims.filter((p) => p.tone === 'ring').length, 1);
+});
