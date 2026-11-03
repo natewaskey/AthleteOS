@@ -134,7 +134,66 @@
     return { push, summary, get reps() { return reps.slice(); }, get frames() { return frames.slice(); }, get setup() { return setup; } };
   }
 
-  const LiveCoach = { LIVE_EXERCISES, createEngine, shortCue };
+
+  /*
+   * Live angle readouts for the camera HUD. Picks the side of the body the camera sees best and
+   * returns the joints worth watching for this exercise, each with its angle in degrees and a tone:
+   * good (green), warn (amber), bad (red) or idle (no judgement, just the number).
+   */
+  const HUD_RULES = {
+    squat: { knee: [95, 120, 'depth'], trunk: [45, 55] },
+    lunge: { knee: [100, 125, 'depth'], trunk: [25, 35] },
+    bss: { knee: [100, 125, 'depth'], trunk: [30, 40] },
+    pushup: { elbow: [95, 130, 'depth'], body: [165, 152] },
+    deadlift: { hip: null, knee: null },
+    rdl: { hip: null, knee: [140, 125, 'soft'] },
+    ohp: { elbow: null, trunk: [10, 18] },
+    landing: { knee: [110, 140, 'depth'], trunk: null },
+  };
+  function hudAngles(lm, aspect = 16 / 9, exercise = 'squat') {
+    if (!lm || lm.length < 29) return [];
+    const vis = (i) => lm[i][3] ?? 1;
+    const L = { sh: 11, el: 13, wr: 15, hip: 23, kn: 25, an: 27 };
+    const R = { sh: 12, el: 14, wr: 16, hip: 24, kn: 26, an: 28 };
+    const score = (S) => vis(S.sh) + vis(S.hip) + vis(S.kn) + vis(S.an);
+    const S = score(L) >= score(R) ? L : R;
+    const pt = (i) => [lm[i][0] * aspect, lm[i][1]];
+    const ang = (a, b, c) => {
+      const [p, q, r] = [pt(a), pt(b), pt(c)];
+      const v1 = [p[0] - q[0], p[1] - q[1]], v2 = [r[0] - q[0], r[1] - q[1]];
+      const d = Math.hypot(...v1) * Math.hypot(...v2);
+      if (!d) return null;
+      return (Math.acos(Math.max(-1, Math.min(1, (v1[0] * v2[0] + v1[1] * v2[1]) / d))) * 180) / Math.PI;
+    };
+    const lean = () => {
+      const [s, h] = [pt(S.sh), pt(S.hip)];
+      return (Math.atan2(Math.abs(s[0] - h[0]), Math.abs(h[1] - s[1]) || 1e-6) * 180) / Math.PI;
+    };
+    const rules = HUD_RULES[exercise] || HUD_RULES.squat;
+    // "depth" and "body" rules: lower/higher is better; [good, warn] limits
+    const tone = (deg, r, kind) => {
+      if (!r) return 'idle';
+      const [g, w, mode] = r;
+      if (kind === 'trunk') return deg <= g ? 'good' : deg <= w ? 'warn' : 'bad';
+      if (mode === 'depth') return deg <= g ? 'good' : deg <= w ? 'warn' : 'idle';
+      return deg >= g ? 'good' : deg >= w ? 'warn' : 'bad';
+    };
+    const out = [];
+    const add = (joint, at, deg, kind, ok) => {
+      if (deg == null || !isFinite(deg) || !ok) return;
+      out.push({ joint, at, deg: Math.round(deg), tone: tone(deg, rules[kind], kind) });
+    };
+    const leg = vis(S.hip) > 0.4 && vis(S.kn) > 0.4 && vis(S.an) > 0.4;
+    const arm = vis(S.sh) > 0.4 && vis(S.el) > 0.4 && vis(S.wr) > 0.4;
+    if ('knee' in rules) add('Knee', S.kn, ang(S.hip, S.kn, S.an), 'knee', leg);
+    if ('hip' in rules) add('Hip', S.hip, ang(S.sh, S.hip, S.kn), 'hip', leg && vis(S.sh) > 0.4);
+    if ('elbow' in rules) add('Elbow', S.el, ang(S.sh, S.el, S.wr), 'elbow', arm);
+    if ('body' in rules) add('Body', S.hip, ang(S.sh, S.hip, S.an), 'body', leg && vis(S.sh) > 0.4);
+    if ('trunk' in rules) add('Trunk', S.sh, lean(), 'trunk', vis(S.sh) > 0.4 && vis(S.hip) > 0.4);
+    return out;
+  }
+
+  const LiveCoach = { LIVE_EXERCISES, createEngine, shortCue, hudAngles };
 
   // ---------- browser: camera screen ----------
   if (!node && typeof document !== 'undefined') {
@@ -207,6 +266,28 @@
         g.beginPath();
         g.arc(x, y, g.lineWidth * 0.9, 0, Math.PI * 2);
         g.fill();
+      }
+      // live angle readouts beside the joints that matter for this lift
+      const TONE = { good: '#3ddc84', warn: '#ffb547', bad: '#ff4f6d', idle: '#dff8ff' };
+      const fs = Math.max(12, Math.round(w / 55));
+      g.font = `600 ${fs}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      g.textBaseline = 'middle';
+      for (const a of hudAngles(lm, vw / vh, run && run.exercise)) {
+        const [x, y] = P(lm[a.at]);
+        const txt = `${a.joint.toUpperCase()} ${a.deg}°`;
+        const tw = g.measureText(txt).width;
+        const side = x > w * 0.6 ? -1 : 1;
+        const bx = side > 0 ? x + fs * 0.9 : x - fs * 0.9 - tw - fs * 0.8;
+        g.fillStyle = 'rgba(10,12,16,.72)';
+        g.fillRect(bx, y - fs * 0.75, tw + fs * 0.8, fs * 1.5);
+        g.fillStyle = TONE[a.tone];
+        g.fillRect(bx, y - fs * 0.75, Math.max(2, fs * 0.14), fs * 1.5);
+        g.fillText(txt, bx + fs * 0.45, y + 1);
+        g.strokeStyle = TONE[a.tone];
+        g.lineWidth = Math.max(2, w / 360);
+        g.beginPath();
+        g.arc(x, y, fs * 0.9, 0, Math.PI * 2);
+        g.stroke();
       }
     }
 
