@@ -2944,7 +2944,7 @@ button.chip[aria-pressed='true'] { background: var(--accent); border-color: var(
 @keyframes arcIn { from { stroke-dasharray: 0 100; } }
 @keyframes orbit { to { transform: rotate(360deg); } }
 @keyframes corePulse { 0%, 100% { transform: scale(0.94); opacity: 0.7; } 50% { transform: scale(1.04); opacity: 1; } }
-@media (max-width: 640px) { .ready-core { width: 92px; height: 92px; } .ready-core strong { font-size: 1.9rem; } }
+@media (max-width: 640px) { .ready-row { gap: 0.6rem; } .ready-core { width: 84px; height: 84px; } .ready-core strong { font-size: 1.7rem; } }
 
 /* scan effect while a video is analysed */
 .scan-box { position: relative; border-radius: 10px; overflow: hidden; background: #07090c; border: 1px solid var(--border); margin-bottom: 0.6rem; aspect-ratio: 16 / 9; }
@@ -2980,3 +2980,12 @@ button.chip[aria-pressed='true'] { background: var(--accent); border-color: var(
 .cycle-handle:hover::before, .cycle-handle:focus-visible::before, .dragging .cycle-handle::before { background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
 .dragging, .dragging * { cursor: ew-resize !important; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .program-week.assembling *, .build-steps li::before { animation: none !important; } }
+
+/* what's new */
+.wn-head { display: flex; align-items: center; gap: 0.6rem; margin: 0.25rem 0 0.5rem; }
+.wn-head h3 { margin: 0; }
+.wn-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.6rem 1rem; }
+.wn-list li { display: flex; gap: 0.6rem; align-items: flex-start; }
+.wn-list p { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.85rem; }
+.wn-ic { flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.wn-ic svg { width: 17px; height: 17px; }

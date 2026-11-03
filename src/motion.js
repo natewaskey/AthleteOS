@@ -69,7 +69,9 @@
   function transition(update) {
     if (node || reduced() || !document.startViewTransition) return update();
     try {
-      document.startViewTransition(update);
+      const t = document.startViewTransition(update);
+      // a transition cut short (rotating the phone, a second tap) is fine; the update still runs
+      for (const k of ['ready', 'finished', 'updateCallbackDone']) if (t && t[k]) t[k].catch(() => {});
     } catch {
       update();
     }

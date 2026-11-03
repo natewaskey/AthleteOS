@@ -884,6 +884,7 @@
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
           ${window.Shell ? Shell.installCard() + Shell.reminderCard() : ''}
+          ${window.WhatsNew ? WhatsNew.card() : ''}
           ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard())}
         </div>`;
     },
@@ -1242,6 +1243,7 @@
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${window.Shell ? Shell.installCard() : ''}
+          ${window.WhatsNew ? WhatsNew.card() : ''}
           ${advanced(aiCard() + dataCard())}
         </div>`;
     },
@@ -1522,6 +1524,16 @@
       ${isCoach && state.staff.length > 1 ? `<select id="staff-switch" aria-label="Signed in as">${state.staff.map((x) => `<option value="${x.id}" ${x.id === (activeStaff() || {}).id ? 'selected' : ''}>${esc(x.name || 'Unnamed')} · ${esc(roleLabel(x).split(' ')[0])}</option>`).join('')}</select>` : ''}`;
   }
 
+  // The installed app's icon shows the same count as the badges in the menu (Badging API, where supported).
+  let lastBadge = -1;
+  function appBadge(n) {
+    if (n === lastBadge || !('setAppBadge' in navigator)) return;
+    lastBadge = n;
+    try {
+      (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+    } catch {}
+  }
+
   function renderChrome(bare = false) {
     const isCoach = role() === 'coach';
     const a = me();
@@ -1534,6 +1546,7 @@
     }
     const secs = sections();
     const active = sectionOf(ui.tab);
+    appBadge(secs.reduce((t, x) => t + badgeFor(x, unread), 0));
     const logBtn = isCoach ? '' : `<button class="btn btn-primary btn-log" data-action="open-log">${icon('plus')}<span>Log workout</span></button>`;
     // Sidebar (desktop)
     $('#tabs').innerHTML = secs
@@ -2504,6 +2517,21 @@
     go(tab, id);
   });
 
+  // "Share to Motiq": the service worker keeps a video shared from another app; open it in a form check.
+  async function pickUpShare() {
+    try {
+      if (!('caches' in window)) return;
+      const c = await caches.open('motiq-share');
+      const res = await c.match('./shared-video');
+      if (!res) return;
+      await c.delete('./shared-video');
+      if (state.mode == null || role() !== 'athlete') return toast('Switch to an athlete to check form on a shared video.');
+      const blob = await res.blob();
+      const name = decodeURIComponent(res.headers.get('x-name') || 'shared-video.mp4');
+      Form.openAnalyze({ file: new File([blob], name, { type: blob.type || 'video/mp4' }) });
+    } catch {}
+  }
+
   // ---------- import / export ----------
 
   function download(text, filename) {
@@ -2620,6 +2648,7 @@
 
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
 
+  if (window.WhatsNew) WhatsNew.init({ icon, esc });
   Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, units, U, sportOptions, fmtDate });
   Live.init({ C, state: () => state, save, render, esc, units, U, role, toast, me });
 
@@ -2675,8 +2704,11 @@
     sessionStorage.removeItem('athleteos:return');
     if (back && !location.hash) history.replaceState(null, '', back);
   } catch {}
+  const sharedIn = /[?&]shared=1/.test(location.hash);
+  if (sharedIn) history.replaceState(null, '', '#form');
   const [initialTab, initialId] = location.hash.slice(1).split('/');
   go(initialTab || '', initialId);
+  if (sharedIn) pickUpShare();
   window.__booted = true;
   // Refreshing mid-workout keeps focus mode and the rest timer where they were.
   if (state.mode != null && window.LiveUI) LiveUI.restoreFocus();
@@ -2687,4 +2719,5 @@
     if (d && state.mode != null && role() === 'athlete' && d.athleteId === me().id && !$('#focus-mode')) openWorkout(null);
   } catch {}
   if (window.CloudUI) CloudUI.checkRecovery();
+  if (window.WhatsNew) WhatsNew.maybeShow(state.mode != null && !sharedIn);
 })();

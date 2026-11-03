@@ -1032,7 +1032,7 @@
     return dialog;
   }
 
-  function openAnalyze({ exercise = 'squat', videoId = null, view = 'auto' } = {}) {
+  function openAnalyze({ exercise = 'squat', videoId = null, view = 'auto', file = null } = {}) {
     const d = ensureDialog();
     const me = ctx.me();
     const vids = ctx.state().videos.filter((v) => v.athleteId === me.id).sort((a, b) => b.ts - a.ts);
@@ -1096,6 +1096,18 @@
       runAnalysis(form);
     });
     d.showModal();
+    // A video shared to Motiq from another app goes straight in.
+    if (file) {
+      let set = false;
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        form.file.files = dt.files;
+        set = form.file.files.length === 1;
+      } catch {}
+      if (!set) form._recorded = file;
+      $('[data-file-name]', form).textContent = `Shared to Motiq · ${file.name} · ${(file.size / 1e6).toFixed(1)} MB`;
+    }
     // Warm up the model while the athlete picks a video.
     if (root.Pose) root.Pose.preload().catch(() => {});
   }
