@@ -2959,3 +2959,24 @@ button.chip[aria-pressed='true'] { background: var(--accent); border-color: var(
 #search-results .cmd-row small { color: var(--accent); }
 
 @media (prefers-reduced-motion: reduce) { .fresh *, .rc-orbit, .rc-glow, .scan-line, .rc-arc { animation: none !important; } ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; } }
+
+/* builder: steps as the program comes together, then the week assembles */
+.build-steps { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.35rem; font: 500 0.82rem var(--font-mono); }
+.build-steps li { display: flex; align-items: center; gap: 0.55rem; color: var(--muted); opacity: 0.35; transition: opacity 0.2s, color 0.2s; }
+.build-steps li::before { content: ''; width: 0.7rem; height: 0.7rem; border-radius: 50%; border: 1.5px solid currentColor; flex: none; }
+.build-steps li.on { opacity: 1; color: var(--text); }
+.build-steps li.on::before { border-color: var(--accent); border-top-color: transparent; animation: spin 0.6s linear infinite; }
+.build-steps li.done::before { animation: none; background: var(--good); border-color: var(--good); box-shadow: 0 0 8px color-mix(in srgb, var(--good) 60%, transparent); }
+.program-week.assembling > .program-session { animation: springIn 0.55s cubic-bezier(0.2, 0.8, 0.25, 1) both; animation-delay: calc(var(--i, 0) * 110ms); }
+.program-week.assembling .prog-items li { animation: itemIn 0.35s ease-out both; animation-delay: calc(var(--i, 0) * 110ms + 180ms); }
+@keyframes itemIn { from { opacity: 0; transform: translateX(-8px); } }
+
+/* season timeline: drag the line between blocks */
+.cycle-bar.editable { overflow: visible; gap: 0; position: relative; }
+.cycle-bar.editable .cycle-seg { transition: flex 0.18s cubic-bezier(0.2, 0.8, 0.25, 1); }
+.cycle-bar.editable .cycle-seg:first-child { border-radius: 10px 0 0 10px; } .cycle-bar.editable .cycle-seg:last-child { border-radius: 0 10px 10px 0; }
+.cycle-handle { flex: none; width: 14px; margin: 0 -5px; position: relative; z-index: 1; cursor: ew-resize; touch-action: none; display: grid; place-items: center; outline: none; }
+.cycle-handle::before { content: ''; width: 3px; height: 70%; border-radius: 3px; background: var(--muted); transition: background 0.15s, box-shadow 0.15s; }
+.cycle-handle:hover::before, .cycle-handle:focus-visible::before, .dragging .cycle-handle::before { background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+.dragging, .dragging * { cursor: ew-resize !important; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .program-week.assembling *, .build-steps li::before { animation: none !important; } }
