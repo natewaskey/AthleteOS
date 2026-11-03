@@ -307,6 +307,7 @@
         if (e.type === 'hint') setText('live-status', e.text);
         if (e.type === 'rep') {
           run.lastStatus = e.status;
+          if (root.Motion) root.Motion.haptic('rep');
           setText('live-count', String(e.n));
           setText('live-cue', e.status === 'good' ? `✓ Rep ${e.n}: good` : `Rep ${e.n}: ${e.cue}`);
           const log = byId('live-log');

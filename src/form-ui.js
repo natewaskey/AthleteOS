@@ -1060,7 +1060,7 @@
         <select name="view"><option value="auto">Auto-detect</option><option value="side" ${view === 'side' ? 'selected' : ''}>Side-on</option><option value="front" ${view === 'front' ? 'selected' : ''}>Front-on</option></select></details>
       <label class="check"><input type="checkbox" name="precise" ${uiState.precise ? 'checked' : ''}/> Precise mode: analyse up to 60 frames a second (slower, best for fast lifts and jumps)</label>
       <p class="hint">Runs entirely on this device. Videos up to ${root.Pose ? root.Pose.MAX_SECONDS : 90} s are analysed; for best results keep your whole body in frame with the camera steady.</p>
-      <div id="analyze-progress" hidden><div class="progress"><i style="width:0%"></i></div><p class="small muted" data-status>Loading the pose model…</p></div>
+      <div id="analyze-progress" hidden><div class="scan-box" aria-hidden="true"><canvas class="scan-canvas"></canvas><i class="scan-line"></i><span class="scan-tag">SCANNING · ON DEVICE</span></div><div class="progress"><i style="width:0%"></i></div><p class="small muted" data-status>Loading the pose model…</p></div>
       <p class="pain-text small" id="analyze-error" hidden></p>
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">Analyze</button></div>
     </form>`;
@@ -1154,8 +1154,9 @@
       const data = await root.Pose.detect(url, {
         signal: controller.signal,
         precise: uiState.precise,
-        onProgress: (f) => {
+        onProgress: (f, seen) => {
           bar.style.width = `${Math.round(f * 100)}%`;
+          scanDraw(prog, seen);
           status.textContent = `Tracking your movement… ${Math.round(f * 100)}%`;
         },
       });
@@ -1176,6 +1177,43 @@
       prog.hidden = true;
       if (err && err.name === 'AbortError') return;
       showError(err && err.message ? err.message : 'Something went wrong while analysing.');
+    }
+  }
+
+  // Scan effect while a video is analysed: the frame being read, with the joints found so far.
+  function scanDraw(prog, seen) {
+    const cv = prog && prog.querySelector('.scan-canvas');
+    if (!cv || !seen || !seen.video || !seen.video.videoWidth) return;
+    const v = seen.video;
+    const w = (cv.width = cv.clientWidth * (devicePixelRatio || 1) || 320);
+    const h = (cv.height = Math.round((w * v.videoHeight) / v.videoWidth));
+    const g = cv.getContext('2d');
+    try {
+      g.drawImage(v, 0, 0, w, h);
+    } catch {
+      return;
+    }
+    g.fillStyle = 'rgba(8,10,14,.45)';
+    g.fillRect(0, 0, w, h);
+    const lm = seen.lm;
+    if (!lm) return;
+    const P = (i) => [lm[i][0] * w, lm[i][1] * h];
+    g.strokeStyle = 'rgba(56,242,255,.9)';
+    g.lineWidth = Math.max(2, w / 200);
+    g.lineCap = 'round';
+    for (const [a, b] of [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]]) {
+      if ((lm[a][3] ?? 1) < 0.4 || (lm[b][3] ?? 1) < 0.4) continue;
+      g.beginPath();
+      g.moveTo(...P(a));
+      g.lineTo(...P(b));
+      g.stroke();
+    }
+    g.fillStyle = '#dff8ff';
+    for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
+      if ((lm[i][3] ?? 1) < 0.4) continue;
+      g.beginPath();
+      g.arc(...P(i), g.lineWidth * 1.1, 0, Math.PI * 2);
+      g.fill();
     }
   }
 

@@ -690,7 +690,8 @@
       const left = Math.max(0, Math.round((end - Date.now()) / 1000));
       el.innerHTML = `<span>⏱ Rest${label ? ` · ${esc(label)}` : ''}</span><strong>${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}</strong><button class="btn btn-sm" data-plan-action="stop-rest">Skip</button>`;
       if (!left) {
-        if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+        if (root.Motion) root.Motion.haptic('set');
+        else if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
         el.classList.add('done');
         el.querySelector('span').textContent = '✅ Rest done, next set!';
         clearInterval(restTimer);
@@ -938,6 +939,7 @@
         const s = (p.sets[k] = p.sets[k] || { reps: item.measure === 'reps' ? item.amount : null, weightKg: null, done: false });
         s.done = !s.done;
         ctx.save();
+        if (s.done && root.Motion) root.Motion.haptic('set');
         if (s.done && item.restSec && k < item.sets - 1) startRest(item.restSec, item.name);
         const y = window.scrollY;
         ctx.render();
@@ -1053,6 +1055,7 @@
     a.result = { ...res, completedAt: Date.now(), workoutId: w.id };
     ctx.save();
     stopRest();
+    if (root.Motion) root.Motion.haptic('done');
     ctx.toast(`Workout complete · ${C.sessionLoad(w)} AU logged 💪`);
     ctx.go('plan', 'a:' + a.id);
   }

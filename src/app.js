@@ -588,8 +588,11 @@
     const facts = c ? [c.hrv ? `HRV ${c.hrv} ms` : '', c.sleep ? `Sleep ${num(c.sleep, 1)} h` : ''].filter(Boolean).join(' · ') : '';
     return `<section class="tile tile-ready">
       <div class="tile-head"><span class="eyebrow">Readiness ${window.Explain ? window.Explain.btn('readiness') : ''}</span>${ready ? `<span class="pill ${tone}">${esc(ready.label)}</span>` : ''}</div>
-      <button class="big-num gauge-ring ${ready ? 'band-' + ready.band : 'empty'}" ${ready ? 'data-smart="why-ready"' : 'data-action="open-checkin"'} aria-label="${ready ? `Readiness ${ready.score} out of 100. Show why` : 'No check-in yet. Check in'}"><strong>${ready ? ready.score : '–'}</strong><small>${ready ? '/100' : 'Check in'}</small></button>
-      ${sparkline(vals)}
+      <div class="ready-row">
+      <button class="ready-core ${ready ? 'band-' + ready.band : 'empty'}" style="--pct:${ready ? ready.score : 0}" ${ready ? 'data-smart="why-ready"' : 'data-action="open-checkin"'} aria-label="${ready ? `Readiness ${ready.score} out of 100. Show why` : 'No check-in yet. Check in'}">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="rc-orbit" cx="60" cy="60" r="57"/><circle class="rc-track" cx="60" cy="60" r="49"/><circle class="rc-arc" cx="60" cy="60" r="49" pathLength="100"/><circle class="rc-glow" cx="60" cy="60" r="38"/></svg>
+        <span><strong>${ready ? ready.score : '–'}</strong><small>${ready ? '/100' : 'Check in'}</small></span></button>
+      <div class="ready-spark">${sparkline(vals)}</div></div>
       <div class="tile-scale"><span>7-day</span><span>${esc(facts)}</span></div>
       <div class="tile-foot">${Smart.riskChip(a)}</div>
     </section>`;
@@ -1625,9 +1628,15 @@
     const hash = '#' + tab + (ui.id ? '/' + ui.id : '');
     if (tab && location.hash !== hash) history.replaceState(null, '', hash);
     openMore(false);
-    render();
-    window.scrollTo(0, 0);
-    if (changed) {
+    const M = window.Motion;
+    const swap = () => {
+      render();
+      window.scrollTo(0, 0);
+      if (changed && M) M.enter($('#view'));
+    };
+    if (changed && M) M.transition(swap);
+    else swap();
+    if (changed && !M) {
       const v = $('#view');
       v.classList.remove('view-enter');
       void v.offsetWidth;
@@ -2365,19 +2374,62 @@
   }
 
   let searchList = [];
+  let searchCmd = null;
+  // Plain-language commands ("log squat 3x5 225", "move thursday to friday"), understood on the device.
+  function commandItem(q) {
+    if (!window.Commands) return null;
+    const isCoach = role() === 'coach';
+    const cmd = window.Commands.parse(q, { today: today(), library: C.EXERCISE_LIBRARY, parseSpoken: SM.parseSpoken, units: units() });
+    if (!cmd) return null;
+    const dayName = (d) => (d === today() ? 'today' : d === C.addDays(today(), 1) ? 'tomorrow' : new Date(d + 'T12:00').toLocaleDateString(undefined, { weekday: 'long' }));
+    if (cmd.kind === 'log') {
+      if (isCoach) return null;
+      const r = cmd.workout;
+      const what = r.exercises.length ? r.exercises.map((e) => `${e.name} ${e.sets}×${e.reps ?? '—'}${e.weight != null ? ` @ ${fmtWeight(e.weight, 0)}` : ''}`).join(', ') : r.title;
+      return { label: `Log ${what}`, hint: 'Command · today', icon: 'plus', run: () => logWorkout(C.normalizeWorkout({ date: today(), sport: r.sport, title: r.title, duration: r.duration, distance: r.distance, rpe: r.rpe, notes: `⌘ “${cmd.text}”`, exercises: r.exercises.map((e) => ({ name: e.name, sets: e.sets, reps: e.reps ?? '', weight: e.weight ?? '' })) })) };
+    }
+    if (cmd.kind === 'move') {
+      const who = isCoach ? null : me().id;
+      const hits = (state.assignments || []).filter((x) => x.date === cmd.from && x.status === 'assigned' && (!who || x.athleteId === who));
+      if (!hits.length) return { label: `Nothing planned ${dayName(cmd.from)} to move`, hint: 'Command', icon: 'calendar', run: () => toast(`No planned session on ${dayName(cmd.from)}.`) };
+      const name = hits.length === 1 ? `“${hits[0].plan.name}”` : `${hits.length} sessions`;
+      return {
+        label: `Move ${name} from ${dayName(cmd.from)} to ${dayName(cmd.to)}`,
+        hint: 'Command',
+        icon: 'calendar',
+        run: () => {
+          for (const x of hits) x.date = cmd.to;
+          save();
+          render();
+          toast(`Moved to ${dayName(cmd.to)}`);
+        },
+      };
+    }
+    if (cmd.kind === 'rest') return { label: `Start a ${cmd.sec >= 60 ? `${Math.floor(cmd.sec / 60)}:${String(cmd.sec % 60).padStart(2, '0')}` : `${cmd.sec} s`} rest timer`, hint: 'Command', icon: 'timer', run: () => Plan.startRest(cmd.sec, 'Rest') };
+    if (cmd.kind === 'checkin') return isCoach ? null : { label: 'Open today’s check-in', hint: 'Command', icon: 'check', attrs: { 'data-action': 'open-checkin' } };
+    if (cmd.kind === 'demo') return { label: `${cmd.mode === '3d' ? 'Show in 3D' : 'Show'}: ${cmd.name}`, hint: 'Command · demo', icon: 'play', attrs: { 'data-howto-demo': cmd.name, 'data-howto-kind': 'name', 'data-howto-mode': cmd.mode } };
+    return null;
+  }
   function renderSearch(q) {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    searchCmd = commandItem(q);
     const hits = searchList.filter((x) => words.every((w) => (x.label + ' ' + x.hint).toLowerCase().includes(w))).slice(0, 40);
     const box = $('#search-results');
-    box.innerHTML = hits.length
-      ? hits.map((x, i) => `<li role="option" id="sr-${i}" aria-selected="${i === 0}" data-i="${searchList.indexOf(x)}">${icon(x.icon)}<span>${esc(x.label)}</span><small>${esc(x.hint)}</small></li>`).join('')
-      : '<li class="empty muted">No matches. Try a page name or an exercise.</li>';
+    const cmdRow = searchCmd ? `<li role="option" class="cmd-row" id="sr-cmd" aria-selected="true" data-i="cmd">${icon(searchCmd.icon)}<span>${esc(searchCmd.label)}</span><small>${esc(searchCmd.hint)} · Enter</small></li>` : '';
+    box.innerHTML =
+      cmdRow +
+      (hits.length
+        ? hits.map((x, i) => `<li role="option" id="sr-${i}" aria-selected="${!searchCmd && i === 0}" data-i="${searchList.indexOf(x)}">${icon(x.icon)}<span>${esc(x.label)}</span><small>${esc(x.hint)}</small></li>`).join('')
+        : searchCmd
+          ? ''
+          : `<li class="empty muted">No matches. Try a page, an exercise, or a command like “log squat 3x5 225” or “move thursday to friday”.</li>`);
   }
   function runSearch(i) {
-    const item = searchList[i];
+    const item = i === 'cmd' ? searchCmd : searchList[i];
     const d = $('#search-dialog');
     if (d.open) d.close();
     if (!item) return;
+    if (item.run) return item.run();
     const b = document.createElement('button');
     for (const [k, v] of Object.entries(item.attrs)) b.setAttribute(k, v);
     b.hidden = true;
@@ -2392,7 +2444,7 @@
       d = document.createElement('dialog');
       d.id = 'search-dialog';
       d.setAttribute('aria-label', 'Search');
-      d.innerHTML = `<div class="search-box">${icon('search')}<input id="search-input" type="search" placeholder="Search pages, actions and exercises" autocomplete="off" aria-controls="search-results" /><kbd>esc</kbd></div><ul id="search-results" role="listbox"></ul>`;
+      d.innerHTML = `<div class="search-box">${icon('search')}<input id="search-input" type="search" placeholder="Search, or type a command: log squat 3x5 225" autocomplete="off" aria-controls="search-results" /><kbd>esc</kbd></div><ul id="search-results" role="listbox"></ul>`;
       document.body.appendChild(d);
       const input = $('#search-input', d);
       input.addEventListener('input', () => renderSearch(input.value));
@@ -2407,7 +2459,7 @@
           opts[n].scrollIntoView({ block: 'nearest' });
         } else if (e.key === 'Enter') {
           e.preventDefault();
-          if (cur >= 0) runSearch(Number(opts[cur].dataset.i));
+          if (cur >= 0) runSearch(opts[cur].dataset.i === 'cmd' ? 'cmd' : Number(opts[cur].dataset.i));
         } else if (e.key === 'Escape') {
           e.preventDefault();
           d.close();
@@ -2415,7 +2467,7 @@
       });
       $('#search-results', d).addEventListener('click', (e) => {
         const li = e.target.closest('[role=option]');
-        if (li) runSearch(Number(li.dataset.i));
+        if (li) runSearch(li.dataset.i === 'cmd' ? 'cmd' : Number(li.dataset.i));
       });
       d.addEventListener('click', (e) => e.target === d && d.close());
     }

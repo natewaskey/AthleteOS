@@ -110,7 +110,7 @@
           lm: pose.map((p) => [+p.x.toFixed(4), +p.y.toFixed(4), +(p.z || 0).toFixed(4), +(p.visibility ?? 1).toFixed(3)]),
         });
       }
-      onProgress(Math.min(1, t / duration));
+      onProgress(Math.min(1, t / duration), { video, lm: pose ? frames[frames.length - 1].lm : null });
     }
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
