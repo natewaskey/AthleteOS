@@ -275,7 +275,7 @@
             ${plan.blocks
               .map(
                 (b) => `<div class="prog-block"><div class="small"><strong>${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</strong></div>
-                <ul class="prog-items">${b.items.map((i) => `<li><span>${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
+                <ul class="prog-items">${b.items.map((i) => `<li><span>${root.ExerciseDemo && root.ExerciseDemo.thumb ? root.ExerciseDemo.thumb(i.name, 'prog-thumb') : ''}${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
               )
               .join('')}
             <div class="row" style="margin-top:.5rem">

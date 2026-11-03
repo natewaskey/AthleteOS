@@ -3387,8 +3387,14 @@
     let dlg = null;
     let player = null;
     const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
-    function open(id, { title = '', cues = [], avoid = '', setup = '', note = '' } = {}) {
+    const can3d = (id) => !!(root.Demo3D && DEMOS[id] && DEMOS[id].view !== 'top' && root.Demo3D.fit(id));
+    function open(id, { title = '', cues = [], avoid = '', setup = '', note = '', mode = null } = {}) {
       if (!DEMOS[id]) return;
+      if (player) {
+        cancelAnimationFrame(player.raf);
+        if (player.v3) player.v3.dispose();
+        player = null;
+      }
       if (!dlg) {
         dlg = document.createElement('dialog');
         dlg.id = 'exercise-demo';
@@ -3400,33 +3406,80 @@
         dlg.addEventListener('close', () => {
           if (dlg.open) return; // reopened before this close event arrived
           if (player) cancelAnimationFrame(player.raf);
+          if (player && player.v3) player.v3.dispose();
           player = null;
         });
       }
       dlg.innerHTML = `<div class="row"><h2 style="margin:0">▶ ${esc(title)}</h2><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-exdemo-close aria-label="Close">✕</button></div>
-        <canvas class="demo-canvas" style="margin-top:.75rem" role="img" aria-label="Animated demonstration: ${esc(title)}"></canvas>
-        <div class="row" style="margin-top:.5rem">
+        <div class="demo-stage">
+          <canvas class="demo-canvas" data-exdemo-2d style="margin-top:.75rem" role="img" aria-label="Animated demonstration: ${esc(title)}"></canvas>
+          <canvas class="demo-canvas v3d-canvas" data-exdemo-3d hidden role="img" aria-label="3D demonstration: ${esc(title)}. Drag to turn it."></canvas>
+          <span class="v3d-hint" hidden>Drag to turn · pinch or scroll to zoom</span>
+        </div>
+        <div class="row demo-controls" style="margin-top:.5rem">
           <button class="btn btn-sm" data-exdemo-play aria-label="Pause">⏸ Pause</button>
           <div class="segmented" role="group" aria-label="Speed"><button data-exdemo-speed="0.5">0.5×</button><button data-exdemo-speed="1" aria-pressed="true">1×</button></div>
+          ${can3d(id) ? `<div class="segmented" role="group" aria-label="Demo type"><button data-exdemo-mode="2d" aria-pressed="true">2D</button><button data-exdemo-mode="3d" aria-pressed="false">3D</button></div>` : ''}
+          <span data-exdemo-cams hidden>${root.Demo3D ? root.Demo3D.controls('exdemo') : ''}</span>
         </div>
         ${setup ? `<p class="small" style="margin:.75rem 0 .25rem"><strong>Setup:</strong> ${esc(setup)}</p>` : ''}
         ${cues.length ? `<ul class="howto-cues">${cues.map((x) => `<li>✓ ${esc(x)}</li>`).join('')}</ul>` : ''}
         ${avoid ? `<p class="small howto-avoid"><strong>Avoid:</strong> ${esc(avoid)}</p>` : ''}
         ${note ? `<p class="muted small" style="margin:.25rem 0 0">${esc(note)}</p>` : ''}`;
-      const cv = dlg.querySelector('canvas');
-      player = { id, speed: 1, playing: true, t: 0, last: performance.now(), raf: 0 };
+      const cv = dlg.querySelector('[data-exdemo-2d]');
+      const cv3 = dlg.querySelector('[data-exdemo-3d]');
+      player = { id, speed: 1, playing: true, t: 0, last: performance.now(), raf: 0, mode: '2d', v3: null };
       const loop = (now) => {
         if (!player) return;
         if (player.playing) player.t += ((now - player.last) / 1000) * player.speed;
         player.last = now;
-        draw(cv, frame(player.id, player.t), { big: true });
+        const f = frame(player.id, player.t);
+        if (player.mode === '3d' && player.v3) player.v3.show(root.Demo3D.build(f));
+        else draw(cv, f, { big: true });
         player.raf = requestAnimationFrame(loop);
+      };
+      const setMode = async (mode) => {
+        const D3 = root.Demo3D;
+        if (mode === '3d' && (!D3 || !D3.supported())) mode = '2d';
+        if (mode === '3d' && !player.v3) {
+          try {
+            await D3.load();
+            if (!player || !cv3.isConnected) return;
+            cv3.hidden = false;
+            cv3.style.height = cv.style.height;
+            player.v3 = D3.viewer(cv3);
+            const fit = D3.fit(player.id);
+            if (fit) player.v3.frameTo(fit.c, fit.size);
+          } catch {
+            mode = '2d';
+          }
+        }
+        if (!player) return;
+        player.mode = mode;
+        cv.hidden = mode === '3d';
+        cv3.hidden = mode !== '3d';
+        dlg.querySelector('.v3d-hint').hidden = mode !== '3d';
+        const cams = dlg.querySelector('[data-exdemo-cams]');
+        if (cams) cams.hidden = mode !== '3d';
+        dlg.querySelectorAll('[data-exdemo-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.exdemoMode === mode)));
+        try {
+          localStorage.setItem('motiq.demoMode', mode);
+        } catch {}
       };
       dlg.onclick = (e) => {
         const sp = e.target.closest('[data-exdemo-speed]');
         if (sp && player) {
           player.speed = +sp.dataset.exdemoSpeed;
           dlg.querySelectorAll('[data-exdemo-speed]').forEach((b) => b.setAttribute('aria-pressed', String(b === sp)));
+        }
+        const md = e.target.closest('[data-exdemo-mode]');
+        if (md && player) setMode(md.dataset.exdemoMode);
+        const cam = e.target.closest('[data-exdemo-cam]');
+        if (cam && player && player.v3) {
+          const v = cam.dataset.exdemoCam;
+          if (v === 'spin') player.v3.orbit.auto = !player.v3.orbit.auto;
+          else player.v3.setView(v);
+          dlg.querySelectorAll('[data-exdemo-cam]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.exdemoCam === 'spin' ? player.v3.orbit.auto : b === cam)));
         }
         const pl = e.target.closest('[data-exdemo-play]');
         if (pl && player) {
@@ -3443,22 +3496,41 @@
       const [x0, x1, y0, y1] = box(id);
       cv.style.height = `${Math.round(clamp(cv.clientWidth * ((y1 - y0) / (x1 - x0)) + 40, 220, Math.min(440, innerHeight * 0.5)))}px`;
       player.raf = requestAnimationFrame(loop);
+      let pref = '2d';
+      try {
+        pref = localStorage.getItem('motiq.demoMode') || '2d';
+      } catch {}
+      if ((mode || pref) === '3d' && can3d(id)) setMode('3d');
     }
 
     // Any element with data-howto-demo opens the player: data-howto-kind = name (exercise name) | form (form-check id) | test (camera/jump test id).
-    function openHowTo(kind, key) {
+    function openHowTo(kind, key, mode = null) {
       const H = root.HowTo;
       if (!H) return false;
       const h = kind === 'form' ? H.forForm(key) : kind === 'test' ? H.forTest(key) : H.lookup(key);
       if (!h || !DEMOS[h.demo]) return false;
-      open(h.demo, { title: kind === 'name' && !h.exact ? key : h.name, cues: h.cues, avoid: h.avoid, setup: h.setup, note: kind === 'name' && !h.exact ? `Closest demo: ${h.name}` : '' });
+      open(h.demo, { mode, title: kind === 'name' && !h.exact ? key : h.name, cues: h.cues, avoid: h.avoid, setup: h.setup, note: kind === 'name' && !h.exact ? `Closest demo: ${h.name}` : '' });
       return true;
     }
     document.addEventListener('click', (e) => {
       const b = e.target.closest('[data-howto-demo]');
       if (!b) return;
       e.preventDefault();
-      openHowTo(b.dataset.howtoKind || 'name', b.dataset.howtoDemo);
+      openHowTo(b.dataset.howtoKind || 'name', b.dataset.howtoDemo, b.dataset.howtoMode || null);
+    });
+    // Small looping preview for an exercise row; tapping it opens the full player.
+    const thumb = (name, cls = '') => {
+      const H = root.HowTo;
+      const h = H && H.lookup(name);
+      if (!h || !DEMOS[h.demo]) return '';
+      return `<canvas class="ex-thumb ${cls}" data-exdemo="${esc(h.demo)}" data-howto-demo="${esc(name)}" data-howto-kind="name" role="button" tabindex="0" aria-label="Play the ${esc(name)} demo" title="Watch how it’s done"></canvas>`;
+    };
+    document.addEventListener('keydown', (e) => {
+      const b = e.target.closest && e.target.closest('canvas[data-howto-demo]');
+      if (b && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        openHowTo('name', b.dataset.howtoDemo);
+      }
     });
     const button = (kind, key, label = '▶ Watch how it’s done') => {
       const H = root.HowTo;
@@ -3466,7 +3538,7 @@
       return h ? `<button type="button" class="btn btn-sm btn-ghost" data-howto-demo="${esc(key)}" data-howto-kind="${kind}">${label}</button>` : '';
     };
 
-    Object.assign(ExerciseDemo, { draw, mount, open, openHowTo, button, isOpen: () => !!(dlg && dlg.open), state: () => player && { ...player } });
+    Object.assign(ExerciseDemo, { draw, mount, open, openHowTo, button, thumb, isOpen: () => !!(dlg && dlg.open), state: () => player && { ...player } });
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = ExerciseDemo;

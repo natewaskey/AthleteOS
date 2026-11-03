@@ -13,7 +13,7 @@
   // Routes stay the same as before, so every link inside the app keeps working.
   const ATHLETE_SECTIONS = [
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
-    { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History']] },
+    { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history', 'library'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['library', 'Exercises']] },
     { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
     { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
@@ -23,7 +23,7 @@
   ];
   const COACH_SECTIONS = [
     { id: 'team', label: 'Team', icon: 'users', routes: ['team', 'body'] },
-    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals']] },
+    { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals', 'library'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals'], ['library', 'Exercises']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
@@ -68,6 +68,7 @@
   const Prof = window.ProfileUI;
   const Summary = window.SummaryUI;
   const Help = window.FAQUI;
+  const Library = window.LibraryUI;
   const Staff = window.StaffUI;
   const Smart = window.SmartUI;
   const SM = window.Smart;
@@ -772,6 +773,10 @@
       return Help.view();
     },
 
+    library() {
+      return Library.view();
+    },
+
     challenges() {
       return Chal.view(ui.id);
     },
@@ -1133,6 +1138,10 @@
 
     help() {
       return Help.view();
+    },
+
+    library() {
+      return Library.view();
     },
 
     approvals() {
@@ -1601,6 +1610,7 @@
     Form.mount($('#view'));
     Plan.mount();
     Screens.mount();
+    if (window.ExerciseDemo && window.ExerciseDemo.mount) window.ExerciseDemo.mount();
     if (window.Tours) window.Tours.maybeStart(ui.tab, role());
     if (window.Shell) Shell.maybeInstallBanner();
     const th = $('#thread');
@@ -2550,6 +2560,7 @@
   Summary.init(shared);
   if (window.Shell) Shell.init({ ...shared, today });
   Help.init(shared);
+  Library.init(shared);
   Staff.init({ ...shared, activeStaff });
   LiveCam.init(shared);
   Screens.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, fmtDate, units, openAnalyze: (o) => Form.openAnalyze(o) });

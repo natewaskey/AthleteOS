@@ -629,6 +629,7 @@
     return `<div class="session-item ${complete ? 'complete' : ''} ${flag ? 'flag-' + flag.level : ''}">
       <div class="row" style="flex-wrap:nowrap;align-items:flex-start">
         <span class="item-num">${i.group ? esc(i.group) : n}</span>
+        ${root.ExerciseDemo && root.ExerciseDemo.thumb ? root.ExerciseDemo.thumb(i.name, 'item-thumb') : ''}
         <div class="main" style="min-width:0"><strong>${esc(i.name)}</strong>${root.ScienceUI ? ' ' + root.ScienceUI.evidenceChip(i.name) : ''}
           <div class="small">${esc(prescription(i, athlete))}</div>
           ${i.notes ? `<div class="muted small">${esc(i.notes)}</div>` : ''}
