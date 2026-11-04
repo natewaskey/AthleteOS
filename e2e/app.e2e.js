@@ -149,6 +149,37 @@ test('a demo form check opens with its score and faults', async () => {
   await context.close();
 });
 
+test('form checker: review queue, rep timeline, printable report, fast mode setting', async () => {
+  const { context, page, errors } = await fresh();
+  await demoTeam(page);
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('athleteos:v1'));
+    s.session.role = 'coach';
+    localStorage.setItem('athleteos:v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await page.waitForTimeout(300);
+  await visit(page, 'form');
+  await page.waitForSelector('.review-queue', { timeout: 15000 }); // demo checks are scored on first open
+  const queue = page.locator('.review-queue');
+  await queue.locator('[data-form-open]').first().click();
+  await page.waitForSelector('#form-detail .score-card', { timeout: 15000 });
+  const body = await text(page);
+  assert.match(body, /Rep by rep/i, 'rep timeline shows');
+  const [popup] = await Promise.all([context.waitForEvent('page'), page.click('[data-form-action=report]')]);
+  await popup.waitForLoadState();
+  assert.match(await popup.content(), /Form report/);
+  await popup.close();
+  await visit(page, 'settings');
+  assert.ok(await page.locator('[data-formplus=fast]').count(), 'fast mode setting');
+  await page.evaluate(() => { const d = document.querySelector('[data-formplus=fast]').closest('details'); if (d) d.open = true; });
+  await page.selectOption('[data-formplus=fast]', 'on');
+  const v = await page.evaluate(() => JSON.parse(localStorage.getItem('athleteos:v1')).settings.fastMode);
+  assert.strictEqual(v, 'on');
+  assert.deepStrictEqual(errors, []);
+  await context.close();
+});
+
 test('works on a phone-sized screen', async () => {
   const { context, page, errors } = await fresh({ viewport: { width: 390, height: 844 } });
   await demoTeam(page);

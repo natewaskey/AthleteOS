@@ -892,6 +892,7 @@
             </form>
           </section>
           ${window.BuilderPlusUI ? BuilderPlusUI.equipmentCard(a) : ''}
+          ${window.FormPlus ? FormPlus.fastCard(state.settings.fastMode) : ''}
           ${window.Wearables ? Wearables.devicesCard() : ''}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
@@ -1263,7 +1264,7 @@
           ${modeCard()}
           ${window.Shell ? Shell.installCard() : ''}
           ${window.WhatsNew ? WhatsNew.card() : ''}
-          ${advanced(aiCard() + dataCard() + (window.Errors ? Errors.card() : ''))}
+          ${advanced(aiCard() + dataCard() + (window.FormPlus ? FormPlus.fastCard(state.settings.fastMode) : '') + (window.Errors ? Errors.card() : ''))}
         </div>`;
     },
   };
@@ -2717,6 +2718,7 @@
   if (window.Shell) Shell.init({ ...shared, today });
   if (window.Errors) Errors.init(shared);
   if (window.BuilderPlusUI) BuilderPlusUI.init(shared);
+  if (window.FormPlus) FormPlus.init(shared);
   Help.init(shared);
   Library.init(shared);
   Staff.init({ ...shared, activeStaff });

@@ -3185,3 +3185,13 @@ polyline.rom-left, polyline.rom-right { fill: none; }
 .lift-chart .axis { stroke: var(--border); }
 .lift-chart .lbl { fill: var(--muted); font-size: 9px; font-family: var(--mono, monospace); }
 .lift-profile h4 { margin: 1rem 0 0.25rem; }
+
+/* Motiq 1.0 form checker upgrades */
+.band-bars { display: grid; gap: 0.35rem; }
+.band-bar { display: grid; grid-template-columns: 5.5rem 1fr 2.2rem 3.5rem; align-items: center; gap: 0.5rem; }
+.band-bar .bar { height: 8px; border-radius: 4px; background: var(--line, rgba(127,127,127,.2)); overflow: hidden; }
+.band-bar .bar i { display: block; height: 100%; background: var(--good); border-radius: inherit; }
+.band-bar.off .bar i { background: var(--warn); }
+.rep-timeline td { white-space: nowrap; }
+.review-queue { margin-bottom: 1rem; }
+.banner.danger { border-color: var(--bad); }

@@ -11,7 +11,9 @@
   const node = typeof module !== 'undefined' && module.exports;
   const M = node ? require('./movement.js') : root.Movement;
 
-  const LIVE_EXERCISES = ['squat', 'lunge', 'bss', 'pushup', 'deadlift', 'rdl', 'ohp', 'landing'];
+  // Every rep-based lift can be coached live (holds, sprints, cuts and running need the whole clip).
+  const LIVE_FIRST = ['squat', 'deadlift', 'bench', 'ohp', 'rdl', 'lunge', 'bss', 'pushup', 'landing'];
+  const LIVE_EXERCISES = [...LIVE_FIRST, ...Object.keys(M.EXERCISES).filter((k) => !LIVE_FIRST.includes(k) && !M.EXERCISES[k].custom && !M.EXERCISES[k].gait)];
   const SETUP_EVERY = 0.5; // seconds between camera setup checks
   const BUFFER_SECONDS = 24;
   const ANALYZE_EVERY = 0.3; // seconds between re-analyses
