@@ -16,7 +16,7 @@
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history', 'library'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['library', 'Exercises']] },
     { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
     { id: 'recover', label: 'Recover', icon: 'battery', routes: ['recover'] },
-    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
+    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'lifts', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['lifts', 'Lifts'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
     { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
@@ -669,7 +669,7 @@
       const qa = (attrs, ic, label) => `<button class="qa" ${attrs}>${icon(ic)}<span>${label}</span></button>`;
 
       // Home: header, one inbox for nudges and plan changes, then a grid of data tiles.
-      const inbox = Smart.nudgeBanner(a) + Smart.adaptBanner(a);
+      const inbox = Smart.nudgeBanner(a) + Smart.adaptBanner(a) + (window.BuilderPlusUI ? BuilderPlusUI.finishedBanner(a) : '');
       return `
         ${consentBanner}
         ${guide ? `<div class="grid" style="margin-bottom:1rem">${guide}</div>` : ''}
@@ -803,6 +803,10 @@
       return LiveCam.view(ui.id);
     },
 
+    lifts() {
+      return window.BuilderPlusUI ? BuilderPlusUI.view(me()) : '';
+    },
+
     records() {
       const { endHTML, strHTML } = recordsTables(me());
       return `<button class="btn btn-sm btn-ghost" data-tab-link="progress" style="margin-bottom:.5rem">‹ Progress</button><h1 class="page-title">Personal records</h1>
@@ -887,6 +891,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${window.BuilderPlusUI ? BuilderPlusUI.equipmentCard(a) : ''}
           ${window.Wearables ? Wearables.devicesCard() : ''}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
@@ -2711,6 +2716,7 @@
   Summary.init(shared);
   if (window.Shell) Shell.init({ ...shared, today });
   if (window.Errors) Errors.init(shared);
+  if (window.BuilderPlusUI) BuilderPlusUI.init(shared);
   Help.init(shared);
   Library.init(shared);
   Staff.init({ ...shared, activeStaff });
@@ -2720,7 +2726,7 @@
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
 
   if (window.WhatsNew) WhatsNew.init({ icon, esc });
-  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, units, U, sportOptions, fmtDate });
+  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, units, U, sportOptions, fmtDate });
   Live.init({ C, state: () => state, save, render, esc, units, U, role, toast, me });
 
   Plan.init({

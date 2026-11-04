@@ -74,9 +74,9 @@
     ).then((v) => v === true);
   }
 
-  function prompt(message, { title = '', value = '', ok = 'OK', cancel = 'Cancel', type = 'text', placeholder = '', required = false, multiline = false } = {}) {
+  function prompt(message, { title = '', value = '', ok = 'OK', cancel = 'Cancel', type = 'text', placeholder = '', required = false, multiline = false, maxlength = 300 } = {}) {
     const field = multiline
-      ? `<textarea name="value" rows="3" maxlength="300" placeholder="${esc(placeholder)}" ${required ? 'required' : ''}>${esc(value)}</textarea>`
+      ? `<textarea name="value" rows="3" maxlength="${Number(maxlength) || 300}" placeholder="${esc(placeholder)}" ${required ? 'required' : ''}>${esc(value)}</textarea>`
       : `<input name="value" type="${esc(type)}" value="${esc(value)}" placeholder="${esc(placeholder)}" ${required ? 'required' : ''} />`;
     return open(
       `<form method="dialog" class="app-dialog">

@@ -802,6 +802,9 @@
       // Imported device data: HRV, jumps, GPS, bar velocity. Normalised by importer.js.
       metrics: objList(input.metrics, 6000),
       partnerId: input.partnerId ? String(input.partnerId) : null, // training partner (another athlete id)
+      // Saved equipment setups ("School weight room", "Home", "Hotel") and the one in use (builder-plus.js).
+      equipmentProfiles: objList(input.equipmentProfiles, 12).map((x) => ({ id: String(x.id || uid()), name: String(x.name || 'My equipment').slice(0, 40), equipment: Array.isArray(x.equipment) ? x.equipment.map(String).slice(0, 30) : [] })),
+      equipmentActive: input.equipmentActive ? String(input.equipmentActive) : null,
       autoAdapt: input.autoAdapt !== false, // let the weekly adapter adjust upcoming sessions
       adapt: input.adapt && typeof input.adapt === 'object' ? JSON.parse(JSON.stringify(input.adapt)) : null,
       summarySeen: String(input.summarySeen || ''),
@@ -1258,7 +1261,11 @@
       prescribedBy: input.prescribedBy && typeof input.prescribedBy === 'object' ? { staffId: String(input.prescribedBy.staffId || ''), name: String(input.prescribedBy.name || '').slice(0, 60), role: String(input.prescribedBy.role || ''), creds: String(input.prescribedBy.creds || '').slice(0, 120), certified: !!input.prescribedBy.certified } : null,
       approvedBy: input.approvedBy && typeof input.approvedBy === 'object' ? { name: String(input.approvedBy.name || '').slice(0, 60), creds: String(input.approvedBy.creds || '').slice(0, 120) } : null,
       ...(input.feedbackApplied && typeof input.feedbackApplied === 'object' ? { feedbackApplied: { kind: String(input.feedbackApplied.kind || ''), at: Number(input.feedbackApplied.at) || Date.now() } } : {}),
-      adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [] } : null,
+      adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [], ...(Array.isArray(input.adjusted.changes) ? { changes: input.adjusted.changes.map(String).slice(0, 20) } : {}) } : null,
+      // Set by builder-plus.js: how a team program was fitted to this athlete, and game-week changes.
+      ...(Array.isArray(input.fitted) && input.fitted.length ? { fitted: input.fitted.map(String).slice(0, 12) } : {}),
+      ...(input.tapered ? { tapered: true } : {}),
+      ...(input.recoveryDay ? { recoveryDay: true } : {}),
     };
   }
 
@@ -1383,7 +1390,7 @@
   function emptyState() {
     return {
       version: SCHEMA_VERSION,
-      settings: { units: 'imperial', proMode: false },
+      settings: { units: 'imperial', proMode: false, legal: null, fastMode: 'auto' },
       session: { role: 'athlete', athleteId: 'me' },
       coach: { name: '' },
       athletes: [normalizeAthlete({ id: 'me', name: '', sport: 'run' })],
@@ -1407,6 +1414,7 @@
       nudges: [],
       notes: [], // session notes between coach and athlete
       brand: { color: '', logo: '' }, // team color and logo set by the coach
+      announcements: [],
     };
   }
 
@@ -1616,7 +1624,13 @@
     const session = raw.session || {};
     return {
       version: SCHEMA_VERSION,
-      settings: { units: unitSystem(raw.settings && raw.settings.units), proMode: !!(raw.settings && raw.settings.proMode) },
+      settings: {
+        units: unitSystem(raw.settings && raw.settings.units),
+        proMode: !!(raw.settings && raw.settings.proMode),
+        // Terms/privacy acceptance and age confirmation on this device (legal.js).
+        legal: raw.settings && raw.settings.legal && typeof raw.settings.legal === 'object' ? JSON.parse(JSON.stringify(raw.settings.legal)) : null,
+        fastMode: raw.settings && ['auto', 'on', 'off'].includes(raw.settings.fastMode) ? raw.settings.fastMode : 'auto', // lighter camera tracking for older phones
+      },
       session: {
         role: session.role === 'coach' ? 'coach' : 'athlete',
         athleteId: ids.has(session.athleteId) ? session.athleteId : athletes[0].id,
@@ -1644,6 +1658,8 @@
       nudges: objList(raw.nudges, 500).map((n) => ({ id: String(n.id || uid()), from: String(n.from || ''), to: String(n.to || ''), text: String(n.text || '').slice(0, 140), ts: Number(n.ts) || 0, seen: !!n.seen })),
       notes: (Array.isArray(raw.notes) ? raw.notes.map(normalizeNote) : []).filter((n) => ids.has(n.athleteId)).slice(-3000),
       brand: normalizeBrand(raw.brand),
+      // Coach posts to the team, optionally with a quick question athletes answer (coach-plus.js).
+      announcements: objList(raw.announcements, 500),
     };
   }
 

@@ -29,6 +29,8 @@ async function fresh({ offlineCloud = true, viewport = { width: 1280, height: 86
   if (offlineCloud) await page.route(/supabase\.co|fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.goto(base);
   await page.waitForFunction(() => window.__booted === true || document.querySelector('#view').textContent.length > 0);
+  // First-visit tips cover buttons; mark them all seen so clicks land.
+  await page.evaluate(() => window.Tours && localStorage.setItem('athleteos:tours', JSON.stringify(Object.fromEntries(Object.keys(window.Tours.TOURS).map((k) => [k, 1])))));
   return { context, page, errors };
 }
 const text = (page) => page.locator('#view').innerText();
@@ -174,6 +176,54 @@ test('the app still opens offline after the first visit', async () => {
   await page.reload();
   await page.waitForTimeout(800);
   assert.match(await text(page), /Motiq|Sign in|Welcome/);
+  assert.deepStrictEqual(errors, []);
+  await context.close();
+});
+
+test('builder: equipment setup, compare versions, swap an exercise, share and import a code', async () => {
+  const { context, page, errors } = await fresh();
+  await soloAthlete(page);
+  await visit(page, 'plan');
+  await page.click('[data-prog-action=new]');
+  await page.click('[data-prog-action=equip-profile][data-id="preset:hotel"]');
+  assert.strictEqual(await page.locator('input[name=equipment][value=barbell]').isChecked(), false, 'hotel setup unticks the barbell');
+  await page.click('button:has-text("Generate program")');
+  await page.waitForSelector('[data-prog-action=compare]', { timeout: 15000 });
+  await page.click('[data-prog-action=compare]');
+  assert.match(await text(page), /This version vs another version/);
+  await page.click('[data-prog-action=compare-use]');
+  await page.locator('[data-prog-action=swap-item]').first().click();
+  await page.locator('#app-dialog .swap-opt').first().click();
+  await page.click('[data-prog-action=save]');
+  await page.click('[data-prog-action=share-code]');
+  const code = await page.locator('#app-dialog textarea').inputValue();
+  assert.match(code, /^MOTIQ1\./);
+  await page.keyboard.press('Escape');
+  await visit(page, 'plan/programs');
+  await page.click('[data-prog-action=import-code]');
+  await page.fill('#app-dialog textarea, #app-dialog input', code);
+  await page.click('#app-dialog [data-dlg-ok]');
+  await page.waitForSelector('[data-prog-action=save]');
+  assert.match(await text(page), /Shared by|weeks/);
+  assert.deepStrictEqual(errors, []);
+  await context.close();
+});
+
+test('lift profiles open from Progress on the demo team', async () => {
+  const { context, page, errors } = await fresh();
+  await demoTeam(page);
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('athleteos:v1'));
+    s.session.role = 'athlete';
+    localStorage.setItem('athleteos:v1', JSON.stringify(s));
+  });
+  await page.reload();
+  await visit(page, 'lifts');
+  const tile = page.locator('[data-lifts=open]').first();
+  if (await tile.count()) {
+    await tile.click();
+    assert.match(await text(page), /estimated max now/i);
+  } else assert.match(await text(page), /Lifts/);
   assert.deepStrictEqual(errors, []);
   await context.close();
 });

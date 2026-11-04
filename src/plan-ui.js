@@ -523,21 +523,25 @@
       if (!todayCheck && a.date === today() && !gameNear) {
         adjustHTML = `<div class="banner info-banner">💡 Do today’s check-in first and Motiq will tailor this session to how you feel. <button class="btn btn-sm" data-action="open-checkin">Check in</button></div>`;
       } else {
-        const adj = Pg.suggestAdjustment({ plan: a.plan, readiness, checkin: todayCheck, injuries, schedule });
-        if (adj.level !== 'none' || adj.flags.length) {
+        const BP = root.BuilderPlus;
+        const adj = BP ? BP.daily(ctx.state(), athlete, a, { readiness, checkin: todayCheck, injuries, schedule, today: today() }) : Pg.suggestAdjustment({ plan: a.plan, readiness, checkin: todayCheck, injuries, schedule });
+        if (adj.level !== 'none' || adj.flags.length || adj.boost > 1) {
           adjustHTML = `<section class="card adjust-card ${adj.level}">
-            <div class="row"><strong>${adj.level === 'recover' ? '🛑 Recovery recommended' : adj.level === 'reduce' ? '⚠️ Suggested adjustments for today' : '⚠️ Heads up'}</strong></div>
+            <div class="row"><strong>${adj.level === 'recover' ? '🛑 Recovery recommended' : adj.level === 'reduce' ? '⚠️ Suggested adjustments for today' : adj.boost > 1 && !adj.flags.length ? '🚀 You’re ready for a bit more today' : '⚠️ Heads up'}</strong></div>
             <ul class="small">${adj.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}
               ${adj.loadScale < 1 ? `<li>Loads ${Math.round((1 - adj.loadScale) * 100)}% lighter${adj.dropSets ? ` and ${adj.dropSets} fewer set${adj.dropSets > 1 ? 's' : ''} on main work` : ''}.</li>` : ''}
-              ${adj.flags.filter((f) => f.level === 'bad').map((f) => `<li><strong>${esc(f.name)}</strong>: ${esc(f.reason)}${f.alternatives[0] ? ` → swap for <strong>${esc(f.alternatives[0])}</strong>` : ''}</li>`).join('')}</ul>
+              ${adj.flags.filter((f) => f.level === 'bad').map((f) => `<li><strong>${esc(f.name)}</strong>: ${esc(f.reason)}${f.alternatives[0] ? ` → swap for <strong>${esc(f.alternatives[0])}</strong>` : ''}</li>`).join('')}
+              ${adj.boost > 1 ? '<li>Main lifts 2–3% heavier today.</li>' : ''}</ul>
+            ${adj.changes && adj.changes.length ? `<details class="small"><summary>What changes (${adj.changes.length})</summary><ul>${adj.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></details>` : ''}
             <div class="row"><button class="btn btn-primary btn-sm" data-plan-action="apply-adjust" data-id="${a.id}">Apply adjustments</button><button class="btn btn-sm btn-ghost" data-plan-action="keep-plan" data-id="${a.id}">Keep as planned</button></div>
           </section>`;
         }
       }
     }
     const adjustedNote = a.adjusted && a.adjusted.level && a.adjusted.level !== 'kept'
-      ? `<div class="banner info-banner">🔧 Auto-adjusted (${({ recover: 'recovery', deload: 'recovery week', ease: 'lighter', progress: 'progressed', maintain: 'tweaked' })[a.adjusted.level] || 'reduced'})${a.adjusted.reasons.length ? `: ${esc(a.adjusted.reasons.join(' '))}` : ''}</div>`
+      ? `<div class="banner info-banner">🔧 Auto-adjusted (${({ recover: 'recovery', deload: 'recovery week', ease: 'lighter', progress: 'progressed', maintain: 'tweaked', none: 'tweaked' })[a.adjusted.level] || 'reduced'})${a.adjusted.reasons.length ? `: ${esc(a.adjusted.reasons.join(' '))}` : ''}${a.adjusted.changes && a.adjusted.changes.length ? `<details class="small"><summary>What changed</summary><ul>${a.adjusted.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></details>` : ''}</div>`
       : '';
+    const fittedNote = a.fitted && a.fitted.length ? `<div class="banner info-banner">🎯 Fitted to ${coach && athlete ? esc(ctx.athleteName(athlete)) : 'you'}: ${esc(a.fitted.join(' · '))}</div>` : '';
     return `<button class="btn btn-sm btn-ghost" data-tab-link="plan" style="margin-bottom:.5rem">‹ ${coach ? 'Training plan' : 'My plan'}</button>
       <div class="row" style="margin-bottom:.75rem">
         <div class="sport-dot lg" aria-hidden="true">${C.sportInfo(a.plan.logAs).icon}</div>
@@ -552,7 +556,7 @@
         ${coach ? `${a.status === 'assigned' ? `<button class="btn" data-plan-action="edit-session" data-id="${a.id}">✎ Edit session</button>` : ''}<button class="btn" data-open-thread="${a.athleteId}">Message</button><button class="btn btn-ghost btn-danger" data-plan-action="unassign" data-id="${a.id}">Remove</button>` : ''}
       </div>
       ${injuries.length ? `<div class="banner warn">🩹 ${injuries.map((j) => `${esc(j.label)} (${j.status})${j.restrictions.length ? ': ' + j.restrictions.map((r) => Pg.RESTRICTIONS[r].label.toLowerCase()).join(', ') : ''}`).join(' · ')}</div>` : ''}
-      ${adjustHTML}${adjustedNote}
+      ${adjustHTML}${adjustedNote}${fittedNote}
       ${a.plan.description ? `<p class="muted" style="margin-top:0">${esc(a.plan.description)}</p>` : ''}
       ${a.coachNote ? `<div class="cue coach"><div class="small"><strong>${esc(ctx.coachName())}</strong></div>${esc(a.coachNote)}</div>` : ''}
       ${a.status === 'skipped' ? `<div class="banner warn">Skipped${a.skipReason ? `: “${esc(a.skipReason)}”` : ''}</div>` : ''}
@@ -1018,8 +1022,9 @@
         if (!a) return;
         const ck = athlete.checkins.find((c) => c.date === today());
         const schedule = root.Calendar ? root.Calendar.gameContext(ctx.state(), athlete, a.date) : null;
-        const adj = root.Program.suggestAdjustment({ plan: a.plan, readiness: ck ? C.readiness(ck, athlete.checkins, athlete.workouts, today()) : null, checkin: ck, injuries: root.Program.activeInjuries(ctx.state(), a.athleteId), schedule });
-        root.Program.applyAdjustment(a, adj);
+        const opts = { readiness: ck ? C.readiness(ck, athlete.checkins, athlete.workouts, today()) : null, checkin: ck, injuries: root.Program.activeInjuries(ctx.state(), a.athleteId), schedule };
+        if (root.BuilderPlus) root.BuilderPlus.applyDaily(a, root.BuilderPlus.daily(ctx.state(), athlete, a, { ...opts, today: today() }));
+        else root.Program.applyAdjustment(a, root.Program.suggestAdjustment({ plan: a.plan, ...opts }));
         ctx.save();
         ctx.toast('Session adjusted for today');
         return rerenderKeepScroll();
