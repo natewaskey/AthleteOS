@@ -19,6 +19,7 @@
   const PLUS = (node ? require('./exercises-plus.js') : root.ExercisesPlus) || { ALL: [], LINKS: {}, TAGS: {}, entry: () => null };
   // Loaded lazily: prevention.js is loaded after this file in the browser.
   const Prev = () => (node ? require('./prevention.js') : root.Prevention);
+  const Rec = () => (node ? require('./recovery.js') : root.Recovery);
 
   // ---------- exercise metadata ----------
 
@@ -64,7 +65,7 @@
   const EQUIPMENT = {
     none: 'Bodyweight', barbell: 'Barbell + rack', dumbbell: 'Dumbbells', kettlebell: 'Kettlebells', bench: 'Bench', 'pullup-bar': 'Pull-up bar', band: 'Bands',
     box: 'Plyo box', 'med-ball': 'Medicine ball', sled: 'Sled', machine: 'Cable / machines', cones: 'Cones / ladder', field: 'Field or track', bike: 'Bike / air bike',
-    rower: 'Rower', rope: 'Jump rope / ropes', 'foam-roller': 'Foam roller', hurdles: 'Mini hurdles', slideboard: 'Slide board / sliders', pool: 'Pool',
+    rower: 'Rower', rope: 'Jump rope / ropes', 'foam-roller': 'Foam roller', hurdles: 'Mini hurdles', slideboard: 'Slide board / sliders', pool: 'Pool', 'massage-ball': 'Massage / lacrosse ball', dowel: 'Stick / dowel',
   };
 
   // [pattern, equipment...] per library exercise. Unlisted warm-up / mobility / cool-down items are
@@ -432,6 +433,8 @@
       sessions: (Array.isArray(input.sessions) ? input.sessions : [])
         .map((s) => ({ day: Math.max(0, Math.min(6, Math.round(Number(s.day) || 0))), plan: C.normalizePlan(s.plan || {}) }))
         .sort((a, b) => a.day - b.day),
+      // Light recovery days between training days (idea 15): a ready-made routine from recovery.js, not a logged session.
+      recoveryDays: (Array.isArray(input.recoveryDays) ? input.recoveryDays : []).filter((r) => r && typeof r === 'object').slice(0, 4).map((r) => ({ day: Math.max(0, Math.min(6, Math.round(Number(r.day) || 0))), routine: String(r.routine || 'restday').slice(0, 40), why: String(r.why || '').slice(0, 200) })),
       source: ['manual', 'generator', 'claude'].includes(input.source) ? input.source : 'manual',
       createdAt: Number(input.createdAt) || Date.now(),
       // Who the generator built it for (sport, position, level, age group, goal), used by checkProgram.
@@ -876,6 +879,12 @@
    * conditioning by energy system and the built-in prevention routine; the position adjusts it; age, level and phase cap
    * the jump and sprint volume. Every item carries a one-line `why`.
    */
+  // Was the session the day before a lower-body or full-body day?
+  function lowerHeavy(sessions, day) {
+    const prev = sessions.find((s) => s.day === (day + 6) % 7);
+    return !!prev && /lower|full/i.test(prev.plan.name || '');
+  }
+
   function generateProgram(input = {}) {
     const req = parseRequest(input.request);
     const goal = GOALS[req.goal] ? req.goal : GOALS[input.goal] ? input.goal : 'general';
@@ -902,6 +911,14 @@
     const inSeason = goal === 'in-season' || phaseIn === 'in';
     const lim = S.limits({ age: input.age, ageGroup: input.ageGroup, experience: exp, phase: phaseIn, goal });
     const youth = lim.ageGroup === 'youth';
+    // Growth spurt (idea 66): fewer jumps and sprints, extra mobility for the fast-growing areas.
+    const growing = !!input.growthSpurt;
+    if (growing) {
+      lim.jumpsPerSession = Math.round(lim.jumpsPerSession * 0.7);
+      lim.jumpsPerWeek = Math.round(lim.jumpsPerWeek * 0.7);
+      lim.sprintPerSession = Math.round(lim.sprintPerSession * 0.85);
+      lim.sprintPerWeek = Math.round(lim.sprintPerWeek * 0.85);
+    }
     const scheme = { ...SCHEMES[goal] };
     if (exp === 'beginner' || youth) {
       scheme.sets = Math.max(2, scheme.sets - 2);
@@ -985,6 +1002,39 @@
       cond: `${ENERGY_LABEL[prof.energy] || 'Repeat-effort'} conditioning, matched to ${sportName}${prof.noPatterns.includes('run') ? ' (no running for swimmers)' : ''}.`,
       mobility: 'Mobility focus you asked for.',
       strides: 'Strides: fast, relaxed running to keep your stride smooth.',
+      growth: 'Growth spurt care: quads and hip flexors tighten while bones grow fast.',
+      cooldownFor: (kind) => ({ lower: 'Cool-down matched to a lower-body day: calves, hamstrings and hips, then slow breathing.', upper: 'Cool-down matched to an upper-body day: chest, lats and upper back, then slow breathing.', speed: 'Cool-down after sprinting: calves, hamstrings and quads, then slow breathing.', conditioning: 'Cool-down after conditioning: walk it off, stretch, then slow breathing.' })[kind] || 'Cool-down matched to today’s session, then slow breathing to start recovery.',
+    };
+    // Cool-down stretches for what was trained, plus one for the sport and a breathing finish (idea 15).
+    const matchedCooldown = (kind, used, idx) => {
+      const R0 = Rec();
+      if (!R0) return [];
+      const k = kind === 'conditioning' ? 'cond' : kind;
+      const list = [...(growing ? ['Side-lying quad stretch'] : []), ...R0.cooldownFor(k, prof.family, idx)].filter((n) => ok(n) && !used.has(n));
+      const isBreath = (n) => /breathing|sigh/i.test(n);
+      const breath = list.filter(isBreath);
+      const stretch = list.filter((n) => !isBreath(n));
+      return [stretch[0], stretch[1], breath[0]].filter(Boolean);
+    };
+    // Recovery & mobility session: easy flush, sport mobility, slow breathing.
+    const recoveryPlan = (vv) => {
+      const R0 = Rec();
+      const used = new Set();
+      const bl = [];
+      const put = (type, names, why) => {
+        const items = names.filter((n) => n && ok(n) && !used.has(n)).map((n) => (used.add(n), C.normalizePlanItem({ name: n, why }, type)));
+        if (items.length) bl.push({ type, items });
+      };
+      if (R0) {
+        const r = R0.recoverySession(prof.family, vv);
+        put('warmup', [r.flush], 'Easy flush: light movement clears soreness faster than full rest.');
+        put('mobility', r.mobility.slice(0, 6), `Mobility for ${sportName} between hard days.`);
+        put('cooldown', [r.breath, 'Legs up the wall'], 'Slow breathing to switch the body into recovery.');
+      } else {
+        put('mobility', fromBlock('mobility', used, 5), 'Mobility and recovery between hard days.');
+        put('cooldown', fromBlock('cooldown', used, 2), WHY.cooldown);
+      }
+      return C.normalizePlan({ name: 'Recovery & mobility', blocks: bl });
     };
     const strengthWhy = (key, main) => ({
       squat: main ? `Main squat for ${GOALS[goal].toLowerCase()}: the base for sprinting, jumping and contact.` : 'Squat strength.',
@@ -1054,9 +1104,10 @@
       add('warmup', fromBlock('warmup', used, prepNames.length ? 2 : 3, (x) => (kind === 'upper' ? !/leg|lunge/i.test(x.name) : true)), {}, WHY.warmup);
       for (const x of prepNames) if (!used.has(x.name)) add('warmup', [x.name], { sets: x.sets || 1, restSec: 20 }, x.why);
       if (kind === 'recovery') {
-        add('mobility', fromBlock('mobility', used, 5), {}, 'Mobility and recovery between hard days.');
-        add('cooldown', fromBlock('cooldown', used, 2), {}, WHY.cooldown);
-        return { day: DAY_LAYOUT[days][idx], plan: C.normalizePlan({ name: 'Recovery & mobility', blocks }) };
+        blocks.length = 0;
+        used.clear();
+        const plan = recoveryPlan(v);
+        return { day: DAY_LAYOUT[days][idx], plan };
       }
       const accelList = gentle ? SPEED_LISTS.accelGentle : rot(SPEED_LISTS.accel);
       if (kind === 'speed' || ((kind === 'lower' || kind === 'full') && wantsSpeed && v === 1)) {
@@ -1155,13 +1206,31 @@
         if (c) add('conditioning', [c], {}, WHY.cond);
       }
       if (focus.has('mobility')) add('mobility', fromBlock('mobility', used, 2), {}, WHY.mobility);
-      add('cooldown', fromBlock('cooldown', used, 1, (x) => !prof.noPatterns.includes(meta(x.name).pattern)), {}, WHY.cooldown);
+      if (growing) add('mobility', ['Hip flexor stretch', 'Strap hamstring stretch'].filter((n) => ok(n) && !used.has(n)), {}, WHY.growth);
+      const cd = matchedCooldown(kind, used, idx);
+      if (cd.length) add('cooldown', cd, {}, WHY.cooldownFor(kind));
+      else add('cooldown', fromBlock('cooldown', used, 1, (x) => !prof.noPatterns.includes(meta(x.name).pattern)), {}, WHY.cooldown);
       const name = kind === 'full' ? `Full body ${String.fromCharCode(64 + v)}` : kind === 'lower' ? `Lower body ${v}` : `Upper body ${v}`;
       return { day: DAY_LAYOUT[days][idx], plan: trimToTime(C.normalizePlan({ name, blocks }), minutes) };
     });
 
     // Jump and sprint volume stays within the limits for the athlete's age, level and phase.
     capVolume(sessions, lim);
+
+    // Recovery days on the off days that follow training, so recovery is part of the week (idea 15).
+    const trainDays = new Set(sessions.map((s) => s.day));
+    const recoveryDays = [];
+    if (days < 6) {
+      const want = days <= 3 ? 2 : 1;
+      const off = [0, 1, 2, 3, 4, 5, 6].filter((d) => !trainDays.has(d) && trainDays.has((d + 6) % 7));
+      off.sort((x, y) => (x === 6) - (y === 6));
+      off.slice(0, want).forEach((d, i) => recoveryDays.push({
+        day: d,
+        routine: growing ? 'growth' : i === 0 ? (lowerHeavy(sessions, d) ? 'post-lower' : 'restday') : 'flexibility',
+        why: i === 0 ? 'Day after training: easy movement and mobility so you recover faster.' : 'Longer flexibility session on a lighter day.',
+      }));
+      recoveryDays.sort((x, y) => x.day - y.day);
+    }
 
     const progression = goal === 'return'
       ? { pctPerWeek: 0, kgPerWeek: 1.13, rpePerWeek: 0.5, deloadEvery: 0 }
@@ -1180,6 +1249,8 @@
       wantsPlyo ? 'Jumps before lifting to train power.' : '',
       routineItems.length ? `Warm-ups include the ${(prof.routines || []).map((r) => P0 && P0.ROUTINES[r] && P0.ROUTINES[r].name).filter(Boolean).join(' and ')}.` : '',
       inSeason ? `In season: ${prof.inSeason.note}` : '',
+      'Each cool-down is matched to what was trained, and recovery days are planned between training days.',
+      growing ? 'Growth spurt: jump volume is about 30% lower and growth spurt mobility is added to each session.' : '',
       cycle ? 'Loads build within each block, with a lighter week at the end of long blocks.' : progression.deloadEvery ? `Loads build each week with a lighter deload every ${progression.deloadEvery}th week.` : '',
       avoid.length || restrictions.length ? 'Exercises that stress your limitations were left out.' : '',
       youth || exp === 'beginner' ? `Jumps stay under ${lim.jumpsPerSession} contacts a session and sprints under ${lim.sprintPerSession} m, with easier versions of advanced lifts.` : '',
@@ -1197,6 +1268,7 @@
       peakDate,
       equipment,
       sessions,
+      recoveryDays,
       source: 'generator',
       builtFor: { sport: sport.id, position: pos ? pos.id : '', experience: exp, ageGroup: lim.ageGroup, goal },
     });

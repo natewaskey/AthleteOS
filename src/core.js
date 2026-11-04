@@ -553,6 +553,10 @@
       restingHR: input.restingHR === '' || input.restingHR == null ? null : clamp(Math.round(Number(input.restingHR)), 25, 220),
       hrv: input.hrv === '' || input.hrv == null || !(Number(input.hrv) > 0) ? null : clamp(Math.round(Number(input.hrv)), 5, 300), // morning rMSSD, ms
       weight: input.weight === '' || input.weight == null ? null : Math.max(0, Number(input.weight)),
+      // Optional bed and wake times (HH:MM) for sleep consistency, and whether resting HR came from the camera estimate.
+      bed: /^\d{1,2}:\d{2}$/.test(input.bed || '') ? input.bed : '',
+      wake: /^\d{1,2}:\d{2}$/.test(input.wake || '') ? input.wake : '',
+      hrFromCamera: !!input.hrFromCamera && input.restingHR !== '' && input.restingHR != null,
     };
   }
 
@@ -735,7 +739,7 @@
       links: str(x.links, 300),
       achievements: str(x.achievements, 600),
       highlights: Array.isArray(x.highlights) ? x.highlights.map(String).slice(0, 6) : [],
-      show: { contact: x.show?.contact !== false, tests: x.show?.tests !== false, screen: x.show?.screen !== false, strength: x.show?.strength !== false },
+      show: { contact: x.show?.contact !== false, tests: x.show?.tests !== false, screen: x.show?.screen !== false, strength: x.show?.strength !== false, form: x.show?.form !== false, training: x.show?.training !== false },
     };
   }
 
@@ -781,6 +785,10 @@
       water: objList(input.water, 400).filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.date || '')),
       journal: objList(input.journal, 1000),
       mindSessions: objList(input.mindSessions, 2000),
+      // Recovery: logged recovery tools and routines, and an active tendon care plan (recovery.js).
+      recoveryLog: objList(input.recoveryLog, 3000),
+      tendonPlan: input.tendonPlan && typeof input.tendonPlan === 'object' && input.tendonPlan.id ? { id: String(input.tendonPlan.id), stage: Math.max(0, Math.min(2, Number(input.tendonPlan.stage) || 0)), start: /^\d{4}-\d{2}-\d{2}$/.test(input.tendonPlan.start || '') ? input.tendonPlan.start : '' } : null,
+      reviewSeen: String(input.reviewSeen || ''),
       routine: Array.isArray(input.routine) ? input.routine.map((x) => String(x).slice(0, 120)).filter(Boolean).slice(0, 12) : null,
       cueWords: String(input.cueWords || '').slice(0, 80),
       profile: normalizeProfile(input.profile),
@@ -1347,6 +1355,31 @@
 
   const SCHEMA_VERSION = 2;
 
+  /*
+   * Session note: a comment between coach and athlete on one workout, set, form check, recovery day or day.
+   * ref: { kind: 'workout'|'form'|'recovery'|'day', id, set } (set is 1-based, optional)
+   */
+  function normalizeNote(input) {
+    const ref = input.ref && typeof input.ref === 'object' ? input.ref : {};
+    return {
+      id: String(input.id || uid()),
+      athleteId: String(input.athleteId || ''),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(input.date || '') ? input.date : toISODate(new Date()),
+      ref: { kind: ['workout', 'form', 'recovery', 'day'].includes(ref.kind) ? ref.kind : 'day', id: ref.id ? String(ref.id) : null, set: Number(ref.set) > 0 ? Math.round(Number(ref.set)) : null },
+      from: input.from === 'coach' ? 'coach' : 'athlete',
+      author: String(input.author || '').slice(0, 60),
+      text: String(input.text || '').trim().slice(0, 1000),
+      ts: Number(input.ts) || Date.now(),
+      seen: !!input.seen,
+    };
+  }
+
+  // Team color must be a hex color; the logo is a small data URL image (under ~150 KB).
+  function normalizeBrand(b) {
+    const x = b && typeof b === 'object' ? b : {};
+    return { color: /^#[0-9a-f]{6}$/i.test(x.color || '') ? x.color.toLowerCase() : '', logo: /^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(x.logo || '') && x.logo.length < 200000 ? x.logo : '' };
+  }
+
   function emptyState() {
     return {
       version: SCHEMA_VERSION,
@@ -1372,6 +1405,8 @@
       events: [],
       challenges: [],
       nudges: [],
+      notes: [], // session notes between coach and athlete
+      brand: { color: '', logo: '' }, // team color and logo set by the coach
     };
   }
 
@@ -1607,6 +1642,8 @@
       events: objList(raw.events, 3000),
       challenges: objList(raw.challenges, 300),
       nudges: objList(raw.nudges, 500).map((n) => ({ id: String(n.id || uid()), from: String(n.from || ''), to: String(n.to || ''), text: String(n.text || '').slice(0, 140), ts: Number(n.ts) || 0, seen: !!n.seen })),
+      notes: (Array.isArray(raw.notes) ? raw.notes.map(normalizeNote) : []).filter((n) => ids.has(n.athleteId)).slice(-3000),
+      brand: normalizeBrand(raw.brand),
     };
   }
 
@@ -2118,6 +2155,8 @@
     latestCheckin,
     athleteStatus,
     normalizeMessage,
+    normalizeNote,
+    normalizeBrand,
     normalizeVideo,
     BLOCK_TYPES,
     MEASURES,

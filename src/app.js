@@ -15,6 +15,7 @@
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history', 'library'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['library', 'Exercises']] },
     { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
+    { id: 'recover', label: 'Recover', icon: 'battery', routes: ['recover'] },
     { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
@@ -25,7 +26,7 @@
     { id: 'team', label: 'Team', icon: 'users', routes: ['team', 'body'] },
     { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals', 'library'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals'], ['library', 'Exercises']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
-    { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
+    { id: 'health', label: 'Health', icon: 'shield', routes: ['health', 'recover'], sub: [['health', 'Injuries'], ['recover', 'Recovery']] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'] },
     { id: 'settings', label: 'Settings', icon: 'gear', routes: ['settings'] },
@@ -53,6 +54,7 @@
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
     mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/>',
+    battery: '<rect x="2.5" y="7" width="17" height="10" rx="2"/><path d="M22 10.5v3M6 10v4M9.5 10v4"/>',
   };
   const icon = (n, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || (window.Icons && window.Icons.paths[n]) || ''}</svg>`;
   const Form = window.FormUI;
@@ -434,6 +436,7 @@
         ${w.notes ? `<div class="meta" style="font-style:italic">${esc(w.notes)}</div>` : ''}
         ${vids.map((v) => `<button class="btn btn-sm video-chip" data-action="play-video" data-id="${v.id}">🎥 ${esc(v.name)}</button>${role() === 'athlete' ? `<button class="btn btn-sm video-chip" data-form-action="analyze-video" data-video-id="${v.id}">📐 Analyze form</button>` : ''}`).join('')}</div>
       <div class="side"><strong>${num(C.sessionLoad(w))}</strong><div class="meta">AU</div></div>
+      ${window.Notes ? `<div class="note-slot">${window.Notes.button('workout', w.id, athleteId || me().id)}</div>` : ''}
       ${actions || del ? `<div class="row" style="flex-wrap:nowrap">${actions ? `<button class="btn btn-sm btn-ghost" data-action="edit-workout" data-id="${w.id}">Edit</button>` : ''}<button class="btn btn-sm btn-ghost btn-danger" data-action="delete-workout" data-id="${w.id}" ${athleteId ? `data-athlete="${athleteId}"` : ''} aria-label="Delete ${esc(w.title)}" title="Delete">✕</button></div>` : ''}
     </li>`;
   }
@@ -594,7 +597,7 @@
         <span><strong>${ready ? ready.score : '–'}</strong><small>${ready ? '/100' : 'Check in'}</small></span></button>
       <div class="ready-spark">${sparkline(vals)}</div></div>
       <div class="tile-scale"><span>7-day</span><span>${esc(facts)}</span></div>
-      <div class="tile-foot">${Smart.riskChip(a)}</div>
+      <div class="tile-foot">${Smart.riskChip(a)}${window.RecoverUI ? RecoverUI.chip(a) : ''}</div>
     </section>`;
   }
 
@@ -772,6 +775,10 @@
       return Well.view(ui.id);
     },
 
+    recover() {
+      return window.RecoverUI ? RecoverUI.view(ui.id) : '';
+    },
+
     help() {
       return Help.view();
     },
@@ -840,6 +847,7 @@
     messages() {
       const a = me();
       return `<h1 class="page-title">Messages</h1>
+        ${window.Notes ? window.Notes.recentCard() : ''}
         <section class="card chat-card">
           <div class="chat-head"><div class="avatar coach">${esc(initials(coachName()))}</div>
             <div><strong>${esc(coachName())}</strong><div class="muted small">Your coach${coachCreds() ? ' · 🎓 ' + esc(coachCreds()) : ''}</div></div></div>
@@ -1172,6 +1180,10 @@
       return Health.coachView();
     },
 
+    recover() {
+      return window.RecoverUI ? RecoverUI.view() : '';
+    },
+
     form() {
       return ui.id ? Form.detailView(ui.id) : Form.listView();
     },
@@ -1204,6 +1216,7 @@
             <div class="thread"><p class="muted" style="margin:auto;text-align:center">Pick an athlete to open their thread, or send an announcement to everyone below.</p></div>
             ${composerHTML({ broadcast: true })}`;
       return `<h1 class="page-title">Messages</h1>
+        ${window.Notes ? window.Notes.recentCard() : ''}
         <section class="card inbox ${selected ? 'has-selection' : ''}">${listHTML}<div class="chat-pane">${pane}</div></section>`;
     },
 
@@ -1218,6 +1231,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${brandCard()}
           <section class="card span-6"><div class="card-head"><h3>Roster</h3></div>
             <ul class="list">${state.athletes
               .map(
@@ -1501,7 +1515,7 @@
 
   function badgeFor(sec, unread) {
     let n = 0;
-    if (sec.routes.includes('messages')) n += unread;
+    if (sec.routes.includes('messages')) n += unread + (window.Notes ? window.Notes.unseenCount() : 0);
     if (sec.routes.includes('form')) n += Form.unseenCount();
     if (sec.routes.includes('plan') && role() !== 'coach') n += Plan.dueCount();
     if (sec.routes.includes('approvals') && role() === 'coach') n += Staff.pendingCount();
@@ -1591,6 +1605,7 @@
   }
 
   function render() {
+    if (window.Theme) window.Theme.setBrand(state.brand);
     document.body.classList.toggle('pro', pro() && state.mode != null);
     if (state.mode == null) {
       renderChrome();
@@ -1675,15 +1690,31 @@
   }
 
   function prefsFields() {
-    const theme = document.documentElement.dataset.theme || 'system';
     // On a team the head coach sets Pro mode (in the prescribing policy card); solo athletes set it here.
     const proField = solo() ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="proMode" ${pro() ? 'checked' : ''}/> <span><strong>Pro mode</strong>: no badges, streaks, confetti, challenges or recruiting profile. Denser, data-first screens.</span></label>` : '';
     return `<div class="grid-2">${proField}
       <label>Units <select name="units">
         <option value="imperial" ${units() === 'imperial' ? 'selected' : ''}>Imperial (mi, lb, ft, yd)</option>
         <option value="metric" ${units() === 'metric' ? 'selected' : ''}>Metric (km, kg, m)</option></select></label>
-      <label>Theme <select name="theme">${['system', 'light', 'dark'].map((x) => `<option value="${x}" ${x === theme ? 'selected' : ''}>${cap(x)}</option>`).join('')}</select></label>
+      ${window.Theme ? window.Theme.fields(esc) : ''}
     </div>`;
+  }
+
+  // Team colors (idea 60): the coach picks the team color and logo; everyone on the team gets them.
+  function brandCard() {
+    const b = state.brand || { color: '', logo: '' };
+    const head = !activeStaff() || activeStaff().role === 'head';
+    return `<section class="card span-6"><div class="card-head"><h3>Team colors</h3>${b.color ? `<span class="pill" style="background:${esc(b.color)};color:${window.Theme ? window.Theme.inkFor(b.color) : '#fff'}">${esc(b.color)}</span>` : ''}</div>
+      <p class="muted" style="margin-top:0">Your team color becomes the accent color for every athlete on the team (unless they pick their own), and your logo shows next to the app name and on printed reports. Colors are adjusted automatically so text stays readable.</p>
+      <form id="brand-form">
+        <div class="grid-2">
+          <label>Team color <input type="color" name="color" value="${esc(b.color || '#ff5a1f')}" ${head ? '' : 'disabled'}/></label>
+          <label>Logo (PNG, JPG or SVG, under 150 KB) <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" ${head ? '' : 'disabled'}/></label>
+        </div>
+        <div class="brand-preview" style="--team:${esc(b.color || 'var(--accent)')}">${b.logo ? `<img src="${esc(b.logo)}" alt="Team logo"/>` : '<span class="muted small">No logo yet</span>'}<strong>${esc(state.team.name || 'Your team')}</strong><span class="chip">Button</span></div>
+        ${head ? `<div class="row" style="margin-top:.6rem"><button class="btn btn-primary" type="submit">Save team colors</button>${b.color || b.logo ? '<button class="btn btn-ghost" type="button" data-action="brand-clear">Remove</button>' : ''}</div>` : '<p class="hint">Only the head coach can change the team colors.</p>'}
+      </form>
+    </section>`;
   }
 
   function aiCard() {
@@ -1969,6 +2000,20 @@
     const devHrv = dev('hrv');
     cForm.hrv.value = src.hrv ?? (devHrv ? Math.round(devHrv.value) : '');
     cForm.note.value = src.note ?? '';
+    cForm.bed.value = src.bed || (prev && prev.bed) || '';
+    cForm.wake.value = src.wake || (prev && prev.wake) || '';
+    cForm.hrFromCamera.value = src.hrFromCamera ? '1' : '';
+    // Bed and wake times fill in the hours slept.
+    const fillSleep = () => {
+      const [bh, bm] = (cForm.bed.value || '').split(':').map(Number);
+      const [wh, wm] = (cForm.wake.value || '').split(':').map(Number);
+      if (![bh, bm, wh, wm].every(Number.isFinite)) return;
+      let mins = wh * 60 + wm - (bh * 60 + bm);
+      if (mins <= 0) mins += 1440;
+      if (mins >= 120 && mins <= 840) cForm.sleep.value = Math.round((mins / 60) * 4) / 4;
+    };
+    cForm.bed.onchange = fillSleep;
+    cForm.wake.onchange = fillSleep;
     cForm.hydration.value = src.hydration ?? 3;
     cForm.fuel.value = src.fuel ?? 3;
     $('#cycle-fields').hidden = !a.trackCycle;
@@ -1982,6 +2027,15 @@
   }
 
   cDialog.addEventListener('click', (e) => {
+    if (e.target.closest('[data-hr-camera]') && window.CameraHR && CameraHR.open) {
+      return CameraHR.open({
+        onResult: (r) => {
+          cForm.restingHR.value = r.bpm;
+          cForm.hrFromCamera.value = '1';
+          toast(`Resting HR ${r.bpm} bpm (camera estimate)${r.rmssd ? ` · rough HRV ${r.rmssd} ms` : ''}`);
+        },
+      });
+    }
     const area = e.target.closest('[data-area]');
     if (area) return cycleArea(area.dataset.area);
     const clear = e.target.closest('[data-clear-area]');
@@ -2007,6 +2061,7 @@
       period: cForm.period.checked,
       symptoms: new FormData(cForm).getAll('symptoms'),
       soreAreas: draftAreas,
+      hrFromCamera: cForm.hrFromCamera.value === '1',
       weight: readConverted(cForm.weight, (v) => C.displayToKg(v, units())),
     });
     a.checkins = a.checkins.filter((x) => x.date !== c.date).concat(c);
@@ -2157,6 +2212,12 @@
         return go('team');
       case 'weekly-report':
         return go('performance', 'report');
+      case 'brand-clear':
+        state.brand = C.normalizeBrand({});
+        save();
+        toast('Team colors removed');
+        render();
+        break;
       case 'clear-ai-key':
         window.AI.setKey('');
         toast('API key removed');
@@ -2284,6 +2345,20 @@
       Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, goalTarget: me().goalTarget && me().goalTarget.goal === d.focus ? me().goalTarget : null, autoAdapt: !!d.autoAdapt, level: C.LEVELS.includes(d.level) ? d.level : '', sex: ['male', 'female'].includes(d.sex) ? d.sex : '' });
       if (!solo()) me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
+    } else if (f.id === 'brand-form') {
+      e.preventDefault();
+      const file = f.logo && f.logo.files && f.logo.files[0];
+      const done = (logo) => {
+        state.brand = C.normalizeBrand({ color: f.color.value, logo: logo ?? (state.brand || {}).logo });
+        save();
+        toast('Team colors saved');
+        render();
+      };
+      if (!file) return done(null);
+      if (file.size > 150000) return toast('That logo is too big. Use one under 150 KB.');
+      const rd = new FileReader();
+      rd.onload = () => done(String(rd.result));
+      rd.readAsDataURL(file);
     } else if (f.id === 'coach-form') {
       e.preventDefault();
       const d = data();
@@ -2352,7 +2427,7 @@
     state.settings.units = C.unitSystem(d.units);
     if (solo()) state.settings.proMode = !!d.proMode;
     save();
-    applyTheme(d.theme);
+    applyTheme(d.theme, d.accent);
     toast('Saved');
     render();
   }
@@ -2579,19 +2654,12 @@
 
   // ---------- theme ----------
 
-  const THEME_KEY = 'athleteos:theme';
-
-  function applyTheme(theme) {
-    if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-    else delete document.documentElement.dataset.theme;
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-    } catch {}
+  // Display mode, accent and team colors live in src/theme.js.
+  function applyTheme(theme, accent) {
+    if (!window.Theme) return;
+    if (theme) window.Theme.setDisplay(theme);
+    if (accent) window.Theme.setAccent(accent);
   }
-
-  try {
-    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
-  } catch {}
 
   // ---------- boot ----------
 
@@ -2625,6 +2693,7 @@
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
   const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, storeVideo, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
+  if (window.Notes) Notes.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
   if (window.FeedbackUI) FeedbackUI.init(shared);
@@ -2636,6 +2705,7 @@
   if (window.Tours) window.Tours.init({ go });
   Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
+  if (window.RecoverUI) RecoverUI.init(shared);
   Chal.init(shared);
   Prof.init(shared);
   Summary.init(shared);

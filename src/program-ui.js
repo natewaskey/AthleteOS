@@ -75,7 +75,7 @@
                   <div class="muted small">${p.weeks} weeks · ${p.sessions.length}×/week · ${esc(P.PHASES[p.phase])}</div></div>
                 <span class="pill ${p.source === 'claude' ? 'info' : ''}">${p.source === 'claude' ? '✨ Claude' : p.source === 'generator' ? 'Built-in' : 'Manual'}</span></div>
               ${p.description ? `<p class="small" style="margin:.5rem 0 0">${esc(p.description.slice(0, 160))}${p.description.length > 160 ? '…' : ''}</p>` : ''}
-              <ol class="block-summary">${p.sessions.map((s) => `<li><strong>${DAY[s.day]}</strong> <span class="muted">${esc(s.plan.name)} · ${C.estimateMinutes(s.plan)} min</span></li>`).join('')}</ol>
+              <ol class="block-summary">${[...p.sessions.map((s) => ({ day: s.day, html: `<strong>${DAY[s.day]}</strong> <span class="muted">${esc(s.plan.name)} · ${C.estimateMinutes(s.plan)} min</span>` })), ...(p.recoveryDays || []).filter((r) => root.Recovery && root.Recovery.ROUTINES[r.routine]).map((r) => ({ day: r.day, html: `<strong>${DAY[r.day]}</strong> <span class="muted">Recovery: ${esc(root.Recovery.ROUTINES[r.routine].name.toLowerCase())} · ${root.Recovery.ROUTINES[r.routine].minutes} min</span>` }))].sort((x, y) => x.day - y.day).map((x) => `<li>${x.html}</li>`).join('')}</ol>
               <div class="row" style="margin-top:auto;padding-top:.6rem">
                 <button class="btn btn-sm btn-primary" data-prog-open="${p.id}">Open</button>
                 <div class="spacer"></div>
@@ -184,6 +184,8 @@
       age: ctx.role() === 'athlete' ? C.ageOn(ctx.me(), today()) : null,
       useData: fd.get('useData') === 'on',
       peakDate: String(fd.get('peakDate') || ''),
+      // Growth spurt (from the athlete's height log) lowers jump volume and adds mobility.
+      growthSpurt: ctx.role() === 'athlete' && root.Recovery ? !!(root.Recovery.growthCheck(ctx.me(), today()) || {}).active : false,
     };
   }
 

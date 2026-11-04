@@ -13,7 +13,7 @@
 
   const ALL = [];
   // X(name, block, defaults, pattern, equipment, demo, setup, cues, avoid, tags)
-  const X = (name, block, d, pattern, equip, demo, setup, cues, avoid, t = {}) => ALL.push({ name, block, d, pattern, equip, demo, setup, cues, avoid, f: t.f || [], g: t.g || [], pos: t.pos || [], lvl: t.lvl || 1, reg: t.reg || null, prog: t.prog || null, youth: !!t.youth });
+  const X = (name, block, d, pattern, equip, demo, setup, cues, avoid, t = {}) => ALL.push({ name, block, d, pattern, equip, demo, setup, cues, avoid, f: t.f || [], g: t.g || [], pos: t.pos || [], lvl: t.lvl || 1, reg: t.reg || null, prog: t.prog || null, youth: !!t.youth, area: t.area || null, kind: t.kind || null });
 
   const ROT = ['bat', 'racket', 'golf', 'combat', 'collision', 'field', 'ice'];
   const ARM = ['bat', 'racket', 'aquatic', 'court'];
@@ -530,6 +530,10 @@
   X('Skipping', 'warmup', { s: 2, a: 18.288 }, 'drill', [], 'skipping',
     'Open space.', ['Easy rhythmic skips', 'Opposite arm and knee', 'Land light'], 'Stomping.',
     { f: ['field', 'court', 'sprint'], g: ['general'], lvl: 1, youth: true });
+
+  // ---------- mobility, recovery, breathing and prevention (exercises-recovery.js) ----------
+  const REC = (typeof module !== 'undefined' && module.exports ? require('./exercises-recovery.js') : root.ExercisesRecovery) || null;
+  if (REC) REC.add(X);
 
   // ---------- links and tags for the original 122 ----------
   // Easier (reg) and harder (prog) versions.

@@ -250,6 +250,7 @@
           <label class="inline-select">Exercise <select data-form-field="exercise">${Object.entries(M.EXERCISES).map(([k, x]) => `<option value="${k}" ${k === an.exercise ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>
           <label class="inline-select">Camera <select data-form-field="view">${['auto', 'side', 'front'].map((v) => `<option value="${v}" ${v === an.view ? 'selected' : ''}>${v === 'auto' ? 'Auto-detect' : v === 'side' ? 'Side-on' : 'Front-on'}</option>`).join('')}</select></label>
           ${!coach && !solo() && !an.sharedWithCoach ? '<button class="btn btn-primary" data-form-action="share">Send to coach</button>' : ''}
+          ${root.Notes ? root.Notes.button('form', an.id, an.athleteId) : ''}
           ${root.Accuracy ? '<button class="btn btn-ghost" data-form-action="export-poses" title="Download the tracked movement to grade each check, for testing the form checker’s accuracy">⬇ Pose data</button>' : ''}
           ${!coach ? '<button class="btn btn-ghost btn-danger" data-form-action="delete">Delete</button>' : ''}
         </div>
@@ -1365,7 +1366,13 @@
     const how = root.HowTo && root.HowTo.forForm(an.exercise);
     const ED = root.ExerciseDemo;
     const model = how && ED && ED.DEMOS[how.demo] && ED.DEMOS[how.demo].view !== 'top' ? how.demo : null;
-    const st = { mode: 'rep', layout: 'side', speed: 1, t0: performance.now(), raf: 0, view: null };
+    const st = { mode: 'rep', layout: 'side', speed: 1, t0: performance.now(), raf: 0, view: null, heat: {} };
+    // Ideal vs you (idea 46): the model is matched to your rep by position (same depth, same half of the rep),
+    // so you compare like with like, and joints more than 15° off the model light up.
+    const DC = root.DemoChecks;
+    const repPs = [];
+    for (let i = range.rep[0]; i <= range.rep[1]; i++) repPs.push(poseAt(i));
+    const cmp = model && DC ? DC.compare(repPs, model) : null;
     root.Dialogs.html(
       `<h2 id="app-dialog-title"><span class="cube" aria-hidden="true"></span> ${esc(exInfo(an.exercise).label)} in 3D</h2>
       <div class="demo-stage"><canvas class="demo-canvas v3d-canvas replay3d" data-replay3d role="img" aria-label="3D replay of your rep. Drag to turn it."></canvas>
@@ -1377,7 +1384,8 @@
         ${model ? `<div class="segmented" role="group" aria-label="Model"><button type="button" data-replay-layout="side" aria-pressed="true">Beside</button><button type="button" data-replay-layout="overlay" aria-pressed="false">Overlay</button><button type="button" data-replay-layout="off" aria-pressed="false">Off</button></div>` : ''}
         <div class="segmented" role="group" aria-label="Speed"><button type="button" data-replay-speed="0.5">0.5×</button><button type="button" data-replay-speed="1" aria-pressed="true">1×</button></div>
       </div>
-      <p class="hint" style="margin:.4rem 0 0">Depth is estimated from a single camera, so turn it to look at the shape, not exact millimetres. The model rep is lined up to start and finish with yours.</p>
+      ${cmp ? `<div class="vs-panel"><div class="small"><strong>You vs the model at the bottom</strong></div>${cmp.bottom.length ? `<ul class="vs-list">${cmp.bottom.map((d) => `<li><span class="vs-gap num">${d.diff > 0 ? '+' : ''}${d.diff}°</span> ${esc(d.text)}</li>`).join('')}</ul>` : '<p class="small" style="margin:.25rem 0 0">✓ Your angles at the bottom are within a few degrees of the model.</p>'}<p class="small muted" data-vs-now style="margin:.25rem 0 0"></p></div>` : ''}
+      <p class="hint" style="margin:.4rem 0 0">Depth is estimated from a single camera, so turn it to look at the shape, not exact millimetres. ${cmp ? 'The model follows your rep position by position, lined up at the hips; joints more than 15° off the model glow red.' : 'The model rep is lined up to start and finish with yours.'}</p>
       <div class="dialog-actions"><button type="button" class="btn btn-primary" data-dlg-cancel>Close</button></div>`,
       { wide: true }
     ).then(() => {
@@ -1387,7 +1395,7 @@
     const dlg = root.Dialogs.el();
     const cv = $('[data-replay3d]', dlg);
     cv.style.height = `${Math.round(Math.min(460, Math.max(280, innerHeight * 0.5)))}px`;
-    st.view = D3.viewer(cv);
+    st.view = D3.viewer(cv, { heat: st.heat });
     st.view.frameTo([0, 0.55, 0], 1.1);
     st.view.orbit.dist = 3.2;
     const fps = data.fps || (frames.length > 1 ? 1 / Math.max(1e-3, frames[1].t - frames[0].t) : 30);
@@ -1424,13 +1432,26 @@
       const tt = (((now - st.t0) / 1000) * st.speed) % dur;
       const u = Math.min(1, tt / Math.max(0.6, n / fps));
       const i = Math.min(b, a + Math.floor(u * (n - 1)));
-      const s = D3.skeleton(poseAt(i));
+      const you = poseAt(i);
+      const s = D3.skeleton(you);
+      for (const k of Object.keys(st.heat)) delete st.heat[k];
+      const matched = cmp && st.mode === 'rep' && i - a < cmp.u.length;
+      if (matched && st.layout !== 'off') {
+        const gaps = cmp.at(i - a).filter((d) => d.joint !== 'trunk' && Math.abs(d.diff) > 15);
+        for (const d of gaps) st.heat[d.joint] = 1;
+        const now = $('[data-vs-now]', dlg);
+        const txt = gaps.length ? `Right now: ${[...new Map(gaps.map((d) => [d.joint.replace(/[AB]$/, ''), d])).entries()].slice(0, 2).map(([k, d]) => `${k} ${d.diff > 0 ? '+' : ''}${d.diff}°`).join(', ')} vs the model` : 'Right now: close to the model';
+        if (now && now.textContent !== txt) now.textContent = txt;
+      }
       if (model && st.layout !== 'off') {
-        const f = ED.frame(model, u * ED.DEMOS[model].sec);
+        const f = ED.frame(model, (matched ? cmp.u[i - a] : u) * ED.DEMOS[model].sec);
         const m = D3.build(f);
         if (m) {
           const dz = st.layout === 'side' ? -0.75 : 0;
-          const move = (p) => [p[0], p[1], p[2] + dz];
+          // Overlay: model hips on your hips.
+          const hx = st.layout === 'overlay' && you.hip ? you.hip[0] - m.P.hip[0] : 0;
+          const hz = st.layout === 'overlay' && you.hip ? you.hip[2] - m.P.hip[2] : 0;
+          const move = (p) => [p[0] + hx, p[1], p[2] + dz + hz];
           for (const g of m.segs) s.prims.push({ kind: 'cyl', a: move(g.a), b: move(g.b), r: g.r * 0.92, tone: 'ghost' });
           if (m.head.c) s.prims.push({ kind: 'sph', c: move(m.head.c), r: m.head.r, tone: 'ghost' });
         }
