@@ -1228,6 +1228,7 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${brandCard()}
           <section class="card span-6"><div class="card-head"><h3>Roster</h3></div>
             <ul class="list">${state.athletes
               .map(
@@ -1601,6 +1602,7 @@
   }
 
   function render() {
+    if (window.Theme) window.Theme.setBrand(state.brand);
     document.body.classList.toggle('pro', pro() && state.mode != null);
     if (state.mode == null) {
       renderChrome();
@@ -1685,15 +1687,31 @@
   }
 
   function prefsFields() {
-    const theme = document.documentElement.dataset.theme || 'system';
     // On a team the head coach sets Pro mode (in the prescribing policy card); solo athletes set it here.
     const proField = solo() ? `<label class="check" style="grid-column:1/-1"><input type="checkbox" name="proMode" ${pro() ? 'checked' : ''}/> <span><strong>Pro mode</strong>: no badges, streaks, confetti, challenges or recruiting profile. Denser, data-first screens.</span></label>` : '';
     return `<div class="grid-2">${proField}
       <label>Units <select name="units">
         <option value="imperial" ${units() === 'imperial' ? 'selected' : ''}>Imperial (mi, lb, ft, yd)</option>
         <option value="metric" ${units() === 'metric' ? 'selected' : ''}>Metric (km, kg, m)</option></select></label>
-      <label>Theme <select name="theme">${['system', 'light', 'dark'].map((x) => `<option value="${x}" ${x === theme ? 'selected' : ''}>${cap(x)}</option>`).join('')}</select></label>
+      ${window.Theme ? window.Theme.fields(esc) : ''}
     </div>`;
+  }
+
+  // Team colors (idea 60): the coach picks the team color and logo; everyone on the team gets them.
+  function brandCard() {
+    const b = state.brand || { color: '', logo: '' };
+    const head = !activeStaff() || activeStaff().role === 'head';
+    return `<section class="card span-6"><div class="card-head"><h3>Team colors</h3>${b.color ? `<span class="pill" style="background:${esc(b.color)};color:${window.Theme ? window.Theme.inkFor(b.color) : '#fff'}">${esc(b.color)}</span>` : ''}</div>
+      <p class="muted" style="margin-top:0">Your team color becomes the accent color for every athlete on the team (unless they pick their own), and your logo shows next to the app name and on printed reports. Colors are adjusted automatically so text stays readable.</p>
+      <form id="brand-form">
+        <div class="grid-2">
+          <label>Team color <input type="color" name="color" value="${esc(b.color || '#ff5a1f')}" ${head ? '' : 'disabled'}/></label>
+          <label>Logo (PNG, JPG or SVG, under 150 KB) <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" ${head ? '' : 'disabled'}/></label>
+        </div>
+        <div class="brand-preview" style="--team:${esc(b.color || 'var(--accent)')}">${b.logo ? `<img src="${esc(b.logo)}" alt="Team logo"/>` : '<span class="muted small">No logo yet</span>'}<strong>${esc(state.team.name || 'Your team')}</strong><span class="chip">Button</span></div>
+        ${head ? `<div class="row" style="margin-top:.6rem"><button class="btn btn-primary" type="submit">Save team colors</button>${b.color || b.logo ? '<button class="btn btn-ghost" type="button" data-action="brand-clear">Remove</button>' : ''}</div>` : '<p class="hint">Only the head coach can change the team colors.</p>'}
+      </form>
+    </section>`;
   }
 
   function aiCard() {
@@ -2191,6 +2209,12 @@
         return go('team');
       case 'weekly-report':
         return go('performance', 'report');
+      case 'brand-clear':
+        state.brand = C.normalizeBrand({});
+        save();
+        toast('Team colors removed');
+        render();
+        break;
       case 'clear-ai-key':
         window.AI.setKey('');
         toast('API key removed');
@@ -2318,6 +2342,20 @@
       Object.assign(me(), { name: d.name.trim(), sport: d.sport, position: d.position.trim(), trackCycle: !!d.trackCycle, birthdate: d.birthdate || '', focus: SM.FOCUS[d.focus] ? d.focus : null, goalTarget: me().goalTarget && me().goalTarget.goal === d.focus ? me().goalTarget : null, autoAdapt: !!d.autoAdapt, level: C.LEVELS.includes(d.level) ? d.level : '', sex: ['male', 'female'].includes(d.sex) ? d.sex : '' });
       if (!solo()) me().privacy = { shareNotes: !!d.shareNotes, shareCycle: !!d.shareCycle, autoShareForm: !!d.autoShareForm };
       savePrefs(d);
+    } else if (f.id === 'brand-form') {
+      e.preventDefault();
+      const file = f.logo && f.logo.files && f.logo.files[0];
+      const done = (logo) => {
+        state.brand = C.normalizeBrand({ color: f.color.value, logo: logo ?? (state.brand || {}).logo });
+        save();
+        toast('Team colors saved');
+        render();
+      };
+      if (!file) return done(null);
+      if (file.size > 150000) return toast('That logo is too big. Use one under 150 KB.');
+      const rd = new FileReader();
+      rd.onload = () => done(String(rd.result));
+      rd.readAsDataURL(file);
     } else if (f.id === 'coach-form') {
       e.preventDefault();
       const d = data();
@@ -2386,7 +2424,7 @@
     state.settings.units = C.unitSystem(d.units);
     if (solo()) state.settings.proMode = !!d.proMode;
     save();
-    applyTheme(d.theme);
+    applyTheme(d.theme, d.accent);
     toast('Saved');
     render();
   }
@@ -2613,19 +2651,12 @@
 
   // ---------- theme ----------
 
-  const THEME_KEY = 'athleteos:theme';
-
-  function applyTheme(theme) {
-    if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
-    else delete document.documentElement.dataset.theme;
-    try {
-      localStorage.setItem(THEME_KEY, theme);
-    } catch {}
+  // Display mode, accent and team colors live in src/theme.js.
+  function applyTheme(theme, accent) {
+    if (!window.Theme) return;
+    if (theme) window.Theme.setDisplay(theme);
+    if (accent) window.Theme.setAccent(accent);
   }
-
-  try {
-    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
-  } catch {}
 
   // ---------- boot ----------
 
