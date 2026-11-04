@@ -739,7 +739,7 @@
       links: str(x.links, 300),
       achievements: str(x.achievements, 600),
       highlights: Array.isArray(x.highlights) ? x.highlights.map(String).slice(0, 6) : [],
-      show: { contact: x.show?.contact !== false, tests: x.show?.tests !== false, screen: x.show?.screen !== false, strength: x.show?.strength !== false },
+      show: { contact: x.show?.contact !== false, tests: x.show?.tests !== false, screen: x.show?.screen !== false, strength: x.show?.strength !== false, form: x.show?.form !== false, training: x.show?.training !== false },
     };
   }
 

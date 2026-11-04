@@ -3157,3 +3157,6 @@ polyline.rom-left, polyline.rom-right { fill: none; }
 .notes-card { margin-bottom: 1rem; }
 .rec-score .card-head .note-btn { margin-left: auto; }
 .note p, .note-meta { font-style: normal; }
+.profile-logo { width: 56px; height: 56px; object-fit: contain; margin-left: auto; }
+.profile-hero[style*='--team'] { border-bottom: 3px solid var(--team); padding-bottom: 0.75rem; }
+.profile-hero[style*='--team'] .avatar { background: var(--team); color: #fff; }

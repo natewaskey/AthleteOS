@@ -42,6 +42,33 @@
     const scr = root.Screen && root.Screen.latest(a).last;
     const screen = scr ? root.Screen.summarize(scr, { units: ctx.units() }) : null;
     const kg = weightKg(a);
+    // Measured by the phone camera (jumps, reactive strength, bar speed): the best in the last 6 months.
+    const since = C.addDays(today(), -183);
+    const camBest = (key) => (a.metrics || []).filter((m) => m.key === key && m.source === 'camera' && m.date >= since && Number(m.value) > 0).reduce((x, y) => (!x || y.value > x.value ? y : x), null);
+    const camera = [];
+    const cmj = camBest('cmj');
+    if (cmj) camera.push({ name: 'Vertical jump (countermovement)', value: imperial() ? `${(cmj.value / 2.54).toFixed(1)} in` : `${cmj.value.toFixed(1)} cm`, date: cmj.date });
+    const rsi = camBest('rsi');
+    if (rsi) camera.push({ name: 'Reactive strength (drop jump RSI)', value: rsi.value.toFixed(2), date: rsi.date });
+    const vbt = camBest('vbt');
+    if (vbt) camera.push({ name: `Bar speed${vbt.extra && vbt.extra.exercise ? ' · ' + vbt.extra.exercise : ''}`, value: `${vbt.value.toFixed(2)} m/s`, date: vbt.date });
+    // Form-check scores: best per exercise in the last 6 months.
+    const M = root.Movement;
+    const best = {};
+    for (const an of ctx.state().analyses || []) {
+      if (an.athleteId !== a.id || an.score == null) continue;
+      const d = an.date || (an.createdAt ? C.toISODate(new Date(an.createdAt)) : today());
+      if (d < since) continue;
+      if (!best[an.exercise] || an.score > best[an.exercise].score) best[an.exercise] = { score: an.score, date: d };
+    }
+    const form = Object.entries(best).map(([ex, v]) => ({ name: M && M.EXERCISES && M.EXERCISES[ex] ? M.EXERCISES[ex].label : ex, score: v.score, date: v.date })).sort((x, y) => y.score - x.score).slice(0, 4);
+    // Training consistency over the last 12 weeks.
+    const w12 = a.workouts.filter((w) => w.date >= C.addDays(today(), -84) && w.date <= today());
+    const weeks = new Set(w12.map((w) => Math.floor(C.daysBetween(w.date, today()) / 7)));
+    // Only count the weeks since the athlete started logging, so a new account isn't diluted.
+    const first = a.workouts.reduce((m, w) => (w.date < m ? w.date : m), today());
+    const span = Math.max(1, Math.min(12, Math.ceil((C.daysBetween(first, today()) + 1) / 7)));
+    const training = w12.length ? { perWeek: (w12.length / span).toFixed(1), weeks: weeks.size, span, sessions: w12.length } : null;
     return {
       name: a.name || 'Athlete',
       sport: C.sportInfo(a.sport).label,
@@ -52,6 +79,10 @@
       tests: p.show.tests ? tests : [],
       strength: p.show.strength ? strength : [],
       screen: p.show.screen && screen ? { score: `${screen.total}/${screen.max}`, band: screen.bandLabel, date: scr.date } : null,
+      camera: p.show.tests ? camera : [],
+      form: p.show.form ? form : [],
+      training: p.show.training ? training : null,
+      brand: ctx.state().mode === 'team' ? ctx.state().brand || null : null,
       team: ctx.state().team.name,
       coach: ctx.state().mode === 'team' ? ctx.state().coach.name : '',
     };
@@ -63,16 +94,20 @@
     const vids = ctx.state().videos.filter((v) => v.athleteId === a.id && p.highlights.includes(v.id));
     const facts = [['Class of', p.gradYear], ['Height', d.height], ['Weight', d.weight], ['GPA', p.gpa], ['Jersey', p.jersey ? '#' + p.jersey : '']].filter(([, v]) => v);
     return `<article class="card profile-page" id="profile-page">
-      <header class="profile-hero">
+      <header class="profile-hero" ${d.brand && d.brand.color ? `style="--team:${esc(d.brand.color)}"` : ''}>
         <div class="avatar xl">${esc(initials(d.name))}</div>
         <div><h2 style="margin:0">${esc(d.name)}</h2>
           <div class="muted">${esc(d.sport)}${d.position ? ' · ' + esc(d.position) : ''}${p.school ? ' · ' + esc(p.school) : ''}${p.city ? ' · ' + esc(p.city) : ''}</div>
           ${facts.length ? `<div class="profile-facts">${facts.map(([k, v]) => `<span><small>${k}</small><strong>${esc(v)}</strong></span>`).join('')}</div>` : ''}</div>
+        ${d.brand && d.brand.logo ? `<img class="profile-logo" src="${esc(d.brand.logo)}" alt="${esc(d.team || 'Team')} logo"/>` : ''}
       </header>
       ${p.bio ? `<p class="profile-bio">${esc(p.bio)}</p>` : ''}
       <div class="profile-grid">
         ${d.tests.length ? `<section><h3>Athletic testing</h3><table class="table"><tbody>${d.tests.map((t) => `<tr><td>${esc(t.name)}</td><td class="num"><strong>${esc(t.value)}</strong></td><td class="small">${t.verified ? '<span class="pill good" title="Entered by a coach on testing day">✓ Coach-verified</span>' : '<span class="muted">self-reported</span>'}</td></tr>`).join('')}</tbody></table></section>` : ''}
         ${d.strength.length ? `<section><h3>Strength (est. 1-rep max)</h3><table class="table"><tbody>${d.strength.map((s) => `<tr><td>${esc(s.name)}</td><td class="num"><strong>${esc(s.value)}</strong></td></tr>`).join('')}</tbody></table></section>` : ''}
+        ${d.camera.length ? `<section><h3>Measured by camera</h3><table class="table"><tbody>${d.camera.map((t) => `<tr><td>${esc(t.name)}</td><td class="num"><strong>${esc(t.value)}</strong></td><td class="small"><span class="pill info" title="Measured from 60 fps video in Motiq on ${esc(t.date)}">📷 Video-measured</span></td></tr>`).join('')}</tbody></table></section>` : ''}
+        ${d.form.length ? `<section><h3>Movement quality</h3><table class="table"><tbody>${d.form.map((f) => `<tr><td>${esc(f.name)}</td><td class="num"><strong>${f.score}</strong><span class="muted small">/100</span></td></tr>`).join('')}</tbody></table><p class="muted small" style="margin:.25rem 0 0">Best form-check score from video in the last 6 months.</p></section>` : ''}
+        ${d.training ? `<section><h3>Training consistency</h3><p style="margin:.25rem 0"><strong style="font-size:1.4rem">${esc(d.training.perWeek)}</strong> sessions a week</p><p class="muted small" style="margin:0">${d.training.sessions} sessions logged, trained in ${Math.min(d.training.weeks, d.training.span)} of the last ${d.training.span} weeks.</p></section>` : ''}
         ${d.screen ? `<section><h3>Movement screen</h3><p style="margin:.25rem 0"><strong style="font-size:1.4rem">${esc(d.screen.score)}</strong> · ${esc(d.screen.band)}</p><p class="muted small" style="margin:0">Mobility, balance and strength baseline, ${esc(ctx.fmtDate(d.screen.date, { month: 'short', year: 'numeric' }))}</p></section>` : ''}
         ${p.achievements ? `<section><h3>Achievements</h3><ul>${p.achievements.split('\n').filter(Boolean).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></section>` : ''}
       </div>
@@ -104,7 +139,7 @@
         <div class="grid-2"><label>Email <input type="email" name="email" maxlength="120" value="${esc(p.email)}"/></label><label>Phone <input name="phone" maxlength="30" value="${esc(p.phone)}"/></label></div>
         ${vids.length ? `<fieldset><legend>Highlight videos</legend>${vids.map((v) => `<label class="check"><input type="checkbox" name="highlights" value="${v.id}" ${p.highlights.includes(v.id) ? 'checked' : ''}/> ${esc(v.caption || v.name)}</label>`).join('')}</fieldset>` : '<p class="hint">Upload videos in a workout or message to add highlights here.</p>'}
         <fieldset><legend>Show on profile</legend><div class="row">
-          ${[['tests', 'Test results'], ['strength', 'Strength numbers'], ['screen', 'Movement screen'], ['contact', 'Contact info']].map(([k, v]) => `<label class="check"><input type="checkbox" name="show_${k}" ${p.show[k] ? 'checked' : ''}/> ${v}</label>`).join('')}</div></fieldset>
+          ${[['tests', 'Test results'], ['strength', 'Strength numbers'], ['form', 'Form-check scores'], ['training', 'Training consistency'], ['screen', 'Movement screen'], ['contact', 'Contact info']].map(([k, v]) => `<label class="check"><input type="checkbox" name="show_${k}" ${p.show[k] ? 'checked' : ''}/> ${v}</label>`).join('')}</div></fieldset>
         ${ctx.state().mode !== 'solo' && C.ageOn(a, today()) != null && C.ageOn(a, today()) < 18 ? '<p class="hint">You’re under 18: check with a parent or guardian before sharing contact details.</p>' : ''}
         <div class="row"><button class="btn btn-primary" type="submit">Save profile</button><button class="btn btn-ghost" type="button" data-profile="cancel">Cancel</button></div>
       </form></section>`;
@@ -134,6 +169,9 @@
     if (facts.length) L.push(facts.join(' · '));
     if (p.bio) L.push('', p.bio);
     if (d.tests.length) L.push('', 'Testing:', ...d.tests.map((t) => `- ${t.name}: ${t.value}${t.verified ? ' (coach-verified)' : ''}`));
+    if (d.camera.length) L.push('', 'Measured by camera (60 fps video):', ...d.camera.map((t) => `- ${t.name}: ${t.value}`));
+    if (d.form.length) L.push('', 'Movement quality (form-check score /100):', ...d.form.map((f) => `- ${f.name}: ${f.score}`));
+    if (d.training) L.push('', `Training: ${d.training.perWeek} sessions a week over the last ${d.training.span} weeks`);
     if (d.strength.length) L.push('', 'Strength (est. 1RM):', ...d.strength.map((s) => `- ${s.name}: ${s.value}`));
     if (d.screen) L.push('', `Movement screen: ${d.screen.score} (${d.screen.band})`);
     if (p.achievements) L.push('', 'Achievements:', ...p.achievements.split('\n').filter(Boolean).map((x) => `- ${x}`));
@@ -149,12 +187,13 @@
     node.innerHTML = preview(a);
     node.querySelectorAll('video').forEach((v) => v.replaceWith(Object.assign(document.createElement('div'), { className: 'vid', textContent: '🎥 Highlight video (ask for the link)' })));
     const d = data(a);
+    const tc = (d.brand && d.brand.color) || '#ff5a1f';
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(d.name)} · ${esc(d.sport)} recruiting profile</title>
 <style>body{font:16px/1.5 system-ui,-apple-system,sans-serif;margin:0;background:#f4f5f7;color:#111}.profile-page{max-width:820px;margin:24px auto;background:#fff;border-radius:18px;padding:28px;box-shadow:0 4px 24px rgba(0,0,0,.06)}
-.profile-hero{display:flex;gap:18px;align-items:center}.avatar{width:76px;height:76px;border-radius:50%;background:#ff5a1f;color:#fff;display:grid;place-items:center;font-weight:800;font-size:28px;flex:none}
+.profile-hero{display:flex;gap:18px;align-items:center}.avatar{width:76px;height:76px;border-radius:50%;background:${tc};color:#fff;display:grid;place-items:center;font-weight:800;font-size:28px;flex:none}
 .muted{color:#667}.small{font-size:13px}.profile-facts{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px}.profile-facts span{display:flex;flex-direction:column}.profile-facts small{color:#667;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
 .profile-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#667;margin:18px 0 6px}table{width:100%;border-collapse:collapse}td{padding:6px 4px;border-bottom:1px solid #eee}.num{text-align:right}
-.pill{background:#e7f6ee;color:#1f9d55;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:600}.vid{padding:10px;background:#f4f5f7;border-radius:10px;margin:4px 0}ul.plain{list-style:none;padding:0}a{color:#ff5a1f}footer{margin-top:24px}</style></head><body>${node.innerHTML}</body></html>`;
+.pill{background:#e7f6ee;color:#1f9d55;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:600}.vid{padding:10px;background:#f4f5f7;border-radius:10px;margin:4px 0}ul.plain{list-style:none;padding:0}a{color:${tc}}footer{margin-top:24px}.profile-logo{width:64px;height:64px;object-fit:contain;margin-left:auto}.pill.info{background:#e8f2fd;color:#1f6fd1}.profile-hero{border-bottom:4px solid ${tc};padding-bottom:14px}@media print{body{background:#fff}.profile-page{box-shadow:none;margin:0;max-width:none}}</style></head><body>${node.innerHTML}</body></html>`;
   }
 
   function download(a) {
@@ -205,7 +244,7 @@
     const a = ctx.me();
     a.profile = C.normalizeProfile({
       ...a.profile, gradYear: d.gradYear, heightCm: cm, school: d.school, city: d.city, bio: d.bio, email: d.email, phone: d.phone, gpa: d.gpa, jersey: d.jersey, links: d.links, achievements: d.achievements,
-      highlights: fd.getAll('highlights'), show: { tests: !!d.show_tests, strength: !!d.show_strength, screen: !!d.show_screen, contact: !!d.show_contact },
+      highlights: fd.getAll('highlights'), show: { tests: !!d.show_tests, strength: !!d.show_strength, form: !!d.show_form, training: !!d.show_training, screen: !!d.show_screen, contact: !!d.show_contact },
     });
     editing = false;
     ctx.save();
