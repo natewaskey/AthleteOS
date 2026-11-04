@@ -3195,3 +3195,20 @@ polyline.rom-left, polyline.rom-right { fill: none; }
 .rep-timeline td { white-space: nowrap; }
 .review-queue { margin-bottom: 1rem; }
 .banner.danger { border-color: var(--bad); }
+
+/* Motiq 1.0 coach and team tools */
+.cc-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--line, rgba(127,127,127,.2)); margin: .25rem 0 .5rem; }
+.cc-bar i { display: block; height: 100%; }
+.cc-bar i.good { background: var(--good); }
+.cc-bar i.warn { background: var(--warn); }
+.cc-bar i.none { background: rgba(127,127,127,.35); }
+.cc-legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; color: var(--muted); }
+.cc-legend b { color: var(--text, inherit); }
+.cc-todo { list-style: none; margin: .75rem 0 0; padding: 0; display: grid; gap: .25rem; }
+.cc-todo li { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: center; padding: .45rem .5rem; border-radius: 8px; }
+.cc-todo li:hover { background: rgba(127,127,127,.08); }
+.announce-card { margin-bottom: 1rem; }
+.announce-card textarea { width: 100%; }
+.announce-list .tally { display: grid; gap: .25rem; margin-top: .4rem; }
+.announce-list .band-bar { grid-template-columns: minmax(4rem, 8rem) 1fr 2rem minmax(0, 8rem); }
+.announce-banner .main { display: flex; flex-direction: column; }

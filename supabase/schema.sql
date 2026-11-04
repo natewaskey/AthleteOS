@@ -385,3 +385,62 @@ create table if not exists public.error_reports (
 alter table public.error_reports enable row level security;
 drop policy if exists "add own error report" on public.error_reports;
 create policy "add own error report" on public.error_reports for insert to authenticated with check (user_id = auth.uid());
+
+-- ---------- Motiq 1.0: schools and clubs (idea 26) ----------
+-- An athletic director or club admin sees every linked team, as totals only (never athlete records).
+create table if not exists public.orgs (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default '',
+  admin_code text unique not null default upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 8)), -- coaches link a team with this
+  created_by uuid references auth.users on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.org_admins (
+  org_id uuid not null references public.orgs on delete cascade,
+  user_id uuid not null references auth.users on delete cascade,
+  primary key (org_id, user_id)
+);
+alter table public.teams add column if not exists org_id uuid references public.orgs on delete set null;
+alter table public.orgs enable row level security;
+alter table public.org_admins enable row level security;
+drop policy if exists orgs_read on public.orgs;
+create policy orgs_read on public.orgs for select using (exists (select 1 from public.org_admins a where a.org_id = id and a.user_id = auth.uid()));
+drop policy if exists org_admins_read on public.org_admins;
+create policy org_admins_read on public.org_admins for select using (user_id = auth.uid());
+
+-- Creates a school or club with the caller as admin; links the caller's coached team if given. Returns the code.
+create or replace function public.create_org(org_name text, t uuid default null) returns text language plpgsql security definer set search_path = public as $$
+declare o public.orgs;
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  insert into orgs (name) values (left(coalesce(org_name, ''), 80)) returning * into o;
+  insert into org_admins (org_id, user_id) values (o.id, auth.uid());
+  if t is not null and my_role(t) = 'coach' then update teams set org_id = o.id where id = t; end if;
+  if t is null then update teams set org_id = o.id where id in (select team_id from team_members where user_id = auth.uid() and role = 'coach') and org_id is null; end if;
+  return o.admin_code;
+end $$;
+
+-- A team's coach links the team to a school or club with its code.
+create or replace function public.link_team_to_org(code text, t uuid) returns void language plpgsql security definer set search_path = public as $$
+declare o uuid;
+begin
+  if my_role(t) is distinct from 'coach' then raise exception 'Only a coach of this team can link it'; end if;
+  select id into o from orgs where admin_code = upper(code);
+  if o is null then raise exception 'Unknown code'; end if;
+  update teams set org_id = o where id = t;
+end $$;
+
+-- Per-team totals for each org the caller runs. Aggregates only: no names, no athlete data.
+create or replace function public.org_overview() returns table (org_id uuid, org_name text, admin_code text, teams jsonb) language sql stable security definer set search_path = public as $$
+  select o.id, o.name, o.admin_code, coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'team_name', tm.name,
+      'athletes', (select count(*) from records r where r.team_id = tm.id and r.coll = 'athletes' and not r.deleted),
+      'coaches', (select count(*) from team_members m where m.team_id = tm.id and m.role = 'coach'),
+      'checkins_7d', (select count(*) from records r, jsonb_array_elements(coalesce(r.data->'checkins', '[]'::jsonb)) c where r.team_id = tm.id and r.coll = 'athletes' and not r.deleted and c->>'date' >= to_char(current_date - 7, 'YYYY-MM-DD')),
+      'workouts_7d', (select count(*) from records r, jsonb_array_elements(coalesce(r.data->'workouts', '[]'::jsonb)) w where r.team_id = tm.id and r.coll = 'athletes' and not r.deleted and w->>'date' >= to_char(current_date - 7, 'YYYY-MM-DD')),
+      'last_active', (select max(r.updated_at) from records r where r.team_id = tm.id)
+    ) order by tm.name) from teams tm where tm.org_id = o.id), '[]'::jsonb)
+  from orgs o join org_admins a on a.org_id = o.id and a.user_id = auth.uid()
+$$;
+grant execute on function public.create_org(text, uuid), public.link_team_to_org(text, uuid), public.org_overview() to authenticated;

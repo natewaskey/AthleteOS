@@ -266,7 +266,9 @@
       notes: String(input.notes || '').trim(),
       avgHr: Number(input.avgHr) > 0 ? Math.round(Number(input.avgHr)) : null,
       maxHr: Number(input.maxHr) > 0 ? Math.round(Number(input.maxHr)) : null,
-      source: ['gpx', 'tcx', 'whoop', 'garmin', 'oura', 'polar'].includes(input.source) ? input.source : null,
+      source: ['gpx', 'tcx', 'whoop', 'garmin', 'oura', 'polar', 'calendar'].includes(input.source) ? input.source : null,
+      ...(input.eventId ? { eventId: String(input.eventId).slice(0, 80) } : {}), // practice or game it was counted from (team-plus.js)
+      ...(input.edited ? { edited: true } : {}), // changed by hand, so automatic updates leave it alone
       ...(input.externalId ? { externalId: String(input.externalId).slice(0, 120) } : {}), // id at the device brand, for synced workouts
     };
   }

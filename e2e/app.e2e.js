@@ -180,6 +180,46 @@ test('form checker: review queue, rep timeline, printable report, fast mode sett
   await context.close();
 });
 
+async function asRole(page, role) {
+  await page.evaluate((r) => {
+    const s = JSON.parse(localStorage.getItem('athleteos:v1'));
+    s.session.role = r;
+    localStorage.setItem('athleteos:v1', JSON.stringify(s));
+  }, role);
+  await page.reload();
+  await page.waitForTimeout(300);
+}
+
+test('coach tools: today card, reports, exports, announcements answered by an athlete', async () => {
+  const { context, page, errors } = await fresh();
+  await demoTeam(page);
+  await asRole(page, 'coach');
+  await visit(page, 'team');
+  assert.ok(await page.locator('.command-center').count(), 'Today card on the coach home');
+  const reports = await visit(page, 'reports');
+  assert.match(reports, /Testing report/);
+  assert.match(reports, /Speed profiles/);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-teamplus=csv][data-kind=roster]')]);
+  assert.match(dl.suggestedFilename(), /roster.*\.csv$/);
+  const [popup] = await Promise.all([context.waitForEvent('page'), page.click('[data-teamplus=team-pdf]')]);
+  await popup.waitForLoadState();
+  assert.match(await popup.content(), /Team report/);
+  await popup.close();
+  await visit(page, 'messages');
+  await page.fill('#announce-form [name=text]', 'Are you coming Saturday?');
+  await page.fill('#announce-form [name=options]', 'Yes\nNo');
+  await page.click('#announce-form [type=submit]');
+  assert.match(await text(page), /0 of \d+ answered/);
+  await asRole(page, 'athlete');
+  await visit(page, 'today');
+  await page.click('[data-teamplus=answer][data-choice="0"]');
+  const answers = await page.evaluate(() => JSON.parse(localStorage.getItem('athleteos:v1')).announcements.filter((x) => x.kind === 'answer').length);
+  assert.strictEqual(answers, 1);
+  assert.match(await visit(page, 'speed'), /Speed profile/);
+  assert.deepStrictEqual(errors, []);
+  await context.close();
+});
+
 test('works on a phone-sized screen', async () => {
   const { context, page, errors } = await fresh({ viewport: { width: 390, height: 844 } });
   await demoTeam(page);
