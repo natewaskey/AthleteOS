@@ -3099,3 +3099,18 @@ polyline.rom-left, polyline.rom-right { fill: none; }
   .rp-stage .rp-canvas { height: 210px; }
   .rec-big strong { font-size: 2.3rem; }
 }
+
+/* ---------- Demo player: study controls (v0.3) ---------- */
+.demo-tag { position: absolute; right: 0.75rem; top: 1.3rem; font: 600 0.72rem var(--font-mono, ui-monospace, monospace); color: var(--accent); letter-spacing: 0.03em; pointer-events: none; text-transform: uppercase; }
+.demo-tag:empty { display: none; }
+.demo-scrub { display: flex; align-items: center; gap: 0.35rem; margin: 0.5rem 0 0.25rem; }
+.demo-scrub input[type='range'] { flex: 1; accent-color: var(--accent); min-width: 0; }
+.demo-study { flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.chip-toggle { border: 1px solid var(--border-strong, var(--border)); background: transparent; color: var(--muted); border-radius: 999px; padding: 0.3rem 0.7rem; font: inherit; font-size: 0.8rem; cursor: pointer; }
+.chip-toggle[aria-pressed='true'] { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.chip-toggle[aria-pressed='true']::before { content: '✓ '; color: var(--accent); }
+.demo-read { min-height: 1.3em; margin: 0.5rem 0 0; font-variant-numeric: tabular-nums; }
+.demo-scrub .btn { font-size: 1.2rem; line-height: 1; padding: 0.2rem 0.6rem; }
+.vs-panel { margin-top: 0.6rem; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.vs-list { list-style: none; margin: 0.35rem 0 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.85rem; }
+.vs-gap { display: inline-block; min-width: 3.2rem; color: var(--accent); font-weight: 700; }

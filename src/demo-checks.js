@@ -50,6 +50,7 @@
       if (J['elbow' + s]) m['elbow' + s] = ang(J['sh' + s], J['elbow' + s], J['wrist' + s]);
       if (J['elbow' + s] && J.hip) m['shoulder' + s] = ang(J.hip, J['sh' + s], J['elbow' + s]);
       if (J['heel' + s]) m['heel' + s] = Math.round(J['heel' + s][1] * 100) / 100;
+      if (J['heel' + s] && J['toe' + s]) m['heelUp' + s] = Math.round((J['heel' + s][1] - J['toe' + s][1]) * 100) / 100;
     }
     // Trunk lean from vertical (0 = upright, 90 = flat).
     if (J.neck && J.hip) {
@@ -228,7 +229,211 @@
     return worst;
   }
 
-  const DemoChecks = { metrics, keyFrames, check, anatomy, kneeHyper, SPECS, ang };
+  /*
+   * Real timing (idea 41): lifts are lowered under control, pause briefly at the bottom and come up faster.
+   * The loop is re-timed from how the reference point (hips, or hands on presses and pulls) moves:
+   * lowering takes 1.6× as long, lifting 0.75×, and the bottom holds for a short pause.
+   *   timing(id) -> { seconds, at(t) -> loop time to draw, toT(u) -> player time for a loop position, phase(u) }
+   * Moves with little up-and-down travel (runs, carries, stretches) keep their normal timing.
+   */
+  const TIMING = {};
+  function timing(id) {
+    if (TIMING[id]) return TIMING[id];
+    const E = ED();
+    const spec = E.DEMOS[id];
+    const N = 96;
+    const sec = spec ? spec.sec : 1;
+    const plain = { seconds: sec, real: false, at: (t) => t, toT: (u) => u * sec, phase: () => 'move' };
+    if (!spec || spec.view === 'top') return (TIMING[id] = plain);
+    // The point that travels most (hips on squats, hands on presses, head on pull-ups and hinges).
+    const fr = [];
+    for (let i = 0; i <= N; i++) fr.push(E.frame(id, (i / N) * sec).joints);
+    let y = [];
+    let range = 0;
+    for (const r of ['hip', 'neck', 'wrist']) {
+      const ys = fr.map((J) => REF[r](J));
+      const rg = Math.max(...ys) - Math.min(...ys);
+      if (rg > range) (range = rg), (y = ys);
+    }
+    if (range < 0.05 || /run|jog|sprint|walk|skip|carry|hop|bound|jump|breath|stretch/.test(id) || id.startsWith('r-')) return (TIMING[id] = plain);
+    const lo = y.indexOf(Math.min(...y));
+    const w = [];
+    for (let i = 0; i < N; i++) {
+      const dy = (y[i + 1] - y[i]) / range;
+      w.push(dy < -0.004 ? 1.6 : dy > 0.004 ? 0.75 : 1);
+    }
+    const pause = 0.08 * N; // extra weight at the bottom
+    const T = [0];
+    for (let i = 0; i < N; i++) T.push(T[i] + w[i] + (i === lo ? pause : 0));
+    const total = T[N];
+    const seconds = Math.round(sec * (total / N) * 100) / 100;
+    const scale = seconds / total;
+    // player time -> loop position
+    const uAt = (t) => {
+      let k = ((t / scale) % total + total) % total;
+      let i = 0;
+      while (i < N - 1 && T[i + 1] <= k) i++;
+      const extra = i === lo ? pause : 0;
+      const span = T[i + 1] - T[i];
+      const into = Math.max(0, k - T[i] - (i === lo ? extra / 2 : 0));
+      const f = Math.min(1, into / Math.max(1e-9, span - extra));
+      return (i + f) / N;
+    };
+    const phase = (u) => {
+      const i = Math.min(N - 1, Math.floor(u * N));
+      if (Math.abs(i - lo) <= 1) return 'bottom';
+      return w[i] > 1 ? 'lower' : w[i] < 1 ? 'lift' : 'top';
+    };
+    return (TIMING[id] = {
+      seconds,
+      real: true,
+      at: (t) => uAt(t) * sec,
+      toT: (u) => T[Math.min(N, Math.round(u * N))] * scale,
+      phase,
+    });
+  }
+
+  /*
+   * Working muscles (idea 43): the joints that move most over the rep do the work. Their segments are
+   * highlighted, brightest while lifting.
+   *   muscles(id) -> { parts: { thighA: 0-1, ... }, names: ['Quads', ...], effort(u) 0-1 }
+   */
+  const MUS = {};
+  function muscles(id) {
+    if (MUS[id]) return MUS[id];
+    const E = ED();
+    const spec = E.DEMOS[id];
+    if (!spec || spec.view === 'top') return (MUS[id] = { parts: {}, names: [], effort: () => 0 });
+    const N = 16;
+    const ms = [];
+    for (let i = 0; i < N; i++) ms.push(metrics(E.frame(id, (i / N) * spec.sec)));
+    const rom = (k) => {
+      const v = ms.map((m) => m[k]).filter((x) => Number.isFinite(x));
+      return v.length ? Math.max(...v) - Math.min(...v) : 0;
+    };
+    const parts = {};
+    const names = [];
+    const put = (p, v) => (parts[p] = Math.max(parts[p] || 0, Math.min(1, v)));
+    let quads = false;
+    for (const s of ['A', 'B']) {
+      const k = rom('knee' + s);
+      const h = rom('hip' + s);
+      const e = rom('elbow' + s);
+      const sh = rom('shoulder' + s);
+      const heel = rom('heelUp' + s);
+      if (k > 25) (put('thigh' + s, k / 90), (quads = true));
+      if (h > 25) (put('glute' + s, h / 90), put('thigh' + s, (h / 90) * 0.7));
+      if (heel > 0.03) put('shin' + s, 1);
+      if (e > 25) put('ua' + s, e / 90);
+      if (sh > 40) put('chest', sh / 120);
+      if (e > 25 || sh > 40) put('fa' + s, 0.4);
+    }
+    // What the movement name says, where the angles alone can't tell (the chest works on a bench press even
+    // though the shoulder angle barely changes; straight-leg hinges are hamstrings, not quads).
+    if (/bench|press|pushup|dip/.test(id) && (parts.uaA || parts.uaB)) put('chest', 1);
+    if (/pull|row|chin|pulldown/.test(id)) put('chest', 1);
+    if (/rdl|good-morning|hinge|ham/.test(id)) (quads = false);
+    const glutes = parts.gluteA || parts.gluteB;
+    if (rom('trunk') > 20 && !(parts.uaA || parts.uaB)) put('core', rom('trunk') / 60);
+    if (quads) names.push('Quads');
+    if (glutes) names.push('Glutes and hamstrings');
+    if (parts.shinA || parts.shinB) names.push('Calves');
+    if (parts.uaA || parts.uaB) names.push(/pull|row|chin|curl/.test(id) ? 'Biceps and forearms' : 'Triceps');
+    if (parts.chest) names.push(/pull|row|chin|pulldown/.test(id) ? 'Back and lats' : 'Chest and shoulders');
+    if (parts.core) names.push(glutes ? 'Lower back and core' : 'Core');
+    const tm = timing(id);
+    const effort = (u) => (!tm.real ? 0.6 : tm.phase(u) === 'lift' ? 1 : tm.phase(u) === 'lower' ? 0.55 : tm.phase(u) === 'bottom' ? 0.7 : 0.25);
+    return (MUS[id] = { parts, names, effort });
+  }
+
+  /*
+   * Ideal vs you (idea 46): line the model rep up with the athlete's rep by position, not by clock. Each of
+   * the athlete's frames is matched to the model frame at the same depth on the same half of the rep (going
+   * down or coming up), then the joint angles are compared.
+   *   compare(Ps, id) -> { u: [model loop position per athlete frame], at(i) -> [{ joint, you, model, diff }],
+   *                        bottom: [{ joint, label, you, model, diff, text }] (biggest gaps first) }
+   *   Ps: the athlete's 3D joints per frame (Demo3D names: hip, neck, kneeA, ...).
+   */
+  const JOINT_LABEL = { knee: 'Knee', hip: 'Hip', elbow: 'Elbow', trunk: 'Trunk lean' };
+  function anglesOf(J) {
+    const out = {};
+    for (const s of ['A', 'B']) {
+      if (J['knee' + s] && J['hip' + s] && J['ankle' + s]) out['knee' + s] = ang(J['hip' + s], J['knee' + s], J['ankle' + s]);
+      if (J['knee' + s] && J.neck && J['hip' + s]) out['hip' + s] = ang(J.neck, J['hip' + s], J['knee' + s]);
+      if (J['elbow' + s] && J['sh' + s] && J['wrist' + s]) out['elbow' + s] = ang(J['sh' + s], J['elbow' + s], J['wrist' + s]);
+    }
+    if (J.neck && J.hip) {
+      const t = sub3(J.neck, J.hip);
+      out.trunk = Math.round(deg(Math.atan2(Math.hypot(t[0], t[2]), t[1])));
+    }
+    return out;
+  }
+  function compare(Ps, id) {
+    const E = ED();
+    const spec = E.DEMOS[id];
+    if (!spec || !Ps || !Ps.length) return null;
+    const refName = (SPECS[id] && SPECS[id].ref) || 'hip';
+    const ref = (J) => (J.wristA && refName === 'wrist' ? (J.wristA[1] + (J.wristB || J.wristA)[1]) / 2 : refName === 'neck' && J.neck ? J.neck[1] : J.hip[1]);
+    const N = 96;
+    const model = [];
+    for (let k = 0; k < N; k++) {
+      const f = E.frame(id, (k / N) * spec.sec);
+      const b = D3() ? D3().build(f) : null;
+      const P = b ? b.P : f.joints;
+      model.push({ u: k / N, P, y: ref(P) });
+    }
+    const norm = (arr) => {
+      const lo = Math.min(...arr);
+      const hi = Math.max(...arr);
+      return arr.map((v) => (hi - lo > 1e-6 ? (v - lo) / (hi - lo) : 0.5));
+    };
+    const my = norm(model.map((m) => m.y));
+    const mLo = my.indexOf(Math.min(...my));
+    const ay = norm(Ps.map(ref));
+    const aLo = ay.indexOf(Math.min(...ay));
+    // Model halves: from the top down to the bottom, and back up (the loop may start anywhere).
+    const down = [];
+    const upHalf = [];
+    for (let k = 0; k < N; k++) {
+      const prev = my[(k - 1 + N) % N];
+      (my[k] <= prev || k === mLo ? down : upHalf).push(k);
+    }
+    const u = Ps.map((P, i) => {
+      const pool = i <= aLo ? down : upHalf;
+      let best = pool[0] ?? mLo;
+      for (const k of pool) if (Math.abs(my[k] - ay[i]) < Math.abs(my[best] - ay[i])) best = k;
+      return model[best].u;
+    });
+    const mAt = (uu) => model[Math.round(uu * N) % N].P;
+    const diffs = (A, B) => {
+      const a = anglesOf(A);
+      const b = anglesOf(B);
+      const out = [];
+      for (const k of Object.keys(a)) if (b[k] != null) out.push({ joint: k, you: a[k], model: b[k], diff: a[k] - b[k] });
+      return out.sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
+    };
+    const at = (i) => diffs(Ps[Math.max(0, Math.min(Ps.length - 1, i))], mAt(u[Math.max(0, Math.min(Ps.length - 1, i))]));
+    // At the bottom: one line per joint type (the side with the bigger gap).
+    const seen = new Set();
+    const bottom = [];
+    for (const d of diffs(Ps[aLo], model[mLo].P)) {
+      const kind = d.joint.replace(/[AB]$/, '');
+      if (seen.has(kind) || Math.abs(d.diff) < 8) continue;
+      if (kind === 'trunk' && d.you > 60 && d.model > 60) continue; // lying or plank positions: lean says little
+      seen.add(kind);
+      const more = d.diff > 0;
+      const text =
+        kind === 'trunk'
+          ? `${more ? 'More' : 'Less'} forward lean than the model (${d.you}° vs ${d.model}°)`
+          : kind === 'knee' || kind === 'hip' || kind === 'elbow'
+            ? `${JOINT_LABEL[kind]} ${d.you}° vs ${d.model}°: ${more ? (kind === 'elbow' ? 'not bending as far' : 'not as deep') : 'bending further'} than the model`
+            : '';
+      bottom.push({ ...d, label: JOINT_LABEL[kind], text });
+    }
+    return { u, at, bottom: bottom.slice(0, 3), modelBottom: model[mLo].u, youBottom: aLo };
+  }
+
+  const DemoChecks = { metrics, keyFrames, check, anatomy, kneeHyper, timing, muscles, compare, anglesOf, SPECS, ang };
   if (node) module.exports = DemoChecks;
   else root.DemoChecks = DemoChecks;
 })(typeof window !== 'undefined' ? window : globalThis);

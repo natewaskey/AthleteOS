@@ -15,15 +15,21 @@
   const ED = () => (typeof module !== 'undefined' && module.exports ? require('./exercise-demo.js') : root.ExerciseDemo);
   const HIP = 0.085, SH = 0.17, FOOT = 0.1;
   const BONES = [
-    ['hip', 'neck', 0.075, 'trunk'],
-    ['hipA', 'hipB', 0.055, 'trunk'],
-    ['shA', 'shB', 0.05, 'trunk'],
-    ['neck', 'head', 0.032, 'trunk'],
-    ['hipA', 'kneeA', 0.052, 'A'], ['kneeA', 'ankleA', 0.042, 'A'], ['heelA', 'toeA', 0.03, 'A'],
-    ['hipB', 'kneeB', 0.052, 'B'], ['kneeB', 'ankleB', 0.042, 'B'], ['heelB', 'toeB', 0.03, 'B'],
-    ['shA', 'elbowA', 0.036, 'A'], ['elbowA', 'wristA', 0.03, 'A'],
-    ['shB', 'elbowB', 0.036, 'B'], ['elbowB', 'wristB', 0.03, 'B'],
+    ['hip', 'neck', 0.075, 'trunk', 'core'],
+    ['hipA', 'hipB', 0.055, 'trunk', 'pelvis'],
+    ['shA', 'shB', 0.05, 'trunk', 'chest'],
+    ['neck', 'head', 0.032, 'trunk', 'neck'],
+    ['hipA', 'kneeA', 0.052, 'A', 'thighA'], ['kneeA', 'ankleA', 0.042, 'A', 'shinA'], ['heelA', 'toeA', 0.03, 'A', 'footA'],
+    ['hipB', 'kneeB', 0.052, 'B', 'thighB'], ['kneeB', 'ankleB', 0.042, 'B', 'shinB'], ['heelB', 'toeB', 0.03, 'B', 'footB'],
+    ['shA', 'elbowA', 0.036, 'A', 'uaA'], ['elbowA', 'wristA', 0.03, 'A', 'faA'],
+    ['shB', 'elbowB', 0.036, 'B', 'uaB'], ['elbowB', 'wristB', 0.03, 'B', 'faB'],
   ];
+  /*
+   * Muscle-shaped figure (idea 43): each limb tapers from its top joint and carries a muscle belly
+   * [where along the bone 0-1, belly length as a share of the bone, belly thickness × bone radius].
+   */
+  const BELLY = { thigh: [0.42, 0.62, 1.45], shin: [0.3, 0.48, 1.3], ua: [0.5, 0.62, 1.35], fa: [0.3, 0.5, 1.2] };
+  const TAPER = { thigh: 0.72, shin: 0.62, ua: 0.78, fa: 0.7 };
   const JOINTS = ['kneeA', 'kneeB', 'elbowA', 'elbowB', 'ankleA', 'ankleB', 'wristA', 'wristB', 'shA', 'shB', 'hipA', 'hipB'];
   const d2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   const depth = (len, a, b) => Math.sqrt(Math.max(0, len * len - d2(a, b) * d2(a, b)));
@@ -272,7 +278,7 @@
       }
     }
     const segs = [];
-    for (const [a, b, r, tone] of BONES) if (P[a] && P[b]) segs.push({ a: P[a], b: P[b], r, tone });
+    for (const [a, b, r, tone, part] of BONES) if (P[a] && P[b]) segs.push({ a: P[a], b: P[b], r, tone, part });
     const balls = JOINTS.filter((k) => P[k]).map((k) => ({ name: k, c: P[k], r: /^(knee|elbow|sh|hip)/.test(k) ? 0.045 : 0.035, tone: /B$/.test(k) ? 'B' : 'A' }));
     const prims = [];
     for (const pr of f.props || []) prims.push(...propPrims(pr, f.view, P));
@@ -403,7 +409,7 @@
     };
 
     // A 3D viewer on a canvas. view.show(scene) draws one built scene; the caller drives time.
-    function viewer(canvas, { auto = false, heat = null } = {}) {
+    function viewer(canvas, { auto = false, heat = null, figure = false } = {}) {
       const T = THREE;
       const renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -445,10 +451,10 @@
       scene.add(shadow);
 
       const mat = (color, o = {}) => new T.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.1, ...o });
-      const M = { A: mat(ice), B: mat(iceFar), trunk: mat(ice), w: mat(accent, { emissive: accent, emissiveIntensity: 0.15 }), k: mat(kit, { roughness: 0.7 }), g: mat(band), f: mat(fx, { roughness: 1 }), water: mat(new T.Color('#3b8fd8'), { transparent: true, opacity: 0.22, depthWrite: false }), glass: mat(kit, { transparent: true, opacity: 0.32, depthWrite: false }), lvl1: mat(new T.Color(cssVar('--mild', '#e7b416')), { emissive: new T.Color(cssVar('--mild', '#e7b416')), emissiveIntensity: 0.6 }), lvl2: mat(new T.Color(cssVar('--sore', '#f07c1f')), { emissive: new T.Color(cssVar('--sore', '#f07c1f')), emissiveIntensity: 0.7 }), lvl3: mat(new T.Color(cssVar('--pain', '#d63a3a')), { emissive: new T.Color(cssVar('--pain', '#d63a3a')), emissiveIntensity: 0.9 }), ring: mat(new T.Color('#ffffff'), { transparent: true, opacity: 0.25, depthWrite: false }), ghost: mat(new T.Color(cssVar('--cyan', '#22d3ee')), { transparent: true, opacity: 0.35, depthWrite: false, emissive: new T.Color(cssVar('--cyan', '#22d3ee')), emissiveIntensity: 0.4 }), heat: mat(new T.Color('#ff3b3b'), { emissive: new T.Color('#ff2a2a'), emissiveIntensity: 0.8 }) };
-      const G = { cyl: new T.CylinderGeometry(1, 1, 1, 18, 1), sph: new T.SphereGeometry(1, 24, 16), box: new T.BoxGeometry(1, 1, 1), cone: new T.ConeGeometry(1, 1, 18) };
-      const pools = { cyl: [], sph: [], box: [], cone: [] };
-      const used = { cyl: 0, sph: 0, box: 0, cone: 0 };
+      const M = { A: mat(ice), B: mat(iceFar), trunk: mat(ice), w: mat(accent, { emissive: accent, emissiveIntensity: 0.15 }), k: mat(kit, { roughness: 0.7 }), g: mat(band), f: mat(fx, { roughness: 1 }), water: mat(new T.Color('#3b8fd8'), { transparent: true, opacity: 0.22, depthWrite: false }), glass: mat(kit, { transparent: true, opacity: 0.32, depthWrite: false }), lvl1: mat(new T.Color(cssVar('--mild', '#e7b416')), { emissive: new T.Color(cssVar('--mild', '#e7b416')), emissiveIntensity: 0.6 }), lvl2: mat(new T.Color(cssVar('--sore', '#f07c1f')), { emissive: new T.Color(cssVar('--sore', '#f07c1f')), emissiveIntensity: 0.7 }), lvl3: mat(new T.Color(cssVar('--pain', '#d63a3a')), { emissive: new T.Color(cssVar('--pain', '#d63a3a')), emissiveIntensity: 0.9 }), ring: mat(new T.Color('#ffffff'), { transparent: true, opacity: 0.25, depthWrite: false }), ghost: mat(new T.Color(cssVar('--cyan', '#22d3ee')), { transparent: true, opacity: 0.35, depthWrite: false, emissive: new T.Color(cssVar('--cyan', '#22d3ee')), emissiveIntensity: 0.4 }), heat: mat(new T.Color('#ff3b3b'), { emissive: new T.Color('#ff2a2a'), emissiveIntensity: 0.8 }), work: mat(accent, { emissive: accent, emissiveIntensity: 0.4, roughness: 0.35 }) };
+      const G = { cyl: new T.CylinderGeometry(1, 1, 1, 18, 1), tap: new T.CylinderGeometry(0.7, 1, 1, 18, 1), sph: new T.SphereGeometry(1, 24, 16), box: new T.BoxGeometry(1, 1, 1), cone: new T.ConeGeometry(1, 1, 18) };
+      const pools = { cyl: [], tap: [], sph: [], box: [], cone: [] };
+      const used = { cyl: 0, tap: 0, sph: 0, box: 0, cone: 0 };
       function take(kind, material) {
         let m = pools[kind][used[kind]];
         if (!m) {
@@ -480,6 +486,46 @@
         m.position.set(...c);
         m.scale.setScalar(r);
         m.quaternion.identity();
+      }
+      // Muscle-shaped limb: tapered from the top joint, with a belly along the bone.
+      const mx = new T.Matrix4(), ax = new T.Vector3(), ay = new T.Vector3(), az = new T.Vector3();
+      function limb(g, material, bellyMat) {
+        const kind = g.part.replace(/[AB]$/, '');
+        const tp = TAPER[kind];
+        va.set(...g.a);
+        vb.set(...g.b);
+        dirv.subVectors(vb, va);
+        const len = dirv.length();
+        if (len < 1e-6) return;
+        const m = take('tap', material);
+        m.position.addVectors(va, vb).multiplyScalar(0.5);
+        m.scale.set(g.r, len, g.r);
+        dirv.normalize();
+        m.quaternion.setFromUnitVectors(up, dirv);
+        ball(g.a, g.r, material);
+        ball(g.b, g.r * tp, material);
+        const [at, share, thick] = BELLY[kind];
+        const b = take('sph', bellyMat);
+        b.position.copy(va).addScaledVector(dirv, len * at);
+        b.scale.set(g.r * thick, (len * share) / 2, g.r * thick);
+        b.quaternion.setFromUnitVectors(up, dirv);
+      }
+      // Ellipsoid on the trunk: y along hip -> neck, z along the shoulder (or hip) line.
+      function trunkShape(P, at, side, s3, material) {
+        ay.set(P.neck[0] - P.hip[0], P.neck[1] - P.hip[1], P.neck[2] - P.hip[2]);
+        const tl = ay.length();
+        if (tl < 1e-6 || !P[side + 'A'] || !P[side + 'B']) return;
+        ay.normalize();
+        az.set(P[side + 'A'][0] - P[side + 'B'][0], P[side + 'A'][1] - P[side + 'B'][1], P[side + 'A'][2] - P[side + 'B'][2]);
+        az.addScaledVector(ay, -az.dot(ay));
+        if (az.lengthSq() < 1e-9) az.set(0, 0, 1);
+        az.normalize();
+        ax.crossVectors(ay, az);
+        mx.makeBasis(ax, ay, az);
+        const m = take('sph', material);
+        m.position.set(P.hip[0] + (P.neck[0] - P.hip[0]) * at, P.hip[1] + (P.neck[1] - P.hip[1]) * at, P.hip[2] + (P.neck[2] - P.hip[2]) * at);
+        m.scale.set(s3[0], s3[1] * (tl / 0.29), s3[2]);
+        m.quaternion.setFromRotationMatrix(mx);
       }
 
       // camera: orbit around a target
@@ -550,7 +596,19 @@
         for (const k of Object.keys(used)) used[k] = 0;
         if (s) {
           const hot = heat || {};
-          for (const g of s.segs) capsule(g.a, g.b, g.r, g.tone === 'trunk' ? M.trunk : M[g.tone] || M.A);
+          const work = s.work || {};
+          const wm = (part, base) => (work[part] >= 0.3 ? M.work : base);
+          M.work.emissiveIntensity = 0.12 + 0.75 * (s.effort ?? 0.5);
+          if (figure && s.P.neck && s.P.hip) {
+            for (const g of s.segs) {
+              const base = g.tone === 'trunk' ? M.trunk : M[g.tone] || M.A;
+              if (g.part && TAPER[g.part.replace(/[AB]$/, '')]) limb(g, base, wm(g.part, base));
+              else if (g.part === 'core') capsule(g.a, g.b, g.r * 0.95, wm('core', base));
+              else capsule(g.a, g.b, g.r, base);
+            }
+            trunkShape(s.P, 0.72, 'sh', [0.085, 0.12, 0.15], wm('chest', M.trunk));
+            trunkShape(s.P, 0.06, 'hip', [0.085, 0.085, 0.13], work.gluteA >= 0.3 || work.gluteB >= 0.3 ? M.work : M.trunk);
+          } else for (const g of s.segs) capsule(g.a, g.b, g.r, g.tone === 'trunk' ? M.trunk : M[g.tone] || M.A);
           for (const b of s.balls) ball(b.c, b.r, hot[b.name] ? M.heat : M[b.tone] || M.A);
           if (s.head && s.head.c) ball(s.head.c, s.head.r, M.trunk);
           for (const p of s.prims) {

@@ -53,3 +53,34 @@ test('true 3D skeleton: bones keep their length in depth, demo depths are honour
   const lifted = D3.lift(ED.frame('lateral-lunge', 1).joints, 'front', { head: 0.1 });
   assert.equal(lifted.head[0], 0.1);
 });
+
+test('real timing, both sides, muscles and ideal-vs-you matching', () => {
+  const E = require('../src/exercise-demo.js');
+  const C = require('../src/demo-checks.js');
+  const D = require('../src/demo3d.js');
+  // Real timing: lowering is slower than lifting, and the loop maps back onto itself.
+  const t = C.timing('back-squat');
+  assert.ok(t.real && t.seconds > E.DEMOS['back-squat'].sec * 0.9);
+  for (const x of [0, 0.7, 1.9, t.seconds - 0.01]) assert.ok(t.at(x) >= 0 && t.at(x) < E.DEMOS['back-squat'].sec + 1e-9);
+  assert.equal(C.timing('easy-run').real, false);
+  // Both sides: one-sided moves are found, two-sided and alternating ones are not.
+  assert.equal(E.sided('reverse-lunge'), true);
+  assert.equal(E.sided('back-squat'), false);
+  assert.equal(E.sided('easy-run'), false);
+  const f = E.frame('reverse-lunge', 1.2);
+  const m = E.mirror(f);
+  assert.deepEqual(m.joints.kneeB, f.joints.kneeA);
+  // Muscles.
+  assert.ok(C.muscles('back-squat').names.includes('Quads'));
+  assert.ok(C.muscles('pullup').names.includes('Back and lats'));
+  assert.ok(!C.muscles('rdl').names.includes('Quads'));
+  // Ideal vs you: the model's own rep matches itself.
+  const kf = C.keyFrames('back-squat', 'hip');
+  const sec = E.DEMOS['back-squat'].sec;
+  const Ps = [];
+  for (let i = 0; i < 40; i++) Ps.push(D.build(E.frame('back-squat', ((kf.top.u + i / 40) % 1) * sec)).P);
+  const r = C.compare(Ps, 'back-squat');
+  assert.equal(r.u.length, 40);
+  for (let i = 0; i < 40; i++) assert.ok(Math.abs(r.at(i)[0].diff) <= 6, `frame ${i}`);
+  assert.equal(r.bottom.length, 0);
+});

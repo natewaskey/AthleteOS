@@ -2846,7 +2846,124 @@
   const LINKS_B = [['toeB', 'heelB'], ['heelB', 'ankleB'], ['ankleB', 'toeB'], ['ankleB', 'kneeB'], ['kneeB', 'hipB'], ['neck', 'shB'], ['shB', 'elbowB'], ['elbowB', 'wristB']];
   VIEW_LINKS.front = [...VIEW_LINKS.side, ...LINKS_B, ['hipA', 'hipB']];
 
+  /*
+   * Planted feet (idea 39): a foot that is on the floor stays exactly where it landed. Small slides left over from
+   * the keyframes are measured once per demo and taken out, and the knee is re-solved so the leg keeps its length.
+   * Hops and moving drills (a foot that lands somewhere new) are left alone.
+   */
+  const PLANT = {};
+  const NO_PLANT = new Set(['sl-hop', 'line-hops', 'r-seated-floss', 'triple-jump', 'sprawl', 'burpee']);
+  function plantRuns(id) {
+    if (PLANT[id]) return PLANT[id];
+    const spec = DEMOS[id];
+    const out = { A: [], B: [] };
+    PLANT[id] = out;
+    if (spec.view !== 'side' || NO_PLANT.has(id)) return out;
+    const N = 96;
+    const fr = [];
+    for (let i = 0; i < N; i++) fr.push(frameRaw(id, (i / N) * spec.sec));
+    if (fr.some((f) => f.props.some((p) => ['scroll', 'stairs', 'water', 'sled', 'hurdles', 'ladder'].includes(p.type)))) return out;
+    for (const S of ['A', 'B']) {
+      let run = [];
+      let px = null;
+      const flush = () => {
+        if (run.length >= 4) {
+          const xs = run.map((i) => fr[i].joints['toe' + S][0]);
+          const drift = Math.max(...xs) - Math.min(...xs);
+          if (drift > 0.004 && drift < 0.15) out[S].push({ i0: run[0], i1: run[run.length - 1], x: xs[0] });
+        }
+        run = [];
+      };
+      for (let i = 0; i < N; i++) {
+        const J = fr[i].joints;
+        const x = J['toe' + S][0];
+        if (J['heel' + S][1] < 0.03 && J['toe' + S][1] < 0.03) {
+          if (px !== null && Math.abs(x - px) > 0.015) flush();
+          run.push(i);
+          px = x;
+        } else {
+          flush();
+          px = null;
+        }
+      }
+      flush();
+    }
+    out.N = N;
+    return out;
+  }
+  function plant(f) {
+    const runs = plantRuns(f.id);
+    if (!runs.N) return f;
+    const i = f.u * runs.N;
+    const J = f.joints;
+    for (const S of ['A', 'B']) {
+      const r = runs[S].find((x) => i >= x.i0 && i <= x.i1 + 0.999);
+      if (!r) continue;
+      const dx = r.x - J['toe' + S][0];
+      if (Math.abs(dx) < 1e-4) continue;
+      const ank = [J['ankle' + S][0] + dx, J['ankle' + S][1]];
+      const hip = J['hip' + S];
+      if (dist(hip, ank) > L.thigh + L.shin - 0.002) continue; // can't reach without stretching the leg
+      // The knee goes the way the toes point, so it can never fold backwards.
+      J['knee' + S] = ik(hip, ank, L.thigh, L.shin, J['toe' + S][0] >= J['heel' + S][0] ? 'fwd' : 'back');
+      J['ankle' + S] = ank;
+      J['heel' + S] = [J['heel' + S][0] + dx, J['heel' + S][1]];
+      J['toe' + S] = [J['toe' + S][0] + dx, J['toe' + S][1]];
+    }
+    return f;
+  }
+  /*
+   * Both sides (idea 44): the same frame done with the other arm or leg. Side views swap which limbs are near
+   * and far (in 3D the pose moves to the other side of the body); front views also flip left-right.
+   */
+  const swapName = (k) => (/A$/.test(k) ? k.slice(0, -1) + 'B' : /B$/.test(k) ? k.slice(0, -1) + 'A' : k);
+  function mirror(f, cx = null) {
+    if (!f || f.view === 'top') return f;
+    const flipX = f.view === 'front';
+    const c = cx ?? (f.joints.hip ? f.joints.hip[0] : 0);
+    const fx = (p) => (flipX && Array.isArray(p) && typeof p[0] === 'number' ? [2 * c - p[0], ...p.slice(1)] : p);
+    const joints = {};
+    for (const [k, v] of Object.entries(f.joints)) joints[swapName(k)] = fx(v);
+    const z = f.z ? Object.fromEntries(Object.entries(f.z).map(([k, v]) => [swapName(k), v])) : null;
+    const props = (f.props || []).map((p) => {
+      const o = { ...p };
+      if (flipX) for (const k of ['at', 'a', 'b', 'p', 'hitch']) if (Array.isArray(o[k])) o[k] = fx(o[k]);
+      if (flipX && typeof o.x === 'number') o.x = 2 * c - o.x;
+      return o;
+    });
+    return { ...f, joints, z, props, mirrored: true };
+  }
+  // Is this a one-sided exercise (lunge, single-leg, one arm)? The A and B limbs move differently.
+  const SIDED = {};
+  function sided(id) {
+    if (id in SIDED) return SIDED[id];
+    const spec = DEMOS[id];
+    if (!spec || spec.view === 'top' || /breath|sigh|coherent|478|exhale/.test(id)) return (SIDED[id] = false);
+    let diff = 0;
+    let alt = 0;
+    const N = 24;
+    for (let i = 0; i < N; i++) {
+      const J = frame(id, (i / N) * spec.sec).joints;
+      const H = frame(id, (i / N + 0.5) * spec.sec).joints; // half a loop later
+      for (const k of ['knee', 'ankle', 'wrist', 'elbow']) {
+        if (!J[k + 'A'] || !J[k + 'B']) continue;
+        const a = J[k + 'A'];
+        const b = J[k + 'B'];
+        // In a front view the limbs are mirror images about the hips when the move is two-sided.
+        const mx = (p, Jx) => (spec.view === 'front' ? 2 * Jx.hip[0] - p[0] : p[0]);
+        diff = Math.max(diff, Math.hypot(a[0] - mx(b, J), a[1] - b[1]));
+        const h = H[k + 'B'];
+        alt = Math.max(alt, Math.hypot(a[0] - J.hip[0] - (mx(h, H) - H.hip[0]), a[1] - J.hip[1] - (h[1] - H.hip[1])));
+      }
+    }
+    // Running, skipping, crawling already alternate sides within the loop.
+    return (SIDED[id] = diff > 0.08 && alt > 0.06);
+  }
   function frame(id, t = 0) {
+    const f = frameRaw(id, t);
+    return f ? plant(f) : f;
+  }
+  function frameRaw(id, t = 0) {
     const spec = DEMOS[id];
     if (!spec) return null;
     let u = (t / spec.sec) % 1;
@@ -2926,7 +3043,7 @@
     return pts;
   }
 
-  const ExerciseDemo = { L, DEMOS, IDS, frame, box, pose, sample, ik, reach, step, dist, angle, COURSES, LADDER };
+  const ExerciseDemo = { L, DEMOS, IDS, frame, mirror, sided, box, pose, sample, ik, reach, step, dist, angle, COURSES, LADDER };
 
   // ---------- browser: renderer and player ----------
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -3400,6 +3517,24 @@
     let player = null;
     const esc = (x) => String(x ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
     const can3d = (id) => !!(root.Demo3D && DEMOS[id] && DEMOS[id].view !== 'top' && root.Demo3D.fit(id));
+    /*
+     * Study controls (ideas 41, 44, 45): 0.25-1× speed, scrub and step, jump to the checked positions with
+     * their measured angles, real lifting tempo, and both sides for one-sided moves. 3D adds the muscle-shaped
+     * figure with the working muscles lit while they work.
+     */
+    const pref = (k, d) => {
+      try {
+        const v = localStorage.getItem(k);
+        return v == null ? d : v;
+      } catch {
+        return d;
+      }
+    };
+    const setPref = (k, v) => {
+      try {
+        localStorage.setItem(k, v);
+      } catch {}
+    };
     function open(id, { title = '', cues = [], avoid = '', setup = '', note = '', mode = null } = {}) {
       if (!DEMOS[id]) return;
       if (player) {
@@ -3422,34 +3557,119 @@
           player = null;
         });
       }
+      const DC = root.DemoChecks;
+      const tm = DC ? DC.timing(id) : null;
+      const cps = DC ? DC.check(id).checkpoints : [];
+      const mus = DC ? DC.muscles(id) : { names: [], parts: {}, effort: () => 0.5 };
+      const twoSided = sided(id);
+      const tog = (k, label, on, hint) => `<button type="button" class="chip-toggle" data-exdemo-tog="${k}" aria-pressed="${on}" title="${esc(hint)}">${label}</button>`;
       dlg.innerHTML = `<div class="row"><h2 style="margin:0">▶ ${esc(title)}</h2><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-exdemo-close aria-label="Close">✕</button></div>
         <div class="demo-stage">
           <canvas class="demo-canvas" data-exdemo-2d style="margin-top:.75rem" role="img" aria-label="Animated demonstration: ${esc(title)}"></canvas>
           <canvas class="demo-canvas v3d-canvas" data-exdemo-3d hidden role="img" aria-label="3D demonstration: ${esc(title)}. Drag to turn it."></canvas>
           <span class="v3d-hint" hidden>Drag to turn · pinch or scroll to zoom</span>
+          <span class="demo-tag" data-exdemo-tag></span>
         </div>
-        <div class="row demo-controls" style="margin-top:.5rem">
+        <div class="demo-scrub"><button class="btn btn-sm btn-ghost" data-exdemo-step="-1" aria-label="Step back">‹</button><input type="range" min="0" max="1000" value="0" data-exdemo-scrub aria-label="Position in the rep"><button class="btn btn-sm btn-ghost" data-exdemo-step="1" aria-label="Step forward">›</button></div>
+        <div class="row demo-controls">
           <button class="btn btn-sm" data-exdemo-play aria-label="Pause">⏸ Pause</button>
-          <div class="segmented" role="group" aria-label="Speed"><button data-exdemo-speed="0.5">0.5×</button><button data-exdemo-speed="1" aria-pressed="true">1×</button></div>
+          <div class="segmented" role="group" aria-label="Speed"><button data-exdemo-speed="0.25">¼×</button><button data-exdemo-speed="0.5">½×</button><button data-exdemo-speed="1" aria-pressed="true">1×</button></div>
           ${can3d(id) ? `<div class="segmented" role="group" aria-label="Demo type"><button data-exdemo-mode="2d" aria-pressed="true">2D</button><button data-exdemo-mode="3d" aria-pressed="false">3D</button></div>` : ''}
           <span data-exdemo-cams hidden>${root.Demo3D ? root.Demo3D.controls('exdemo') : ''}</span>
         </div>
+        <div class="row demo-study">
+          ${tm && tm.real ? tog('tempo', 'Real timing', pref('motiq.demoTempo', '1') === '1', 'Lower slowly, pause, lift faster') : ''}
+          ${twoSided ? tog('sides', 'Both sides', pref('motiq.demoSides', '1') === '1', 'Switch sides every rep') : ''}
+          ${mus.names.length ? tog('muscles', 'Muscles', pref('motiq.demoMuscles', '1') === '1', 'Light up the working muscles in 3D') : ''}
+          ${cps.map((c) => `<button type="button" class="btn btn-sm btn-ghost" data-exdemo-cp="${esc(c.key)}">⏹ ${esc(c.label)}</button>`).join('')}
+        </div>
+        <p class="demo-read small" data-exdemo-read aria-live="polite"></p>
         ${setup ? `<p class="small" style="margin:.75rem 0 .25rem"><strong>Setup:</strong> ${esc(setup)}</p>` : ''}
         ${cues.length ? `<ul class="howto-cues">${cues.map((x) => `<li>✓ ${esc(x)}</li>`).join('')}</ul>` : ''}
         ${avoid ? `<p class="small howto-avoid"><strong>Avoid:</strong> ${esc(avoid)}</p>` : ''}
         ${note ? `<p class="muted small" style="margin:.25rem 0 0">${esc(note)}</p>` : ''}`;
       const cv = dlg.querySelector('[data-exdemo-2d]');
       const cv3 = dlg.querySelector('[data-exdemo-3d]');
-      player = { id, speed: 1, playing: true, t: 0, last: performance.now(), raf: 0, mode: '2d', v3: null };
+      const scrub = dlg.querySelector('[data-exdemo-scrub]');
+      const read = dlg.querySelector('[data-exdemo-read]');
+      const tag = dlg.querySelector('[data-exdemo-tag]');
+      const on = (k) => {
+        const b = dlg.querySelector(`[data-exdemo-tog="${k}"]`);
+        return !!b && b.getAttribute('aria-pressed') === 'true';
+      };
+      player = { id, speed: 1, playing: true, t: 0, last: performance.now(), raf: 0, mode: '2d', v3: null, cp: null };
+      const loopLen = () => (on('tempo') ? tm.seconds : DEMOS[id].sec);
+      const specT = (lt) => (on('tempo') ? tm.at(lt) : lt);
+      const cx = (() => {
+        const [x0, x1] = box(id);
+        return (x0 + x1) / 2;
+      })();
+      const current = () => {
+        const L = loopLen();
+        const n = Math.floor(player.t / L);
+        const lt = player.t - n * L;
+        let f = frame(id, specT(lt));
+        const flip = on('sides') && n % 2 === 1;
+        if (flip) f = mirror(f, cx);
+        return { f, lt, L, flip };
+      };
+      const angles = (f) => {
+        if (!DC) return '';
+        const m = DC.metrics(f);
+        const lo = (k) => Math.min(m[k + 'A'] ?? 999, m[k + 'B'] ?? 999);
+        const out = [];
+        if (lo('knee') < 999) out.push(`knee ${lo('knee')}°`);
+        if (lo('hip') < 999) out.push(`hip ${lo('hip')}°`);
+        if (lo('elbow') < 999 && (mus.parts.uaA || mus.parts.uaB)) out.push(`elbow ${lo('elbow')}°`);
+        if (m.trunk != null) out.push(`trunk lean ${m.trunk}°`);
+        return out.join(' · ');
+      };
+      let lastRead = '';
       const loop = (now) => {
         if (!player) return;
         if (player.playing) player.t += ((now - player.last) / 1000) * player.speed;
         player.last = now;
-        const f = frame(player.id, player.t);
-        if (player.mode === '3d' && player.v3) player.v3.show(root.Demo3D.build(f));
-        else draw(cv, f, { big: true });
+        const { f, lt, L, flip } = current();
+        if (player.mode === '3d' && player.v3) {
+          const sc = root.Demo3D.build(f);
+          if (sc && on('muscles')) {
+            const work = {};
+            for (const [k, v] of Object.entries(mus.parts)) work[flip ? k.replace(/A$/, '#').replace(/B$/, 'A').replace(/#$/, 'B') : k] = v;
+            sc.work = work;
+            sc.effort = mus.effort(f.u);
+          }
+          player.v3.show(sc);
+        } else draw(cv, f, { big: true });
+        if (document.activeElement !== scrub) scrub.value = String(Math.round((lt / L) * 1000));
+        // Read-out: phase while playing, measured angles when stopped.
+        const ph = on('tempo') ? { lower: 'Lowering, under control', lift: 'Lifting, faster', bottom: 'Pause at the bottom', top: 'Reset at the top' }[tm.phase(f.u)] || '' : '';
+        const side = on('sides') ? (flip ? 'Side 2' : 'Side 1') : '';
+        tag.textContent = [side, ph].filter(Boolean).join(' · ');
+        let txt = '';
+        if (!player.playing) {
+          const cp = player.cp && cps.find((c) => c.key === player.cp);
+          txt = cp ? `<strong>${esc(cp.label)}:</strong> ${esc(cp.text)}` : `<strong>Here:</strong> ${esc(angles(f))}`;
+        } else if (on('muscles') && mus.names.length) txt = `<span class="muted">Working:</span> ${esc(mus.names.join(', '))}`;
+        if (txt !== lastRead) read.innerHTML = lastRead = txt;
         player.raf = requestAnimationFrame(loop);
       };
+      const pause = () => {
+        player.playing = false;
+        const pl = dlg.querySelector('[data-exdemo-play]');
+        pl.textContent = '▶ Play';
+        pl.setAttribute('aria-label', 'Play');
+      };
+      const seek = (lt) => {
+        const L = loopLen();
+        const n = Math.floor(player.t / L);
+        player.t = n * L + Math.max(0, Math.min(L - 1e-3, lt));
+      };
+      scrub.addEventListener('input', () => {
+        if (!player) return;
+        pause();
+        player.cp = null;
+        seek((+scrub.value / 1000) * loopLen());
+      });
       const setMode = async (mode) => {
         const D3 = root.Demo3D;
         if (mode === '3d' && (!D3 || !D3.supported())) mode = '2d';
@@ -3459,7 +3679,7 @@
             if (!player || !cv3.isConnected) return;
             cv3.hidden = false;
             cv3.style.height = cv.style.height;
-            player.v3 = D3.viewer(cv3);
+            player.v3 = D3.viewer(cv3, { figure: true });
             const fit = D3.fit(player.id);
             if (fit) player.v3.frameTo(fit.c, fit.size);
           } catch {
@@ -3474,28 +3694,53 @@
         const cams = dlg.querySelector('[data-exdemo-cams]');
         if (cams) cams.hidden = mode !== '3d';
         dlg.querySelectorAll('[data-exdemo-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.exdemoMode === mode)));
-        try {
-          localStorage.setItem('motiq.demoMode', mode);
-        } catch {}
+        setPref('motiq.demoMode', mode);
       };
       dlg.onclick = (e) => {
+        if (!player) return;
         const sp = e.target.closest('[data-exdemo-speed]');
-        if (sp && player) {
+        if (sp) {
           player.speed = +sp.dataset.exdemoSpeed;
           dlg.querySelectorAll('[data-exdemo-speed]').forEach((b) => b.setAttribute('aria-pressed', String(b === sp)));
         }
         const md = e.target.closest('[data-exdemo-mode]');
-        if (md && player) setMode(md.dataset.exdemoMode);
+        if (md) setMode(md.dataset.exdemoMode);
         const cam = e.target.closest('[data-exdemo-cam]');
-        if (cam && player && player.v3) {
+        if (cam && player.v3) {
           const v = cam.dataset.exdemoCam;
           if (v === 'spin') player.v3.orbit.auto = !player.v3.orbit.auto;
           else player.v3.setView(v);
           dlg.querySelectorAll('[data-exdemo-cam]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.exdemoCam === 'spin' ? player.v3.orbit.auto : b === cam)));
         }
+        const tg = e.target.closest('[data-exdemo-tog]');
+        if (tg) {
+          const k = tg.dataset.exdemoTog;
+          const frac = (player.t % loopLen()) / loopLen();
+          const nowOn = tg.getAttribute('aria-pressed') !== 'true';
+          tg.setAttribute('aria-pressed', String(nowOn));
+          setPref({ tempo: 'motiq.demoTempo', sides: 'motiq.demoSides', muscles: 'motiq.demoMuscles' }[k], nowOn ? '1' : '0');
+          if (k === 'tempo') player.t = frac * loopLen(); // keep the same spot in the rep
+        }
+        const st = e.target.closest('[data-exdemo-step]');
+        if (st) {
+          pause();
+          player.cp = null;
+          const L = loopLen();
+          seek((((player.t % L) + (+st.dataset.exdemoStep * L) / 40) % L + L) % L);
+        }
+        const cpb = e.target.closest('[data-exdemo-cp]');
+        if (cpb) {
+          const cp = cps.find((c) => c.key === cpb.dataset.exdemoCp);
+          if (cp) {
+            pause();
+            player.cp = cp.key;
+            seek(on('tempo') ? tm.toT(cp.u) : cp.u * DEMOS[id].sec);
+          }
+        }
         const pl = e.target.closest('[data-exdemo-play]');
-        if (pl && player) {
+        if (pl) {
           player.playing = !player.playing;
+          player.cp = null;
           pl.textContent = player.playing ? '⏸ Pause' : '▶ Play';
           pl.setAttribute('aria-label', player.playing ? 'Pause' : 'Play');
         }
@@ -3508,11 +3753,7 @@
       const [x0, x1, y0, y1] = box(id);
       cv.style.height = `${Math.round(clamp(cv.clientWidth * ((y1 - y0) / (x1 - x0)) + 40, 220, Math.min(440, innerHeight * 0.5)))}px`;
       player.raf = requestAnimationFrame(loop);
-      let pref = '2d';
-      try {
-        pref = localStorage.getItem('motiq.demoMode') || '2d';
-      } catch {}
-      if ((mode || pref) === '3d' && can3d(id)) setMode('3d');
+      if ((mode || pref('motiq.demoMode', '2d')) === '3d' && can3d(id)) setMode('3d');
     }
 
     // Any element with data-howto-demo opens the player: data-howto-kind = name (exercise name) | form (form-check id) | test (camera/jump test id).
