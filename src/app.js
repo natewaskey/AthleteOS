@@ -15,6 +15,7 @@
     { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history', 'library'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['library', 'Exercises']] },
     { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
+    { id: 'recover', label: 'Recover', icon: 'battery', routes: ['recover'] },
     { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
@@ -25,7 +26,7 @@
     { id: 'team', label: 'Team', icon: 'users', routes: ['team', 'body'] },
     { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals', 'library'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals'], ['library', 'Exercises']] },
     { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
-    { id: 'health', label: 'Health', icon: 'shield', routes: ['health'] },
+    { id: 'health', label: 'Health', icon: 'shield', routes: ['health', 'recover'], sub: [['health', 'Injuries'], ['recover', 'Recovery']] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'] },
     { id: 'settings', label: 'Settings', icon: 'gear', routes: ['settings'] },
@@ -53,6 +54,7 @@
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h7"/>',
     mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4M8 21h8"/>',
+    battery: '<rect x="2.5" y="7" width="17" height="10" rx="2"/><path d="M22 10.5v3M6 10v4M9.5 10v4"/>',
   };
   const icon = (n, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || (window.Icons && window.Icons.paths[n]) || ''}</svg>`;
   const Form = window.FormUI;
@@ -594,7 +596,7 @@
         <span><strong>${ready ? ready.score : '–'}</strong><small>${ready ? '/100' : 'Check in'}</small></span></button>
       <div class="ready-spark">${sparkline(vals)}</div></div>
       <div class="tile-scale"><span>7-day</span><span>${esc(facts)}</span></div>
-      <div class="tile-foot">${Smart.riskChip(a)}</div>
+      <div class="tile-foot">${Smart.riskChip(a)}${window.RecoverUI ? RecoverUI.chip(a) : ''}</div>
     </section>`;
   }
 
@@ -770,6 +772,10 @@
 
     wellness() {
       return Well.view(ui.id);
+    },
+
+    recover() {
+      return window.RecoverUI ? RecoverUI.view(ui.id) : '';
     },
 
     help() {
@@ -1170,6 +1176,10 @@
 
     health() {
       return Health.coachView();
+    },
+
+    recover() {
+      return window.RecoverUI ? RecoverUI.view() : '';
     },
 
     form() {
@@ -1969,6 +1979,20 @@
     const devHrv = dev('hrv');
     cForm.hrv.value = src.hrv ?? (devHrv ? Math.round(devHrv.value) : '');
     cForm.note.value = src.note ?? '';
+    cForm.bed.value = src.bed || (prev && prev.bed) || '';
+    cForm.wake.value = src.wake || (prev && prev.wake) || '';
+    cForm.hrFromCamera.value = src.hrFromCamera ? '1' : '';
+    // Bed and wake times fill in the hours slept.
+    const fillSleep = () => {
+      const [bh, bm] = (cForm.bed.value || '').split(':').map(Number);
+      const [wh, wm] = (cForm.wake.value || '').split(':').map(Number);
+      if (![bh, bm, wh, wm].every(Number.isFinite)) return;
+      let mins = wh * 60 + wm - (bh * 60 + bm);
+      if (mins <= 0) mins += 1440;
+      if (mins >= 120 && mins <= 840) cForm.sleep.value = Math.round((mins / 60) * 4) / 4;
+    };
+    cForm.bed.onchange = fillSleep;
+    cForm.wake.onchange = fillSleep;
     cForm.hydration.value = src.hydration ?? 3;
     cForm.fuel.value = src.fuel ?? 3;
     $('#cycle-fields').hidden = !a.trackCycle;
@@ -1982,6 +2006,15 @@
   }
 
   cDialog.addEventListener('click', (e) => {
+    if (e.target.closest('[data-hr-camera]') && window.CameraHR && CameraHR.open) {
+      return CameraHR.open({
+        onResult: (r) => {
+          cForm.restingHR.value = r.bpm;
+          cForm.hrFromCamera.value = '1';
+          toast(`Resting HR ${r.bpm} bpm (camera estimate)${r.rmssd ? ` · rough HRV ${r.rmssd} ms` : ''}`);
+        },
+      });
+    }
     const area = e.target.closest('[data-area]');
     if (area) return cycleArea(area.dataset.area);
     const clear = e.target.closest('[data-clear-area]');
@@ -2007,6 +2040,7 @@
       period: cForm.period.checked,
       symptoms: new FormData(cForm).getAll('symptoms'),
       soreAreas: draftAreas,
+      hrFromCamera: cForm.hrFromCamera.value === '1',
       weight: readConverted(cForm.weight, (v) => C.displayToKg(v, units())),
     });
     a.checkins = a.checkins.filter((x) => x.date !== c.date).concat(c);
@@ -2636,6 +2670,7 @@
   if (window.Tours) window.Tours.init({ go });
   Smart.init({ ...shared, icon, openCheckinFull: () => openCheckin(), openWorkoutDraft, logWorkout, injuriesCard: (id) => Health.athleteInjuriesCard(id) });
   Well.init(shared);
+  if (window.RecoverUI) RecoverUI.init(shared);
   Chal.init(shared);
   Prof.init(shared);
   Summary.init(shared);

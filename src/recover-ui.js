@@ -118,7 +118,7 @@
     const rid = area ? R.soreRoutineFor(area) : null;
     const lvl = area && checkin ? (checkin.soreAreas || {})[area] || 0 : 0;
     const soreCard = `<section class="card span-6"><div class="card-head"><h3>Sore or tight?</h3><span class="muted small">Tap the spot</span></div>
-      <div class="rec-body">${root.BodyMap ? root.BodyMap.render((checkin && checkin.soreAreas) || {}, { interactive: true, selected: area }).replace(/data-area=/g, 'data-rec-area=') : ''}</div>
+      <div class="rec-body">${root.BodyMap ? root.BodyMap.render((checkin && checkin.soreAreas) || {}, { interactive: true }).replace(/class="area (lvl-\d)" data-area="([^"]+)"/g, (m, l, id) => `class="area ${l}${id === area ? ' picked' : ''}" data-rec-area="${id}"`) : ''}</div>
       ${area ? `<p style="margin:.4rem 0 .2rem"><strong>${esc(C.BODY_AREA_LABEL[area])}</strong></p>
         ${lvl >= 3 ? '<p class="banner bad" style="margin:.3rem 0">You marked pain here. Don’t stretch into pain: rest it and tell your coach or physio. The routine below is only for gentle movement if it feels fine.</p>' : ''}
         ${rid ? `<p class="muted small" style="margin:0 0 .4rem">${esc(R.ROUTINES[rid].name)} · ${R.ROUTINES[rid].minutes} min · ${esc(R.ROUTINES[rid].when)}</p><div class="row">${startBtn(rid)}<details><summary class="small">See the moves</summary>${routineList(R.ROUTINES[rid])}</details></div>` : ''}` : '<p class="muted small">Tap any area for a 5–10 minute routine for that spot.</p>'}
@@ -173,8 +173,8 @@
   // Weekly review (idea 70).
   function reviewCard(a, t) {
     const w = R.weeklyReview(a, t, ctx.state().analyses || []);
-    const U = ctx.U;
-    const kg = (x) => (U && U.weight ? U.weight(x) : `${Math.round(x)} kg`);
+    const imperial = ctx.units() === 'imperial';
+    const kg = (x) => (imperial ? `${Math.round(C.kgToDisplay(x, 'imperial'))} lb` : `${Math.round(x)} kg`);
     const cell = (label, val, sub = '') => `<div class="rev-cell"><span class="eyebrow">${label}</span><strong class="num">${val}</strong>${sub ? `<span class="muted small">${sub}</span>` : ''}</div>`;
     return `<section class="card span-12 rec-review"><div class="card-head"><h3>Weekly review</h3><span class="muted small">${esc(ctx.fmtDate(w.from, { month: 'short', day: 'numeric' }))} – ${esc(ctx.fmtDate(w.to, { month: 'short', day: 'numeric' }))}</span></div>
       <div class="rev-grid">
@@ -268,8 +268,8 @@
     const s = R.sleepStats(a, t);
     const nights = Array.from({ length: 14 }, (_, i) => C.addDays(t, i - 13)).map((d) => ({ d, c: a.checkins.find((x) => x.date === d) }));
     const max = Math.max(s.need + 1, ...nights.map((n) => (n.c ? n.c.sleep : 0)));
-    const W = 320;
-    const H = 130;
+    const W = 760;
+    const H = 170;
     const bw = (W - 20) / 14;
     const yv = (v) => H - 18 - ((H - 30) * v) / max;
     const bars = nights.map((n, i) => (n.c && n.c.sleep ? `<rect class="${n.c.sleep >= s.need - 0.5 ? 'ok' : 'short'}" x="${10 + i * bw + 2}" y="${yv(n.c.sleep)}" width="${bw - 4}" height="${H - 18 - yv(n.c.sleep)}" rx="2"><title>${n.d}: ${n.c.sleep} h</title></rect>` : '')).join('');

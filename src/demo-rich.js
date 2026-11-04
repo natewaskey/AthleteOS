@@ -155,6 +155,31 @@
     // ---------- report cards every 10 weeks ----------
     if (Ck) for (const d of [-140, -70]) Ck.saveReportCard(state, a, D(d));
 
+    // ---------- recovery: logged routines and tools, bed and wake times ----------
+    const R = opt('./recovery.js', 'Recovery');
+    if (R) {
+      const plans = { riley: [0, 1, 2, 3, 5, 6, 8, 9], taylor: [1, 2, 4, 5, 7, 9, 11], jordan: [3, 7, 10], maya: [9, 13], sam: [2, 6] };
+      const kinds = [['mobility', 'Pre-practice prime', 8, 'prime'], ['cooldown', 'After a lower-body day', 10, 'post-lower'], ['cold', 'Cold tub', 10], ['mobility', 'Hips reset', 7, 'hips'], ['nap', 'Nap', 20], ['mobility', 'Wind-down before bed', 9, 'bedtime'], ['massage', 'Massage', 30]];
+      for (const x of state.athletes) {
+        const days = plans[x.id];
+        if (!days) continue;
+        x.recoveryLog = days.map((d, i) => {
+          const [type, name, minutes, routine] = kinds[(i + d) % kinds.length];
+          return R.normalizeLog({ id: `demo-rec-${x.id}-${d}`, date: C.addDays(todayISO, -d), type, name, minutes, routine, at: Date.parse(C.addDays(todayISO, -d)) + 20 * 3600e3 });
+        });
+      }
+      for (const x of state.athletes.filter((y) => ['riley', 'taylor'].includes(y.id))) {
+        const rand2 = rng(x.id === 'riley' ? 11 : 12);
+        for (const c of x.checkins) {
+          if (C.daysBetween(c.date, todayISO) > 14) continue;
+          const wake = 6 * 60 + 30 + Math.round((rand2() - 0.5) * (x.id === 'riley' ? 30 : 90));
+          const bed = wake - Math.round(c.sleep * 60) - 15;
+          const hm = (m) => `${String(Math.floor(((m + 1440) % 1440) / 60)).padStart(2, '0')}:${String(((m + 1440) % 1440) % 60).padStart(2, '0')}`;
+          c.bed = hm(bed);
+          c.wake = hm(wake);
+        }
+      }
+    }
     a.demoRich = true;
     return state;
   }

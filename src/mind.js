@@ -15,6 +15,10 @@
     downshift: { name: 'Downshift (4-7-8)', when: 'Wind down after a game or before sleep', phases: [['Breathe in', 4], ['Hold', 7], ['Breathe out slowly', 8]], minutes: 3 },
     energize: { name: 'Energize', when: 'Wake up and get sharp before a session', phases: [['Quick breath in', 1.5], ['Quick breath out', 1.5]], minutes: 1 },
     coherent: { name: 'Steady (5.5 s)', when: 'Everyday focus and recovery', phases: [['Breathe in', 5.5], ['Breathe out', 5.5]], minutes: 5 },
+    longexhale: { name: 'Long exhale', when: 'Right after training: switch into recovery mode', phases: [['Breathe in', 4], ['Breathe out slowly', 8]], minutes: 4 },
+    resonance: { name: 'Slow 6 a minute', when: 'Daily recovery and heart rate variability', phases: [['Breathe in', 5], ['Breathe out', 5]], minutes: 6 },
+    recovery: { name: 'Between sets', when: 'Bring your heart rate down during rest', phases: [['Breathe in through the nose', 3], ['Breathe out through the mouth', 6]], minutes: 2 },
+    belly: { name: 'Belly breathing (90/90)', when: 'Lying with feet on a wall: calm the low back and ribs', phases: [['Breathe in, belly rises', 4], ['Hold', 2], ['Breathe out fully', 6]], minutes: 3 },
   };
 
   // Phase kind from its label, and the circle size (0–1) each phase ends at.

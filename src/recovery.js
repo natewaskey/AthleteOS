@@ -137,7 +137,7 @@
     cooldown: { label: 'Cool-down', icon: '🚶', charge: 5, note: 'Right after training: easy movement, then stretching and slow breathing.' },
     breath: { label: 'Breathing', icon: '🌬️', charge: 5, note: 'Long-exhale breathing after training or before bed shifts the body into recovery mode.' },
     nap: { label: 'Nap', icon: '😴', charge: 10, note: '20 minutes, or a full 90. Before 3 pm so it doesn’t cost night sleep.' },
-    cold: { label: 'Cold tub', icon: '🧊', charge: 6, note: '10–15 °C for 5–10 min helps soreness after games and tournaments. Skip it within 4–6 h after strength work in a muscle or strength block: it can blunt gains.' },
+    cold: { label: 'Cold tub', icon: '🧊', charge: 6, note: '10–15 °C (50–59 °F) for 5–10 min helps soreness after games and tournaments. Skip it within 4–6 h after strength work in a muscle or strength block: it can blunt gains.' },
     contrast: { label: 'Hot and cold contrast', icon: '♨️', charge: 5, note: '3–4 rounds of 3 min warm and 1 min cold. Good between games on tournament days.' },
     sauna: { label: 'Sauna', icon: '🔥', charge: 4, note: '10–20 min, drink extra water. Best on easy days or after training, not before speed or skill work.' },
     massage: { label: 'Massage', icon: '💆', charge: 6, note: 'Reduces soreness and feels good. Keep deep work 2+ days away from a game.' },
@@ -243,7 +243,7 @@
     if (pain.length) return { text: `Pain in ${pain.map((id) => C.BODY_AREA_LABEL[id].toLowerCase()).join(', ')}: skip anything that hurts it and tell your coach or physio.`, why: 'Pain is a signal to protect the area, not stretch through it.' };
     const sore = soreRoutines(checkin).filter((r) => !r.pain);
     if (band === 'rest') return { text: 'Rest day: an easy walk, the rest-day recharge routine and an early night.', routine: 'restday', why: 'Your recovery is low. Hard training today adds fatigue without adding fitness.' };
-    if (sleep.debt7 != null && sleep.debt7 >= 7 && sleep.avg7 < sleep.need - 1) return { text: `${sleep.bedTarget ? `Be in bed by ${sleep.bedTarget}` : 'Go to bed an hour earlier'} tonight and use the wind-down routine.`, routine: 'bedtime', why: `You are averaging ${sleep.avg7} h, about ${sleep.debt7} hours short of your ${sleep.need} h a night this week.` };
+    if (band !== 'go' && sleep.debt7 != null && sleep.debt7 >= 7 && sleep.avg7 < sleep.need - 1) return { text: `${sleep.bedTarget ? `Be in bed by ${sleep.bedTarget}` : 'Go to bed an hour earlier'} tonight and use the wind-down routine.`, routine: 'bedtime', why: `You are averaging ${sleep.avg7} h, about ${sleep.debt7} hours short of your ${sleep.need} h a night this week.` };
     if (sore.length) return { text: `Do the ${sore[0].minutes}-minute ${sore[0].name.toLowerCase()} for your sore spot before training.`, routine: sore[0].id, why: `You marked ${sore[0].areas.map((id) => C.BODY_AREA_LABEL[id].toLowerCase()).join(' and ')} as sore.` };
     if (band === 'easy') return { text: 'Keep training light today and finish with the post-game flush.', routine: 'post-game', why: 'Recovery is below your normal. Easy work plus a flush keeps you moving without digging a hole.' };
     const trainedYesterday = a.workouts.some((w) => w.date === C.addDays(todayISO, -1) && isHard(w));

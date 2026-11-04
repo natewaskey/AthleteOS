@@ -117,7 +117,9 @@
           <section>
             <div class="grid-2">
               <label>Sleep (hours) <input type="number" name="sleep" min="0" max="14" step="0.25" value="7.5" required /></label>
-              <label>Resting HR (bpm) <input type="number" name="restingHR" min="25" max="220" step="1" /></label>
+              <label>In bed at <input type="time" name="bed" /></label>
+              <label>Woke up at <input type="time" name="wake" /></label>
+              <label>Resting HR (bpm) <span class="hr-row"><input type="number" name="restingHR" min="25" max="220" step="1" /><button type="button" class="btn btn-sm" data-hr-camera title="Fingertip over the camera for 30 seconds">📷 Measure</button></span><input type="hidden" name="hrFromCamera" value="" /></label>
               <label>HRV (rMSSD, ms) <input type="number" name="hrv" min="5" max="300" step="1" placeholder="optional" /></label>
             </div>
             <div class="scales">
@@ -203,6 +205,8 @@
     <script src="src/nutrition.js"></script>
     <script src="src/challenges.js"></script>
     <script src="src/mind.js"></script>
+    <script src="src/recovery.js"></script>
+    <script src="src/camera-hr.js"></script>
     <script src="src/insights.js"></script>
     <script src="src/live-coach.js"></script>
     <script src="src/evidence.js"></script>
@@ -228,6 +232,7 @@
     <script src="src/staff-ui.js"></script>
     <script src="src/calendar-ui.js"></script>
     <script src="src/wellness-ui.js"></script>
+    <script src="src/recover-ui.js"></script>
     <script src="src/challenges-ui.js"></script>
     <script src="src/profile-ui.js"></script>
     <script src="src/smart-ui.js"></script>
