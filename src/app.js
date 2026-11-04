@@ -893,7 +893,7 @@
           ${solo() ? '' : guardianCard(a)}
           ${window.Shell ? Shell.installCard() + Shell.reminderCard() : ''}
           ${window.WhatsNew ? WhatsNew.card() : ''}
-          ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard())}
+          ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard() + (window.Errors ? Errors.card() : ''))}
         </div>`;
     },
   };
@@ -1258,7 +1258,7 @@
           ${modeCard()}
           ${window.Shell ? Shell.installCard() : ''}
           ${window.WhatsNew ? WhatsNew.card() : ''}
-          ${advanced(aiCard() + dataCard())}
+          ${advanced(aiCard() + dataCard() + (window.Errors ? Errors.card() : ''))}
         </div>`;
     },
   };
@@ -2710,6 +2710,7 @@
   Prof.init(shared);
   Summary.init(shared);
   if (window.Shell) Shell.init({ ...shared, today });
+  if (window.Errors) Errors.init(shared);
   Help.init(shared);
   Library.init(shared);
   Staff.init({ ...shared, activeStaff });

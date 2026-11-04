@@ -368,3 +368,20 @@ create or replace function public.wearable_status(t uuid) returns table (athlete
   where c.team_id = t and ((my_role(t) = 'coach' and not awaiting_parent(t, c.athlete_id)) or (my_role(t) = 'athlete' and c.athlete_id = my_athlete(t)))
 $$;
 grant execute on function public.wearable_status(uuid) to authenticated;
+
+-- ---------- Error reports (Motiq 1.0) ----------
+-- The app sends a scrubbed note (no names, emails or workout data) when something breaks.
+-- Anyone signed in can add one; nobody can read them through the app (view them in the Supabase dashboard).
+create table if not exists public.error_reports (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  user_id uuid default auth.uid(),
+  message text not null check (char_length(message) <= 500),
+  stack text check (char_length(stack) <= 1500),
+  route text check (char_length(route) <= 40),
+  version text check (char_length(version) <= 20),
+  user_agent text check (char_length(user_agent) <= 200)
+);
+alter table public.error_reports enable row level security;
+drop policy if exists "add own error report" on public.error_reports;
+create policy "add own error report" on public.error_reports for insert to authenticated with check (user_id = auth.uid());

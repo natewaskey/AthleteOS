@@ -6,7 +6,8 @@
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test",
-    "accuracy": "node tools/accuracy.js"
+    "accuracy": "node tools/accuracy.js",
+    "e2e": "node --test --test-concurrency=1 e2e/*.e2e.js"
   },
   "license": "UNLICENSED"
 }
