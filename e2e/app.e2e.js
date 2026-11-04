@@ -21,7 +21,7 @@ test.after(async () => {
 });
 
 // A fresh page with no saved data; collects any crash so each test can assert none happened.
-async function fresh({ offlineCloud = true, viewport = { width: 1280, height: 860 } } = {}) {
+async function fresh({ offlineCloud = true, viewport = { width: 1280, height: 860 }, acceptTerms = true } = {}) {
   const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
@@ -31,6 +31,8 @@ async function fresh({ offlineCloud = true, viewport = { width: 1280, height: 86
   await page.waitForFunction(() => window.__booted === true || document.querySelector('#view').textContent.length > 0);
   // First-visit tips cover buttons; mark them all seen so clicks land.
   await page.evaluate(() => window.Tours && localStorage.setItem('athleteos:tours', JSON.stringify(Object.fromEntries(Object.keys(window.Tours.TOURS).map((k) => [k, 1])))));
+  // Terms accepted on this device (the age and consent step has its own test).
+  if (acceptTerms) await page.evaluate(() => window.Legal && localStorage.setItem('motiq:legal', JSON.stringify({ version: window.Legal.VERSION, acceptedAt: Date.now() })));
   return { context, page, errors };
 }
 const text = (page) => page.locator('#view').innerText();
@@ -66,6 +68,30 @@ test('legal pages are reachable from the sign-in screen', async () => {
     assert.strictEqual(res.status(), 200);
     assert.match(await res.text(), heading);
   }
+  assert.deepStrictEqual(errors, []);
+  await context.close();
+});
+
+test('age and consent step: under 13 is stopped, 13+ continues; trust center opens', async () => {
+  const { context, page, errors } = await fresh({ acceptTerms: false });
+  await page.click('text=Continue without an account');
+  await page.click('[data-mode=solo]');
+  await page.waitForSelector('#legal-gate');
+  const y = new Date().getFullYear();
+  await page.selectOption('#g-dob-m', '1');
+  await page.selectOption('#g-dob-y', String(y - 10));
+  await page.check('#legal-gate [name=agree]');
+  await page.check('#legal-gate [name=health]');
+  await page.click('#legal-gate [type=submit]');
+  assert.match(await text(page), /13 and older/);
+  await page.selectOption('#g-dob-y', String(y - 16));
+  await page.check('#legal-gate [name=agree]');
+  await page.check('#legal-gate [name=health]');
+  await page.click('#legal-gate [type=submit]');
+  await page.waitForSelector('#legal-gate', { state: 'detached' });
+  const legal = await page.evaluate(() => JSON.parse(localStorage.getItem('athleteos:v1')).settings.legal);
+  assert.ok(legal.acceptedAt && legal.minor === true);
+  assert.match(await visit(page, 'trust'), /Trust center/);
   assert.deepStrictEqual(errors, []);
   await context.close();
 });

@@ -70,12 +70,16 @@
           ${speed.map(({ a, p }) => `<tr><td>${esc(ctx.athleteName(a))}<div class="muted small">${esc(a.position || '')}</div></td><td class="num">${p.split10 ? p.split10.toFixed(2) : '–'}</td><td class="num">${p.dash40 ? p.dash40.toFixed(2) : '–'}</td><td>${band(p.accelBand)}</td><td>${p.top ? `<span class="num">${ctx.units() === 'metric' ? p.top.toFixed(1) + ' m/s' : p.mph + ' mph'}</span> ` : ''}${band(p.topBand)}</td><td class="num small">${p.targets.split10 ? p.targets.split10.toFixed(2) : '–'} / ${p.targets.dash40 ? p.targets.dash40.toFixed(2) : '–'}</td><td class="small">${esc(p.focus)}</td></tr>`).join('')}
           </tbody></table></div>` : '<p class="muted">Record 10-yard splits and 40s (Testing, or the sprint timer) to see who needs acceleration work and who needs top-speed work.</p>'}
       </section>
-      <section class="card span-12"><div class="card-head"><h3>Export</h3></div>
+      ${root.Plans ? root.Plans.gate('exports', exportsCard(), 'Exports') : exportsCard()}
+      </div>`;
+  }
+
+  function exportsCard() {
+    return `<section class="card span-12"><div class="card-head"><h3>Export</h3></div>
         <p class="muted small" style="margin-top:0">Spreadsheet files open in Excel, Numbers or Google Sheets. Weights are in kg, jumps in cm, times in seconds.</p>
         <div class="row" style="gap:.4rem;flex-wrap:wrap">${Object.entries(TP().EXPORTS).map(([k, v]) => `<button class="btn btn-sm" data-teamplus="csv" data-kind="${k}">⬇ ${esc(v)}</button>`).join('')}
           <button class="btn btn-sm btn-primary" data-teamplus="team-pdf">🖨 Team report (PDF)</button></div>
-      </section>
-      </div>`;
+      </section>`;
   }
 
   // ---------- 21, 23: athlete speed and norms ----------

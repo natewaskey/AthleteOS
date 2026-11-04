@@ -33,7 +33,7 @@
     { id: 'help', label: 'Help & FAQ', icon: 'help', routes: ['help'] },
   ];
   // Routes reachable from buttons but not listed in a section.
-  const HIDDEN_ROUTES = ['records', 'org'];
+  const HIDDEN_ROUTES = ['records', 'org', 'trust'];
   const ICONS = {
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>',
@@ -811,6 +811,10 @@
       return window.TeamPlusUI ? TeamPlusUI.speedView(me()) : '';
     },
 
+    trust() {
+      return window.Legal ? Legal.trustView() : '';
+    },
+
     records() {
       const { endHTML, strHTML } = recordsTables(me());
       return `<button class="btn btn-sm btn-ghost" data-tab-link="progress" style="margin-bottom:.5rem">‹ Progress</button><h1 class="page-title">Personal records</h1>
@@ -898,6 +902,9 @@
           </section>
           ${window.BuilderPlusUI ? BuilderPlusUI.equipmentCard(a) : ''}
           ${window.FormPlus ? FormPlus.fastCard(state.settings.fastMode) : ''}
+          ${window.Legal ? Legal.trustCard() : ''}
+          ${window.Plans ? Plans.card() : ''}
+          ${window.Beta ? Beta.card() : ''}
           ${window.Wearables ? Wearables.devicesCard() : ''}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
@@ -1006,6 +1013,7 @@
           <span>Add your certifications, set up your team roster and prescribe training, testing and return-to-play.</span></button>
       </div>
       <p class="muted small" style="text-align:center">You can switch any time in Settings. Or <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
+      <p class="legal-links small"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></p>
       ${window.CloudUI && window.Cloud.enabled() ? '<p class="muted small" style="text-align:center">Have an account or a code from your coach? <button class="btn-link" data-cloud="back-to-login">Sign in</button></p>' : ''}
     </div>`;
   }
@@ -1160,6 +1168,10 @@
       return window.TeamPlusUI ? TeamPlusUI.orgView() : '';
     },
 
+    trust() {
+      return window.Legal ? Legal.trustView() : '';
+    },
+
     performance() {
       return ui.id === 'report' ? Health.reportView() : Progress.coachView(Screens.teamCard() + Sci.importCard({ span: 'span-6', team: true }));
     },
@@ -1254,6 +1266,9 @@
           </section>
           ${brandCard()}
           ${window.TeamPlusUI ? TeamPlusUI.orgCard() : ''}
+          ${window.Legal ? Legal.trustCard() : ''}
+          ${window.Plans ? Plans.card() : ''}
+          ${window.Beta ? Beta.card() : ''}
           <section class="card span-6"><div class="card-head"><h3>Roster</h3></div>
             <ul class="list">${state.athletes
               .map(
@@ -1639,6 +1654,11 @@
     if (step) {
       renderChrome(true);
       $('#view').innerHTML = step;
+      return;
+    }
+    if (window.Legal && Legal.needsGate(state)) {
+      renderChrome(true);
+      $('#view').innerHTML = Legal.gateHTML();
       return;
     }
     if (window.TeamPlusUI) TeamPlusUI.syncLoad(); // practices and games count toward training load
@@ -2252,6 +2272,7 @@
       case 'load-sample':
         if (hasData() && !(await Dialogs.confirm('Replace your current data with the demo team?', { title: 'Load demo team?', ok: 'Replace' }))) return;
         state = C.sampleState(today());
+        state.settings.legal = { sample: true }; // exploring fake data; terms are asked before real use
         if (window.DemoRich) window.DemoRich.enrich(state, today());
         save();
         Media.clear().catch(() => {});
@@ -2738,6 +2759,9 @@
   if (window.BuilderPlusUI) BuilderPlusUI.init(shared);
   if (window.FormPlus) FormPlus.init(shared);
   if (window.TeamPlusUI) TeamPlusUI.init(shared);
+  if (window.Legal) Legal.init(shared);
+  if (window.Plans) Plans.init(shared);
+  if (window.Beta) Beta.init(shared);
   Help.init(shared);
   Library.init(shared);
   Staff.init({ ...shared, activeStaff });

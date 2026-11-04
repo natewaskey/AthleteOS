@@ -3212,3 +3212,26 @@ polyline.rom-left, polyline.rom-right { fill: none; }
 .announce-list .tally { display: grid; gap: .25rem; margin-top: .4rem; }
 .announce-list .band-bar { grid-template-columns: minmax(4rem, 8rem) 1fr 2rem minmax(0, 8rem); }
 .announce-banner .main { display: flex; flex-direction: column; }
+
+/* Motiq 1.0 legal */
+.legal-links { text-align: center; color: var(--muted); margin: 1rem 0 0; }
+.legal-links a { color: inherit; }
+.legal-fields { border: 0; padding: 0; margin: 0; }
+.legal-fields legend { padding: 0; margin-bottom: .25rem; color: var(--muted); }
+.legal-fields select { flex: 1; min-width: 0; }
+.auth-form .check a { color: var(--accent); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* Motiq 1.0 plans and beta */
+.beta-badge { font: 600 10px/1 var(--font-mono, ui-monospace, monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 3px 5px; margin-left: 6px; align-self: center; }
+.feedback-fab { position: fixed; right: 16px; bottom: 20px; z-index: 40; display: inline-flex; align-items: center; gap: 6px; padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.3)); background: var(--card, #15171c); color: var(--text, inherit); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.feedback-fab:hover { border-color: var(--accent); }
+.feedback-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.no-nav .feedback-fab { display: none; }
+@media (max-width: 860px) { .feedback-fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); right: 12px; padding: 10px; } .feedback-fab span { display: none; } }
+.plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; margin: .5rem 0 1rem; }
+.plans-grid .plan { border: 1px solid var(--line, rgba(127,127,127,.3)); border-radius: 12px; padding: .9rem; display: flex; flex-direction: column; gap: .3rem; }
+.plans-grid .plan.current { border-color: var(--accent); }
+.plans-grid .plan h4 { margin: 0; }
+.plans-grid .plan ul { margin: .25rem 0 .5rem; padding-left: 1.1rem; flex: 1; }
+.upgrade-card { border-style: dashed; }
