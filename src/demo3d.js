@@ -36,13 +36,45 @@
     return s * HIP;
   }
 
+  /*
+   * True 3D skeleton (idea 38): bones keep their real length in 3D. A limb that looks short from the side is
+   * pointing out of the picture, so the missing length goes into depth (outwards from the body), smoothly from
+   * 95% of its length down. A demo can also give exact depths (frame.z) for moves the side view can't show.
+   */
+  const CHAINS = [['sh', 'elbow', 'ua'], ['elbow', 'wrist', 'fa'], ['hip', 'knee', 'thigh'], ['knee', 'ankle', 'shin']];
+  const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+  function outOfPlane(joints, P, z) {
+    const L = ED().L;
+    for (const s of ['A', 'B']) {
+      const sg = s === 'A' ? 1 : -1;
+      for (const [a, b, bone] of CHAINS) {
+        const pa = joints[a + s];
+        const pb = joints[b + s];
+        if (!pa || !pb || !P[b + s]) continue;
+        if (z && z[b + s] != null) {
+          P[b + s][2] = z[b + s];
+          continue;
+        }
+        const d = d2(pa, pb);
+        const Lb = L[bone];
+        const extra = Math.sqrt(Math.max(0, Lb * Lb - d * d)) * smooth((0.95 * Lb - d) / (0.15 * Lb));
+        P[b + s][2] = P[a + s][2] - sideZ(a + s) + sideZ(b + s) + sg * extra;
+      }
+      // Feet follow the ankle; the hand follows the wrist.
+      const dz = P['ankle' + s] ? P['ankle' + s][2] - sideZ('ankle' + s) : 0;
+      for (const k of ['heel', 'toe']) if (P[k + s] && !(z && z[k + s] != null)) P[k + s][2] += dz;
+    }
+    if (z) for (const [k, v] of Object.entries(z)) if (P[k] && !/^(elbow|wrist|knee|ankle|heel|toe)[AB]$/.test(k)) P[k][2] = v;
+    return P;
+  }
+
   // 2D joints → 3D points.
-  function lift(joints, view) {
+  function lift(joints, view, depthZ = null) {
     const L = ED().L;
     const P = {};
     if (view !== 'front') {
       for (const [k, p] of Object.entries(joints)) P[k] = [p[0], p[1], sideZ(k)];
-      return P;
+      return outOfPlane(joints, P, depthZ);
     }
     // Front view: lateral axis is z (picture right = athlete's left = −z so the 3/4 camera reads naturally).
     const z = (p) => -p[0];
@@ -62,6 +94,8 @@
         P['wrist' + s][0] = ex + depth(L.fa, g('elbow'), g('wrist'));
       }
     }
+    // In the front view a demo's depth (z) is the forward axis.
+    if (depthZ) for (const [k, v] of Object.entries(depthZ)) if (P[k]) P[k][0] = v;
     return P;
   }
 
@@ -221,7 +255,7 @@
   // One 2D demo frame → everything the 3D scene needs. Returns null for top-down drills.
   function build(f) {
     if (!f || f.view === 'top' || !f.joints || !f.joints.hip) return null;
-    const P = lift(f.joints, f.view);
+    const P = lift(f.joints, f.view, f.z);
     // Grip width: hands go out to the bar on barbell, pull-up and dip work seen from the side.
     if (f.view !== 'front') {
       const wide = (f.props || []).find((p) => ['barbell', 'trapbar', 'pullbar', 'pulldown', 'dipbar'].includes(p.type));

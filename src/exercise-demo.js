@@ -266,7 +266,7 @@
     step(j, 'B', [0.36, L.ankleH], 115, 'up');
     const sh = j.shA;
     const up = add(sh, L.ua + L.fa - 0.005, 0 - incline * 0.2);
-    const low = [sh[0] + 0.03, sh[1] + 0.06];
+    const low = [sh[0] + 0.05, sh[1] + 0.1]; // bar touches the lower chest, forearms vertical
     const hand = mixP(up, low, d);
     reach(j, 'A', hand, 'back');
     reach(j, 'B', hand, 'back');
@@ -380,7 +380,8 @@
   def('pushup', { sec: 2.2, frame: (u) => pushFrame(u, 'full') });
   def('clap-pushup', { sec: 1.5, frame: (u) => pushFrame(u, 'clap') });
   def('scap-pushup', { sec: 2.2, frame: (u) => pushFrame(u, 'scap') });
-  function pushFrame(u, kind) {
+  // hh: hand height (plates for deficit push-ups). The shoulder joint stops ~14 cm up when the chest touches.
+  function pushFrame(u, kind, hh = 0) {
     let d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.4, hold: 0.06 }), u).v;
     let air = 0;
     if (kind === 'clap') {
@@ -389,7 +390,7 @@
       d = Math.max(0, d);
     }
     const armLen = L.ua + L.fa;
-    const shY = kind === 'scap' ? armLen - 0.035 * d : lerp(armLen - 0.004, 0.1, d) + air * 0.12;
+    const shY = kind === 'scap' ? armLen - 0.035 * d : lerp(armLen - 0.004 + hh, hh ? 0.16 : 0.14, d) + air * 0.12;
     const j = floorBody(shY, 'none');
     if (kind === 'scap') {
       j.neck = [j.neck[0], j.neck[1] - 0.03 * d];
@@ -400,8 +401,8 @@
       reach(j, 'A', [j.shA[0] + 0.05, j.shA[1] - 0.2], 'up');
       reach(j, 'B', [j.shA[0] + 0.05, j.shA[1] - 0.2], 'up');
     } else {
-      reach(j, 'A', [handX, 0], 'up');
-      reach(j, 'B', [handX, 0], 'up');
+      reach(j, 'A', [handX, hh], 'up');
+      reach(j, 'B', [handX, hh], 'up');
     }
     return { joints: j, props: [] };
   }
@@ -642,8 +643,9 @@
     sec: 3,
     frame(u) {
       const d = sample([[0, { v: 0 }], [0.15, { v: 0 }], [0.75, { v: 1, lin: true }]], u).v;
-      const j = pose({ thA: 90, shA: 180, y: 0.46, x: 0 }, 'side', 'hip');
-      j.elbowA = [j.hip[0] + 0.18, j.hip[1] + 0.06];
+      // Seated, leaning forward so the forearm rests along the thigh.
+      const j = pose({ t: 40, n: 30, thA: 90, shA: 180, y: 0.46, x: 0 }, 'side', 'hip');
+      j.elbowA = [j.hip[0] + 0.2, j.hip[1] + 0.07];
       const wrist = [j.elbowA[0] + L.fa, j.elbowA[1]];
       j.wristA = wrist;
       reach(j, 'B', [wrist[0] - 0.02, wrist[1] + 0.06], 'down');
@@ -1266,9 +1268,9 @@
     anchor: 'hip',
     frame(u) {
       const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.38, hold: 0.14 }), u).v;
-      const hx = lerp(0, 0.22, d), hy = lerp(0.505, 0.4, d);
+      const hx = lerp(0, 0.27, d), hy = lerp(0.505, 0.34, d);
       const j = pose({ t: lerp(0, 5, d), y: hy, x: hx }, 'front', 'hip');
-      step(j, 'A', [lerp(0.12, 0.5, d), L.ankleH * 0.4], 'front', 'fwd');
+      step(j, 'A', [lerp(0.12, 0.56, d), L.ankleH * 0.4], 'front', 'fwd');
       step(j, 'B', [-0.1, L.ankleH * 0.4], 'front', 'back');
       const hands = [hx, j.shA[1] - 0.17];
       reach(j, 'A', hands, 'down');
@@ -1749,11 +1751,16 @@
       return { joints: j, props: [bar('wristA', 0.11)], hud: { label: d > 0.9 ? 'Elbows touch the floor, pause' : '' } };
     },
   });
+  // Dumbbells sit a little wider than the shoulders; the elbows travel out as they lower.
+  const dbz = (u) => {
+    const d = sample(rep({ v: 0 }, { v: 1 }, { down: 0.42, hold: 0.08 }), u).v;
+    return { wristA: lerp(0.17, 0.24, d), wristB: -lerp(0.17, 0.24, d) };
+  };
   def('db-bench', {
     sec: 2.8,
     frame(u) {
       const r = raw('bench', u);
-      return { joints: r.joints, props: [r.props[0], db('wristA')], hud: { label: 'Dumbbells over the shoulders, elbows at 45°' } };
+      return { joints: r.joints, props: [r.props[0], db('wristA')], z: dbz(u), hud: { label: 'Dumbbells over the shoulders, elbows at 45°' } };
     },
   });
   const hkLegs = { t: -2, thA: 92, shA: 180, thB: 190, shB: 270, ftB: 270 };
@@ -2459,12 +2466,13 @@
       const j = pose({}, 'front', 'feet');
       for (const [s, sg] of [['A', 1], ['B', -1]]) {
         const sh = j['sh' + s];
-        const c = [sh[0] + sg * (L.ua + L.fa) * 0.97, sh[1]];
+        const out = Math.sign(sh[0] - j.neck[0]) || sg;
+        const c = [sh[0] + out * (L.ua + L.fa) * 0.86, sh[1]];
         const w = [c[0] + 0.06 * Math.cos(a) * sg, c[1] + 0.06 * Math.sin(a)];
         j['wrist' + s] = w;
         j['elbow' + s] = mixP(sh, w, L.ua / (L.ua + L.fa));
       }
-      return { joints: j, props: [{ type: 'arc', c: [j.shA[0] + (L.ua + L.fa) * 0.97, j.shA[1]], r: 0.06 }], hud: { label: 'Small circles, then bigger' } };
+      return { joints: j, props: [], hud: { label: 'Small circles, then bigger' } };
     },
   });
   def('short-foot', {
@@ -2493,8 +2501,8 @@
     },
   });
   const forearmOnBench = () => {
-    const j = pose({ thA: 90, shA: 180, y: 0.46, x: 0 }, 'side', 'hip');
-    j.elbowA = [j.hip[0] + 0.18, j.hip[1] + 0.06];
+    const j = pose({ t: 40, n: 30, thA: 90, shA: 180, y: 0.46, x: 0 }, 'side', 'hip');
+    j.elbowA = [j.hip[0] + 0.2, j.hip[1] + 0.07];
     j.wristA = [j.elbowA[0] + L.fa, j.elbowA[1]];
     reach(j, 'B', [j.wristA[0] - 0.08, j.wristA[1] + 0.04], 'down');
     return j;
@@ -2709,14 +2717,12 @@
   vary('neutral-pullup', 'pullup', { sec: 3.2, hud: 'Palms facing each other' });
   vary('band-pullup', 'pullup', { props: (j, u, p) => [...p, { type: 'band', a: [0.02, p[0].y], b: j.kneeA }], hud: 'Band under the knees helps at the bottom' });
   vary('pullup-negative', 'pullup', { sec: 6, u: piece([[0, 0], [0.1, 0.4], [0.2, 0.5], [0.92, 0.9], [1, 1]]), hud: (u) => ({ label: u < 0.2 ? 'Jump or step to the top' : 'Lower for 5 s' }) });
-  vary('deficit-pushup', 'pushup', {
-    tweak: (j) => {
-      const hx = j.wristA[0];
-      reach(j, 'A', [hx, 0.05], 'up');
-      reach(j, 'B', [hx, 0.05], 'up');
+  def('deficit-pushup', {
+    sec: 2.4,
+    frame: (u) => {
+      const r = pushFrame(u, 'full', 0.05);
+      return { ...r, props: [{ type: 'box', x0: r.joints.wristA[0] - 0.08, x1: r.joints.wristA[0] + 0.08, h: 0.05 }], hud: { label: 'Hands on plates: chest drops below the hands' } };
     },
-    props: (j) => [{ type: 'box', x0: j.wristA[0] - 0.08, x1: j.wristA[0] + 0.08, h: 0.05 }],
-    hud: 'Hands on plates: chest drops below the hands',
   });
   def('plate-pinch', {
     sec: 5,
