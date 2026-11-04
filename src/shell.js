@@ -371,7 +371,8 @@
   // ---------- 7. friendly error bar ----------
 
   let errShown = false;
-  function reportError(msg) {
+  function reportError(msg, stack) {
+    if (root.Errors) root.Errors.record(msg, stack);
     if (errShown) return;
     errShown = true;
     const details = `${msg}\n${location.href}\n${navigator.userAgent}\n${new Date().toISOString()}`;
@@ -381,7 +382,7 @@
   addEventListener('error', (e) => {
     // Ignore failed images/scripts from other sites (fonts, camera models) and benign browser noise.
     if (!e.error || /ResizeObserver/.test(e.message || '')) return;
-    reportError(e.message || String(e.error));
+    reportError(e.message || String(e.error), e.error && e.error.stack);
   });
   addEventListener('unhandledrejection', (e) => {
     const r = e.reason;

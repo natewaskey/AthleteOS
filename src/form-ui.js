@@ -162,6 +162,7 @@
       <div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">${coach ? 'Team form checks' : 'Form analysis'}</h1><div class="spacer"></div>
         ${coach ? '' : '<button class="btn" data-tab-link="live">🎥 Live coach</button><button class="btn btn-primary" data-form-action="new">📐 Analyze a video</button>'}</div>
       ${intro}
+      ${coach && root.FormPlus ? root.FormPlus.reviewCard(ctx.state(), (id) => { const a = ctx.athleteById(id); return a ? ctx.athleteName(a) : 'Athlete'; }) : ''}
       ${trendsHTML(list)}
       ${
         coach
@@ -251,6 +252,7 @@
           <label class="inline-select">Camera <select data-form-field="view">${['auto', 'side', 'front'].map((v) => `<option value="${v}" ${v === an.view ? 'selected' : ''}>${v === 'auto' ? 'Auto-detect' : v === 'side' ? 'Side-on' : 'Front-on'}</option>`).join('')}</select></label>
           ${!coach && !solo() && !an.sharedWithCoach ? '<button class="btn btn-primary" data-form-action="share">Send to coach</button>' : ''}
           ${root.Notes ? root.Notes.button('form', an.id, an.athleteId) : ''}
+          ${root.FormPlus ? '<button class="btn" data-form-action="report">🖨 Form report</button>' : ''}
           ${root.Accuracy ? '<button class="btn btn-ghost" data-form-action="export-poses" title="Download the tracked movement to grade each check, for testing the form checker’s accuracy">⬇ Pose data</button>' : ''}
           ${!coach ? '<button class="btn btn-ghost btn-danger" data-form-action="delete">Delete</button>' : ''}
         </div>
@@ -275,6 +277,16 @@
     </section>`;
   }
 
+  const FPl = () => root.FormPlus;
+  // Form vs weight for this lift (idea 15), using the estimated max from logged sessions.
+  function formLoadHTML(an) {
+    const FP = FPl(), BP = root.BuilderPlus;
+    const a = ctx.athleteById(an.athleteId);
+    if (!FP || !BP || !a || !FP.LIFT_FOR[an.exercise]) return '';
+    const prof = BP.liftProfile(ctx.state(), a, FP.LIFT_FOR[an.exercise], ctx.C.toISODate(new Date()));
+    return prof ? FP.formLoadCard(ctx.state(), a, an.exercise, prof.recentMax) : '';
+  }
+
   function detailBody(an, result, data) {
     const e = exInfo(an.exercise);
     if (result.error) {
@@ -287,6 +299,7 @@
     const compareRep = reps.find((r) => r.n === uiState.compareRep) || reps.find((r) => r.n === result.keyRep) || null;
     return `
       ${(result.warnings || []).map((w) => `<div class="banner warn">${esc(w)}</div>`).join('')}
+      ${FPl() ? FPl().fatigueBanner(result) : ''}
       ${programCard(an)}
       ${(() => { const f = firstOf(an); return f ? `<div class="row" style="margin-bottom:.5rem"><span class="muted small">First ${esc(exInfo(an.exercise).label.toLowerCase())} check: score ${f.score}</span>${ghostButton(f.id, an.id, '👻 Compare with your first check')}</div>` : ''; })()}
       ${root.Demo3D && root.Demo3D.supported() ? `<div class="replay-row"><button type="button" class="btn btn-sm replay-3d-btn" data-form-3d="${esc(an.id)}"><span class="cube" aria-hidden="true"></span> 3D replay</button><span class="muted small">Spin your best rep in 3D next to the model rep.</span></div>` : ''}
@@ -326,7 +339,10 @@
           ${velocityHTML(result)}
           ${barPathHTML(result)}
         </section>
+        ${FPl() ? FPl().timelineCard(result) : ''}
         ${twoAngleCard(an, result)}
+        ${formLoadHTML(an)}
+        ${FPl() ? FPl().refilmCard(result) : ''}
 
         ${suggestionsCard(an, result)}
         ${discussionCards(an, result)}
@@ -1558,6 +1574,26 @@
       case 'seek':
         if (active) active.player.pause(), active.player.seek(Number(el.dataset.t));
         return;
+      case 'report': {
+        if (!an || !active || active.id !== an.id || !active.result) return ctx.toast('Wait for the analysis to load first.');
+        const a = ctx.athleteById(an.athleteId);
+        let frame = null;
+        try {
+          const v = document.querySelector('#form-detail video'), cv = document.querySelector('#form-detail canvas');
+          if (v && v.videoWidth) {
+            const c = document.createElement('canvas');
+            c.width = Math.min(960, v.videoWidth);
+            c.height = Math.round((c.width * v.videoHeight) / v.videoWidth);
+            const g = c.getContext('2d');
+            g.drawImage(v, 0, 0, c.width, c.height);
+            if (cv) g.drawImage(cv, 0, 0, c.width, c.height);
+            frame = c.toDataURL('image/jpeg', 0.82);
+          }
+        } catch {}
+        const ok = root.FormPlus.openReport({ analysis: an, result: active.result, athleteName: a ? ctx.athleteName(a) : '', frame, date: new Date(an.createdAt).toLocaleDateString(), coach: ctx.state().team && ctx.state().team.name });
+        if (!ok) ctx.toast('Allow pop-ups for Motiq to open the report.');
+        return;
+      }
       case 'export-poses': {
         if (!an || !active || active.id !== an.id) return ctx.toast('Wait for the analysis to load first.');
         const file = root.Accuracy.toExport(an, active.data, active.result);

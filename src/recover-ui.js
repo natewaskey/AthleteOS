@@ -89,7 +89,7 @@
     if (ctx.role() === 'coach') return coachView();
     const tab = TABS.some(([k]) => k === sub) ? sub : 'today';
     return `<div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">Recover</h1><div class="spacer"></div>${chip(ctx.me())}</div>
-      <div class="segmented rec-tabs" role="tablist" style="margin-bottom:1rem">${TABS.map(([k, l]) => `<button data-rec-tab="${k}" aria-pressed="${k === tab}">${l}</button>`).join('')}</div>
+      <div class="segmented rec-tabs" role="group" aria-label="Recovery sections" style="margin-bottom:1rem">${TABS.map(([k, l]) => `<button data-rec-tab="${k}" aria-pressed="${k === tab}">${l}</button>`).join('')}</div>
       ${{ today: todayView, mobility: mobilityView, sleep: sleepView, breathe: breatheView, tools: toolsView, plans: plansView }[tab]()}`;
   }
 

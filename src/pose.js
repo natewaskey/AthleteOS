@@ -93,16 +93,31 @@
     await once(video, 'loadeddata');
     const duration = Math.min(video.duration || 0, maxSeconds);
     if (!duration || !isFinite(duration)) throw new Error('Could not read the video length.');
-    const fps = wantFps || sampleFps(duration, { precise });
+    // Fast mode (idea 17): older phones analyse half as many frames so a check finishes in time.
+    // Auto mode starts at full rate and drops to half if the first frames are slow to track.
+    const FP = root.FormPlus;
+    const hw = { cores: navigator.hardwareConcurrency || null, memoryGb: navigator.deviceMemory || null };
+    const adjustable = !wantFps && !precise && FP;
+    let fast = adjustable ? FP.fastMode(fastSetting, hw) : { on: false, reason: '' };
+    const full = wantFps || sampleFps(duration, { precise });
+    let fps = fast.on ? Math.max(6, Math.round(full / 2)) : full;
     const frames = [];
     let lastTs = -1;
+    let spent = 0, tracked = 0;
     for (let t = 0; t <= duration; t += 1 / fps) {
       if (signal && signal.aborted) throw new DOMException('Cancelled', 'AbortError');
       video.currentTime = Math.min(t, duration - 0.001);
       await once(video, 'seeked');
       const ts = Math.max(lastTs + 1, Math.round(t * 1000));
       lastTs = ts;
+      const t0 = performance.now();
       const res = lm.detectForVideo(video, ts);
+      spent += performance.now() - t0;
+      tracked++;
+      if (adjustable && !fast.on && fastSetting === 'auto' && tracked === 8) {
+        const check = FP.fastMode('auto', { ...hw, msPerFrame: spent / tracked });
+        if (check.on) (fast = check), (fps = Math.max(6, Math.round(full / 2)));
+      }
       const pose = res && res.landmarks && res.landmarks[0];
       if (pose) {
         frames.push({
@@ -116,8 +131,13 @@
     const height = video.videoHeight || 720;
     video.removeAttribute('src');
     video.load();
-    return { frames, width, height, aspect: width / height, duration, fps };
+    lastFast = { on: fast.on, reason: fast.reason, msPerFrame: tracked ? Math.round(spent / tracked) : null };
+    return { frames, width, height, aspect: width / height, duration, fps, fast: fast.on };
   }
 
-  root.Pose = { detect, sampleFps, landmarker, preload: () => landmarker().then(() => true), MAX_SECONDS };
+  let fastSetting = 'auto';
+  let lastFast = null;
+  const setFastMode = (v) => (fastSetting = ['on', 'off', 'auto'].includes(v) ? v : 'auto');
+
+  root.Pose = { detect, sampleFps, landmarker, preload: () => landmarker().then(() => true), MAX_SECONDS, setFastMode, lastFast: () => lastFast };
 })(window);

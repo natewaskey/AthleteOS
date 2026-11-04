@@ -151,6 +151,7 @@
           ${pw('password', 'new-password', 'Password')}
           <div class="pw-meter" aria-hidden="true"><span></span></div>
           <p class="hint" style="margin:0" data-pw-hint>At least 6 characters.</p>
+          ${root.Legal ? root.Legal.fields({ prefix: 's-' }) : ''}
           <button class="btn btn-primary btn-block btn-lg" type="submit" ${busy ? 'disabled' : ''}>${busy ? 'Creating account…' : 'Create account'}</button>
           ${err}
           <p class="auth-switch">Already have an account? <button type="button" class="btn-link" data-cloud="auth-view" data-view="in">Sign in</button></p>
@@ -187,6 +188,7 @@
           <button class="btn btn-ghost btn-block" data-action="load-sample">Explore with a demo team</button>
           <button class="btn-link small" data-cloud="skip-login">Continue without an account</button>
         </div>
+        <p class="legal-links small"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a> · Accounts are for ages 13+</p>
       </section>
     </div>`;
   }
@@ -593,14 +595,20 @@
           teams = null;
           return 'Signed in';
         }, (msg) => msg);
-      case 'signup':
+      case 'signup': {
         authError = '';
+        const legalError = root.Legal ? root.Legal.onSignup(f) : null;
+        if (legalError) {
+          authError = legalError;
+          return ctx.render();
+        }
         return run(async () => {
           const r = await Cloud().signUp(d.email.trim(), d.password, d.name.trim()).catch(authFailed);
           teams = null;
           if (r.confirm) authView = 'in';
           return r.confirm ? 'Check your email to confirm, then sign in' : 'Account created';
         }, (msg) => msg);
+      }
       case 'join': {
         // A brand-new device has nothing to lose; otherwise make sure replacing the data is wanted.
         if (ctx.state().mode != null && !(await root.Dialogs.confirm('This device’s data will be replaced by the team’s. Export it first in Settings if you need a copy.', { title: 'Join this team?', ok: 'Join' }))) return;

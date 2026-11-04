@@ -230,18 +230,23 @@
   function openSwap({ assignment, item, athlete, onDone }) {
     const checkin = athlete.checkins.find((c) => c.date === C.toISODate(new Date()));
     const injuries = P.activeInjuries(ctx.state(), athlete.id);
-    const alts = P.alternatives(item.name, {
+    const filt = {
       painAreas: checkin ? C.painAreas(checkin) : [],
       soreAreas: checkin ? Object.keys(checkin.soreAreas).filter((a) => checkin.soreAreas[a] >= 2) : [],
       injuries,
       limit: 8,
-    });
+    };
+    // Ranked by what keeps the training effect (same movement, same muscles, your equipment) when available.
+    const BP = root.BuilderPlus;
+    const ranked = BP ? BP.swapOptions(item.name, { ...filt, equipment: BP.activeEquipment(athlete) }) : null;
+    const why = new Map((ranked || []).map((r) => [r.name, r.reasons.join(' · ')]));
+    const alts = ranked && ranked.length ? ranked.map((r) => r.name) : P.alternatives(item.name, filt);
     ensureSheet();
     const F = root.Feedback;
     let reason = null;
     const optsHTML = () => {
       const list = F && reason ? F.swapOptions(item.name, reason, alts.length ? alts : P.alternatives(item.name, { limit: 12 })).slice(0, 8) : alts;
-      return list.length ? `<div class="swap-list">${list.map((n) => `<button class="swap-opt" data-swap-to="${esc(n)}"><strong>${esc(n)}</strong><span class="muted small">${esc(P.PATTERNS[P.meta(n).pattern]?.label || '')}${P.meta(n).equipment.length ? ' · ' + P.meta(n).equipment.map((e) => P.EQUIPMENT[e]).join(', ') : ' · bodyweight'}</span></button>`).join('')}</div>` : '<p>No good alternatives in the library. Ask your coach.</p>';
+      return list.length ? `<div class="swap-list">${list.map((n) => `<button class="swap-opt" data-swap-to="${esc(n)}"><strong>${esc(n)}</strong><span class="muted small">${why.has(n) && !reason ? esc(why.get(n)) : `${esc(P.PATTERNS[P.meta(n).pattern]?.label || '')}${P.meta(n).equipment.length ? ' · ' + P.meta(n).equipment.map((e) => P.EQUIPMENT[e]).join(', ') : ' · bodyweight'}`}</span></button>`).join('')}</div>` : '<p>No good alternatives in the library. Ask your coach.</p>';
     };
     sheet.innerHTML = `<div class="row"><h2 style="margin:0">Swap ${esc(item.name)}</h2><div class="spacer"></div><button class="btn btn-sm btn-ghost" data-close aria-label="Close">✕</button></div>
       ${F ? `<p class="small" style="margin:.4rem 0 .2rem">Why are you swapping it? <span class="muted">(your coach sees this)</span></p><div class="row swap-reasons">${Object.entries(F.SWAP_REASONS).map(([k, v]) => `<button type="button" class="chip" data-swap-reason="${k}" aria-pressed="false">${esc(v)}</button>`).join('')}</div>` : ''}

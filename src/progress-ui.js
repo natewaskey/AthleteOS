@@ -123,10 +123,10 @@
         <section class="card ${pro ? 'span-6' : 'span-3'}"><h3>Tests recorded</h3><div class="stat">${a.tests.length}</div><div class="muted">${testIds.length} different tests</div></section>
         ${pro ? '' : badgesHTML(a)}
         <section class="card span-6"><div class="card-head"><h3>Strength trend · estimated 1RM</h3>
-          ${lifts.length ? `<select data-prog-ui="lift" style="width:auto">${lifts.map((l) => `<option ${l === ui.lift ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}</div>
+          ${lifts.length ? `<select data-prog-ui="lift" aria-label="Lift" style="width:auto">${lifts.map((l) => `<option ${l === ui.lift ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}</div>
           ${ui.lift ? lineChart(e1rmSeries(a, ui.lift).map((p) => ({ ...p, value: C.kgToDisplay(p.value, ctx.units()) })), { fmt: (v) => `${Math.round(v)} ${ctx.U().weight}` }) : '<p class="muted">Log lifts with weights to see your strength trend.</p>'}</section>
         <section class="card span-6"><div class="card-head"><h3>Test results</h3>
-          <select data-prog-ui="test" style="width:auto">${C.TESTS.map((x) => `<option value="${x.id}" ${x.id === ui.test ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
+          <select data-prog-ui="test" aria-label="Test" style="width:auto">${C.TESTS.map((x) => `<option value="${x.id}" ${x.id === ui.test ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
           ${lineChart(C.testHistory(a, ui.test).map((r) => ({ date: r.date, value: r.value })), { fmt: (v) => fmtTest(ui.test, v), better: C.TEST_INFO[ui.test].better })}
           ${root.SprintUI && C.TEST_INFO[ui.test].kind === 'speed' && ['split10', 'dash20', 'dash40'].includes(ui.test) ? `<button class="btn btn-sm" data-spr="open" data-distance="${ui.test}" style="margin-top:.5rem">📹 Time it with the camera</button>` : ''}
           <form data-prog-form="self-test" class="row" style="margin-top:.5rem;align-items:flex-end">
@@ -150,7 +150,7 @@
     const shown = ui.group ? athletes.filter((a) => a.groups.includes(ui.group)) : athletes;
     const et = C.TEST_INFO[ui.entryTest];
     return `<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Performance</h1><div class="spacer"></div>
-        ${groups.length ? `<select data-prog-ui="group" style="width:auto"><option value="">All athletes</option>${groups.map((g) => `<option ${g === ui.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
+        ${groups.length ? `<select data-prog-ui="group" aria-label="Group" style="width:auto"><option value="">All athletes</option>${groups.map((g) => `<option ${g === ui.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
         <button class="btn" data-action="weekly-report">📄 Weekly report</button></div>
       <div class="grid">${lead}
         <section class="card span-6"><div class="card-head"><h3>Testing day</h3><div class="row" style="gap:.35rem">${root.TestDayUI ? '<button class="btn btn-sm btn-primary" data-td="start">▶ Guided testing day</button>' : ''}${root.SprintUI ? '<button class="btn btn-sm" data-spr="open" title="Time a sprint with the camera">📹 Sprint timer</button>' : ''}</div></div>
@@ -165,7 +165,7 @@
             <button class="btn btn-primary" type="submit">Save results</button>
           </form></section>
         <section class="card span-6"><div class="card-head"><h3>Leaderboard</h3>
-          <select data-prog-ui="board" style="width:auto">${C.TESTS.filter((x) => x.better !== 'none').map((x) => `<option value="${x.id}" ${x.id === ui.board ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
+          <select data-prog-ui="board" aria-label="Leaderboard test" style="width:auto">${C.TESTS.filter((x) => x.better !== 'none').map((x) => `<option value="${x.id}" ${x.id === ui.board ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>
           ${leaderboardHTML(shown, ui.board)}</section>
         ${ctx.state().settings.proMode ? '' : `<section class="card span-12"><div class="card-head"><h3>Shout-outs</h3></div>
           <form data-prog-form="shoutout" class="row" style="align-items:flex-end">
