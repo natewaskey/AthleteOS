@@ -48,7 +48,7 @@
     const eventsToday = Cal ? Cal.eventsFor(state, null, t, t) : [];
     const todo = [];
     for (const f of flagged) todo.push({ level: 'bad', text: `${nameOf(f.a)}: ${f.text}`, athleteId: f.a.id });
-    for (const l of low) todo.push({ level: 'warn', text: `${nameOf(l.a)} is low on readiness (${l.score}). Consider a lighter session.`, athleteId: l.a.id });
+    for (const l of low) if (!flagged.some((f) => f.a.id === l.a.id)) todo.push({ level: 'warn', text: `${nameOf(l.a)} is low on readiness (${l.score}). Consider a lighter session.`, athleteId: l.a.id });
     const missed = skipped.filter((s) => s.a);
     if (missed.length) todo.push({ level: 'warn', text: `${missed.length} session${missed.length === 1 ? '' : 's'} missed in the last 3 days (${[...new Set(missed.map((s) => nameOf(s.a)))].slice(0, 3).join(', ')}${missed.length > 3 ? '…' : ''})`, link: 'plan' });
     if (formToReview) todo.push({ level: 'info', text: `${formToReview} form check${formToReview === 1 ? '' : 's'} waiting for your review`, link: 'form' });

@@ -25,7 +25,7 @@
     const tab = ['fuel', 'mind', 'health'].includes(sub) ? sub : 'fuel';
     stopBreath(true);
     return `<div class="row" style="margin-bottom:.5rem"><h1 class="page-title" style="margin:0">Wellness</h1></div>
-      <div class="segmented" role="tablist" style="margin-bottom:1rem">
+      <div class="segmented" role="group" aria-label="View" style="margin-bottom:1rem">
         <button data-well-tab="fuel" aria-pressed="${tab === 'fuel'}">🍽️ Fuel</button>
         <button data-well-tab="mind" aria-pressed="${tab === 'mind'}">🧠 Mind</button>
         <button data-well-tab="health" aria-pressed="${tab === 'health'}">🩹 Health</button>

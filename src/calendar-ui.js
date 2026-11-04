@@ -50,12 +50,12 @@
             <strong style="min-width:9rem;text-align:center">${esc(title)}</strong>
             <button class="btn btn-sm" data-cal-action="month" data-delta="1" aria-label="Next month">›</button>
             ${month !== t.slice(0, 7) + '-01' ? '<button class="btn btn-sm btn-ghost" data-cal-action="month" data-delta="0">Today</button>' : ''}</div>
-          <div class="month-grid" role="grid">
-            ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="mg-head" role="columnheader">${d}</div>`).join('')}
+          <div class="month-grid">
+            ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="mg-head" aria-hidden="true">${d}</div>`).join('')}
             ${weeks.flat().map(({ date, inMonth }) => {
               const de = evs.filter((e) => e.date === date);
               const ds = ses.filter((a) => a.date === date);
-              return `<div class="mg-day ${inMonth ? '' : 'out'} ${date === t ? 'today' : ''} ${date === selected ? 'sel' : ''}" role="gridcell" data-cal-day="${date}" tabindex="0" aria-label="${date}${de.length ? `, ${de.length} events` : ''}">
+              return `<div class="mg-day ${inMonth ? '' : 'out'} ${date === t ? 'today' : ''} ${date === selected ? 'sel' : ''}" role="button" data-cal-day="${date}" tabindex="0" aria-label="${date}${de.length ? `, ${de.length} events` : ''}">
                 <span class="mg-num">${Number(date.slice(8))}</span>
                 ${de.slice(0, 3).map((e) => `<span class="mg-dot ${e.type}" title="${esc(e.title)}">${K.EVENT_TYPES[e.type].icon}<em>${esc(e.title)}</em></span>`).join('')}
                 ${de.length > 3 ? `<span class="muted small">+${de.length - 3}</span>` : ''}

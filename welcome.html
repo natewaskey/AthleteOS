@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Motiq · Training programs and form checks for athletes and teams</title>
+<meta name="description" content="Motiq builds training programs around each athlete and checks lifting form from a phone video. Coaches see their whole team in one place." />
+<meta property="og:title" content="Motiq" />
+<meta property="og:description" content="Programs built around each athlete, form checks from your phone camera, and your whole team in one place." />
+<meta property="og:image" content="site/shot-form.png" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<style>
+:root { --bg: #08090b; --card: #111318; --ink: #eceef1; --muted: #9aa1ab; --line: #23262d; --accent: #ff6a1a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: inherit; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; gap: 12px; }
+.brand { font-weight: 700; font-size: 22px; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 28px; height: 28px; fill: none; stroke: var(--accent); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.beta { font: 600 10px/1 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 3px 5px; }
+.btn { display: inline-block; padding: 12px 20px; border-radius: 10px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #111; }
+.hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; padding: 40px 0 56px; }
+h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 0 0 16px; letter-spacing: -.02em; }
+h1 span { color: var(--accent); }
+.lead { color: var(--muted); font-size: 19px; margin: 0 0 24px; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; }
+.phones { display: flex; gap: 14px; justify-content: center; }
+.phones img { width: 46%; max-width: 230px; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.phones img:nth-child(2) { margin-top: 40px; }
+section { padding: 48px 0; border-top: 1px solid var(--line); }
+h2 { font-size: 30px; margin: 0 0 8px; }
+.sub { color: var(--muted); margin: 0 0 28px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.card h3 { margin: 0 0 6px; font-size: 18px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; }
+.split img { width: 100%; max-width: 300px; border-radius: 22px; border: 1px solid var(--line); justify-self: center; }
+ul.ticks { list-style: none; padding: 0; margin: 0; }
+ul.ticks li { padding: 6px 0 6px 28px; position: relative; }
+ul.ticks li::before { content: ""; position: absolute; left: 4px; top: 14px; width: 10px; height: 6px; border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg); }
+.price { font-size: 26px; font-weight: 700; margin: 4px 0; }
+footer { padding: 32px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+@media (max-width: 820px) { .hero, .split { grid-template-columns: 1fr; } .grid3 { grid-template-columns: 1fr; } .hero { padding-top: 16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><a class="brand" href="welcome.html"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 22 L11 10 L16 18 L21 8 L28 22"/></svg>Motiq <span class="beta">Beta</span></a><a class="btn" href="./">Open the app</a></header>
+
+<div class="hero">
+  <div>
+    <h1>Train smarter.<br/><span>Together.</span></h1>
+    <p class="lead">Motiq builds a training program around each athlete, checks lifting form from a quick phone video, and gives coaches their whole team on one screen.</p>
+    <div class="cta"><a class="btn primary" href="./">Start free</a><a class="btn" href="./#settings">Try the demo team</a></div>
+    <p class="sub" style="margin-top:14px;font-size:14px">Works in any phone browser. Free for athletes.</p>
+  </div>
+  <div class="phones"><img src="site/shot-today.png" alt="Motiq home screen for an athlete" width="390" height="844" /><img src="site/shot-form.png" alt="A squat form check with a fatigue warning and program changes" width="390" height="844" loading="lazy" /></div>
+</div>
+
+<section>
+  <h2>Built around two things that matter</h2>
+  <p class="sub">A program that fits you, and proof your form holds up.</p>
+  <div class="grid3">
+    <div class="card"><h3>Program builder</h3><p>Periodized plans for your sport, position, equipment and schedule. Today’s session adjusts to how you slept, how sore you are and how fast the bar moved.</p></div>
+    <div class="card"><h3>Form checker</h3><p>Film a set and get rep-by-rep feedback on 24 lifts and movements, with live coaching on 20. The analysis runs on your phone; videos stay there unless you share them.</p></div>
+    <div class="card"><h3>Injury prevention</h3><p>Readiness, training load, practice and game minutes, and left-right imbalances in one place, so problems show up before they hurt.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="split">
+    <div><h2>For coaches</h2><p class="sub">Everything that needs you today, first thing.</p>
+      <ul class="ticks"><li>Who’s ready, who’s flagged and who missed sessions</li><li>One program, fitted to every athlete’s maxes and level</li><li>Form checks to review, with the bad reps marked</li><li>Testing reports, speed profiles, norms and exports</li><li>Announcements and quick questions the team answers in the app</li></ul></div>
+    <img src="site/shot-coach.png" alt="The coach's Today card listing alerts and missed sessions" width="390" height="844" loading="lazy" />
+  </div>
+</section>
+
+<section id="pricing">
+  <h2>Pricing</h2>
+  <p class="sub">Free during the beta. Athletes are always free.</p>
+  <div class="grid3">
+    <div class="card"><h3>Athlete</h3><div class="price">Free</div><p>Program builder, form checker, logging, recovery and progress.</p></div>
+    <div class="card"><h3>Team</h3><div class="price">$40<span style="font-size:15px;color:var(--muted)"> / month</span></div><p>Up to 40 athletes, command center, review queue, testing reports and exports. Or $300 per season.</p></div>
+    <div class="card"><h3>School or club</h3><div class="price">From $1,500<span style="font-size:15px;color:var(--muted)"> / year</span></div><p>Every team, the school view across teams, and priority help.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Your data, your call</h2>
+  <p class="sub">We never sell data or show ads. Under-18s need a parent’s OK before a coach sees their health details. Download or delete everything at any time.</p>
+  <a class="btn" href="privacy.html">Read the privacy policy</a>
+</section>
+
+<footer><span>© 2026 Motiq. All rights reserved.</span><span><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="./">Open the app</a></span></footer>
+</div>
+</body>
+</html>

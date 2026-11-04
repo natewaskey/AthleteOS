@@ -209,7 +209,7 @@
     return `${Staff().banner()}<div class="row" style="margin-bottom:.75rem"><h1 class="page-title" style="margin:0">Training plan</h1><div class="spacer"></div>
         <button class="btn" data-plan-action="new-template">+ New workout</button>
         <button class="btn btn-primary" data-plan-action="assign">${Staff().assignLabel('Assign workout')}</button></div>
-      <div class="segmented" role="tablist" style="margin-bottom:1rem">
+      <div class="segmented" role="group" aria-label="View" style="margin-bottom:1rem">
         <button data-plan-action="coach-tab" data-tab-id="calendar" aria-pressed="${coachTab === 'calendar'}">Week calendar</button>
         <button data-plan-action="coach-tab" data-tab-id="library" aria-pressed="${coachTab === 'library'}">Workout library (${myTemplates().length})</button>
         <button data-plan-action="coach-tab" data-tab-id="programs" aria-pressed="${coachTab === 'programs'}">Programs (${ctx.state().programs.length})</button>

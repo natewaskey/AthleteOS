@@ -6,10 +6,24 @@
   'use strict';
 
   const node = typeof module !== 'undefined' && module.exports;
-  const VERSION = '0.3.0';
+  const VERSION = '1.0.0';
   const SEEN_KEY = 'motiq.seenVersion';
 
   const RELEASES = [
+    {
+      version: '1.0.0',
+      date: '2026-11-04',
+      title: 'Motiq 1.0',
+      items: [
+        ['bars', 'A session that adapts every day', 'Today’s workout adjusts to readiness, soreness, last session’s effort and bar speed, and shows what changed. Preview and compare programs, fit one team program to everyone, plan around games, and save equipment setups.'],
+        ['chart', 'Lift profiles and report cards', 'Estimated max, trend and a rep-max table for every lift, and a report card when a block ends.'],
+        ['video', '8 new form checks', 'Front squat, trap bar, kettlebell swing, step-up, push press, Nordic curl, plank and lateral bound. Live coaching now covers 20 lifts.'],
+        ['target', 'Deeper form feedback', 'Rep-by-rep timeline, fatigue warnings, form vs weight, refilm tips, a printable form report and fast mode for older phones.'],
+        ['users', 'Coach command center', 'A Today card with what needs you, practices and games counted in training load, testing reports with norms, speed profiles, exports and quick questions for the team.'],
+        ['shield', 'Privacy you can see', 'A trust center, plain-language privacy policy and terms, download your data or delete your account any time.'],
+        ['heart', 'Help us test', 'Use the Feedback button on any screen to report a bug or share an idea.'],
+      ],
+    },
     {
       version: '0.3.0',
       date: '2026-11-04',
