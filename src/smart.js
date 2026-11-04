@@ -17,6 +17,7 @@
   const Cal = node ? require('./calendar.js') : root.Calendar;
   const Sci = node ? require('./science.js') : root.Science;
   const G = node ? require('./goals.js') : root.Goals;
+  const Rec = () => (node ? require('./recovery.js') : root.Recovery);
 
   const KM_PER_MI = 1.609344;
   const KG_PER_LB = 0.45359237;
@@ -307,8 +308,11 @@
     const style = G.styleOf(a.focus);
     const goal = FOCUS[a.focus];
     const careful = style === 'conservative';
-    if (risk.level === 'high' || (ready != null && ready < 50) || pain.length) {
+    // Smart deload (idea 23): recovery, soreness, sleep and bar speed trending down together.
+    const dl = Rec() ? Rec().deloadCheck(a, todayISO) : null;
+    if (risk.level === 'high' || (ready != null && ready < 50) || pain.length || (dl && dl.suggest)) {
       decision = 'deload';
+      if (dl && dl.suggest && !(risk.level === 'high' || (ready != null && ready < 50) || pain.length)) reasons.push(`Several recovery signs are trending down together: ${dl.reasons.slice(0, 2).join(' ')}`);
       if (risk.level === 'high') reasons.push(`Injury risk is high (${risk.factors.slice(0, 2).map((f) => f.label.toLowerCase()).join(', ')}).`);
       if (ready != null && ready < 50) reasons.push(`Readiness averaged ${ready} last week.`);
       if (pain.length) reasons.push(`You reported pain in your ${pain.map(areaName).join(', ')}.`);
