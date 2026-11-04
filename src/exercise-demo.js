@@ -1676,7 +1676,7 @@
     const joints = r.joints || pose(r.p, r.view || s.view, s.anchor);
     let props = r.props || (s.props ? s.props(joints, u) : s.propsU ? s.propsU(joints, u) : []) || [];
     if (!r.props && s.props && s.propsU) props = [...props, ...s.propsU(joints, u)];
-    return { joints: JSON.parse(JSON.stringify(joints)), props: props.map((p) => ({ ...p })), hud: { ...(r.hud || (s.hud ? s.hud(u) : {})) }, view: r.view || s.view };
+    return { joints: JSON.parse(JSON.stringify(joints)), props: props.map((p) => ({ ...p })), hud: { ...(r.hud || (s.hud ? s.hud(u) : {})) }, view: r.view || s.view, z: r.z ? { ...r.z } : null };
   }
   const drop = (j) => shift(j, 0, -lowest(j));
   const rotKeys = (j, keys, pivot, deg) => {
@@ -2615,7 +2615,7 @@
         if (o.tweak) o.tweak(r.joints, u, r);
         const props = o.props ? o.props(r.joints, u, r.props) : r.props;
         const hud = typeof o.hud === 'function' ? o.hud(u, r.hud) : o.hud ? { ...r.hud, label: o.hud } : r.hud;
-        return { joints: r.joints, props, view: r.view, hud };
+        return { joints: r.joints, props, view: r.view, hud, z: r.z };
       },
     });
   }
@@ -2825,6 +2825,12 @@
     });
   }
 
+  // ---------- mobility, recovery and prevention library (demos-recovery.js) ----------
+  {
+    const EXT = typeof module !== 'undefined' && module.exports ? require('./demos-recovery.js') : root.DemosRecovery;
+    if (EXT) EXT({ def, keyed, vary, raw, pose, sample, rep, alternate, swap, squat, hinge, squatF, fig, quad, floorBody, kneelF, step, reach, rotate, lean, drop, shift, add, angle, dist, mixP, lerp, clamp, ease, dir, L, TAU, v01, bar, db, kb, STAND, rotKeys, legKeys, armKeys, piece, runDef, runPose, lowest, DEMOS });
+  }
+
   // ---------- frames ----------
   const IDS = Object.keys(DEMOS);
   const VIEW_LINKS = { side: [...LINKS_A(), ...[]], front: [] };
@@ -2852,7 +2858,7 @@
       near = near.filter((x) => !hide.has(x.join('-')));
     }
     if (r.extraLinks) near = [...near, ...r.extraLinks];
-    return { id, u, view, joints, links: near, far, props: props.map((p) => resolveProp(p, joints)), hud, seconds: spec.sec };
+    return { id, u, view, joints, links: near, far, props: props.map((p) => resolveProp(p, joints)), hud, seconds: spec.sec, z: r.z || null };
   }
   function resolveProp(p, j) {
     const o = { ...p };

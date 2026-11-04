@@ -1,12 +1,11 @@
-<!doctype html>
-<!-- Dev tool: contact sheet of every exercise demo. Open via file:// ; ?t=0.5 sets the loop phase, ?only=a,b filters. -->
-<html><head><meta charset="utf-8"><link rel="stylesheet" href="../src/styles.css">
-<style>body{padding:8px;background:#fff} .g{display:grid;grid-template-columns:repeat(8,1fr);gap:6px} figure{margin:0;font:11px system-ui} canvas{width:100%;height:120px;display:block}</style></head>
-<body><div class="g" id="g"></div>
-<script src="../src/exercise-demo.js"></script>
-<script>
-const q=new URLSearchParams(location.search);const ph=+(q.get('t')||0.45);const only=q.get('only');const phases=(q.get('ph')||String(ph)).split(',').map(Number);if(q.get('cols'))document.getElementById('g').style.gridTemplateColumns=`repeat(${q.get('cols')},1fr)`;
-const ids=only?only.split(','):ExerciseDemo.IDS;
-for(const id of ids)for(const t of phases){const fig=document.createElement('figure');const c=document.createElement('canvas');if(q.get('h'))c.style.height=q.get('h')+'px';fig.append(c,id+' @'+t);document.getElementById('g').append(fig);
-ExerciseDemo.draw(c,ExerciseDemo.frame(id,t*ExerciseDemo.DEMOS[id].sec),{big:true});}
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{font:12px system-ui;background:#fff;color:#111;margin:8px}.row{display:flex;gap:4px;align-items:center;margin:2px 0}
+.row b{width:150px;font-size:11px}canvas{width:150px;height:110px;border:1px solid #ddd}
+:root{--surface-2:#f4f5f7;--text:#111;--border:#9aa3b0;--info:#3b6fd8;--bg:#fff}</style></head><body><div id="out"></div>
+<script src="../src/demos-recovery.js"></script><script src="../src/exercise-demo.js"></script><script>
+const ids=(new URLSearchParams(location.search).get('ids')||'').split(',').filter(Boolean);
+const out=document.getElementById('out');
+for(const id of ids){const r=document.createElement('div');r.className='row';r.innerHTML='<b>'+id+'</b>';out.append(r);
+ const sp=ExerciseDemo.DEMOS[id];if(!sp){r.innerHTML+=' MISSING';continue}
+ for(const u of [0,.2,.4,.6,.8]){const c=document.createElement('canvas');r.append(c);ExerciseDemo.draw(c,ExerciseDemo.frame(id,u*sp.sec),{big:false});}}
 </script></body></html>

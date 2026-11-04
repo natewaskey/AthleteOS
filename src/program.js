@@ -64,7 +64,7 @@
   const EQUIPMENT = {
     none: 'Bodyweight', barbell: 'Barbell + rack', dumbbell: 'Dumbbells', kettlebell: 'Kettlebells', bench: 'Bench', 'pullup-bar': 'Pull-up bar', band: 'Bands',
     box: 'Plyo box', 'med-ball': 'Medicine ball', sled: 'Sled', machine: 'Cable / machines', cones: 'Cones / ladder', field: 'Field or track', bike: 'Bike / air bike',
-    rower: 'Rower', rope: 'Jump rope / ropes', 'foam-roller': 'Foam roller', hurdles: 'Mini hurdles', slideboard: 'Slide board / sliders', pool: 'Pool',
+    rower: 'Rower', rope: 'Jump rope / ropes', 'foam-roller': 'Foam roller', hurdles: 'Mini hurdles', slideboard: 'Slide board / sliders', pool: 'Pool', 'massage-ball': 'Massage / lacrosse ball', dowel: 'Stick / dowel',
   };
 
   // [pattern, equipment...] per library exercise. Unlisted warm-up / mobility / cool-down items are
