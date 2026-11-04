@@ -103,7 +103,7 @@
     const tone = BAND_TONE[s.band] || '';
     const act = s.action;
     const dayRoutine = programRecoveryDay(a, t);
-    const scoreCard = `<section class="card span-6 rec-score"><div class="card-head"><h3>Recovery</h3>${s.band ? `<span class="pill ${tone}">${esc(s.label)}</span>` : ''}</div>
+    const scoreCard = `<section class="card span-6 rec-score"><div class="card-head"><h3>Recovery</h3>${s.band ? `<span class="pill ${tone}">${esc(s.label)}</span>` : ''}${root.Notes ? root.Notes.button('recovery', t, a.id) : ''}</div>
       <div class="rec-score-row">
         <div class="rec-big ${tone ? 'tone-' + tone : ''}"><strong class="num">${s.score == null ? '–' : s.score}</strong><small>${s.score == null ? 'no check-in' : '/100'}</small></div>
         <div>${battery(s.score, s.band, true)}<div class="muted small" style="margin-top:.3rem">Recovery battery</div></div>

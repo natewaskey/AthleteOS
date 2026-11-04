@@ -250,6 +250,7 @@
           <label class="inline-select">Exercise <select data-form-field="exercise">${Object.entries(M.EXERCISES).map(([k, x]) => `<option value="${k}" ${k === an.exercise ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>
           <label class="inline-select">Camera <select data-form-field="view">${['auto', 'side', 'front'].map((v) => `<option value="${v}" ${v === an.view ? 'selected' : ''}>${v === 'auto' ? 'Auto-detect' : v === 'side' ? 'Side-on' : 'Front-on'}</option>`).join('')}</select></label>
           ${!coach && !solo() && !an.sharedWithCoach ? '<button class="btn btn-primary" data-form-action="share">Send to coach</button>' : ''}
+          ${root.Notes ? root.Notes.button('form', an.id, an.athleteId) : ''}
           ${root.Accuracy ? '<button class="btn btn-ghost" data-form-action="export-poses" title="Download the tracked movement to grade each check, for testing the form checker’s accuracy">⬇ Pose data</button>' : ''}
           ${!coach ? '<button class="btn btn-ghost btn-danger" data-form-action="delete">Delete</button>' : ''}
         </div>

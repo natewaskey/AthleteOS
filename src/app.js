@@ -436,6 +436,7 @@
         ${w.notes ? `<div class="meta" style="font-style:italic">${esc(w.notes)}</div>` : ''}
         ${vids.map((v) => `<button class="btn btn-sm video-chip" data-action="play-video" data-id="${v.id}">🎥 ${esc(v.name)}</button>${role() === 'athlete' ? `<button class="btn btn-sm video-chip" data-form-action="analyze-video" data-video-id="${v.id}">📐 Analyze form</button>` : ''}`).join('')}</div>
       <div class="side"><strong>${num(C.sessionLoad(w))}</strong><div class="meta">AU</div></div>
+      ${window.Notes ? `<div class="note-slot">${window.Notes.button('workout', w.id, athleteId || me().id)}</div>` : ''}
       ${actions || del ? `<div class="row" style="flex-wrap:nowrap">${actions ? `<button class="btn btn-sm btn-ghost" data-action="edit-workout" data-id="${w.id}">Edit</button>` : ''}<button class="btn btn-sm btn-ghost btn-danger" data-action="delete-workout" data-id="${w.id}" ${athleteId ? `data-athlete="${athleteId}"` : ''} aria-label="Delete ${esc(w.title)}" title="Delete">✕</button></div>` : ''}
     </li>`;
   }
@@ -846,6 +847,7 @@
     messages() {
       const a = me();
       return `<h1 class="page-title">Messages</h1>
+        ${window.Notes ? window.Notes.recentCard() : ''}
         <section class="card chat-card">
           <div class="chat-head"><div class="avatar coach">${esc(initials(coachName()))}</div>
             <div><strong>${esc(coachName())}</strong><div class="muted small">Your coach${coachCreds() ? ' · 🎓 ' + esc(coachCreds()) : ''}</div></div></div>
@@ -1214,6 +1216,7 @@
             <div class="thread"><p class="muted" style="margin:auto;text-align:center">Pick an athlete to open their thread, or send an announcement to everyone below.</p></div>
             ${composerHTML({ broadcast: true })}`;
       return `<h1 class="page-title">Messages</h1>
+        ${window.Notes ? window.Notes.recentCard() : ''}
         <section class="card inbox ${selected ? 'has-selection' : ''}">${listHTML}<div class="chat-pane">${pane}</div></section>`;
     },
 
@@ -1512,7 +1515,7 @@
 
   function badgeFor(sec, unread) {
     let n = 0;
-    if (sec.routes.includes('messages')) n += unread;
+    if (sec.routes.includes('messages')) n += unread + (window.Notes ? window.Notes.unseenCount() : 0);
     if (sec.routes.includes('form')) n += Form.unseenCount();
     if (sec.routes.includes('plan') && role() !== 'coach') n += Plan.dueCount();
     if (sec.routes.includes('approvals') && role() === 'coach') n += Staff.pendingCount();
@@ -2690,6 +2693,7 @@
   Health.init({ C, state: () => state, save, render, toast, esc, role, me, solo, athleteById, athleteName, coachName, relTime, fmtDate, units, activeStaff });
   const shared = { C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, relDate, relTime, fmtDate, units, U, sportOptions, Media, storeVideo, openAnalyze: (o) => Form.openAnalyze(o) };
   Cal.init(shared);
+  if (window.Notes) Notes.init(shared);
   Sci.init(shared);
   JumpUI.init(shared);
   if (window.FeedbackUI) FeedbackUI.init(shared);
