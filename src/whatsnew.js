@@ -6,10 +6,26 @@
   'use strict';
 
   const node = typeof module !== 'undefined' && module.exports;
-  const VERSION = '0.2.0';
+  const VERSION = '0.3.0';
   const SEEN_KEY = 'motiq.seenVersion';
 
   const RELEASES = [
+    {
+      version: '0.3.0',
+      date: '2026-11-04',
+      title: 'Recover like a pro',
+      items: [
+        ['heart', 'Recover tab', 'A daily recovery score with one clear action, a sore-spot body map, 23 guided mobility and recovery flows, sleep tracking, breathing, recovery tools and game-day plans.'],
+        ['target', 'Mobility plans from your tests', 'Your camera mobility tests build your plan, with range-of-motion charts and staged tendon care.'],
+        ['bars', 'Programs that respect recovery', 'Recovery days and matched cool-downs in every program, growth-aware loading for youth athletes, and a lighter week when several signs trend down.'],
+        ['heart', 'Heart rate from your camera', 'Measure resting heart rate in 30 seconds with a fingertip over the camera.'],
+        ['play', 'Smarter 3D demos', 'Real lifting tempo, both sides, scrub and step through a rep, jump to the checked positions with their angles, and a muscle-shaped figure that lights up the working muscles.'],
+        ['video', 'You vs the model', 'The 3D form-check replay lines the model up with your rep position by position and lights up joints that are off.'],
+        ['sparkle', 'Your colors', 'Pick an accent color and a display mode (light, dark, true black or high contrast). Coaches can set team colors and a logo.'],
+        ['chat', 'Session notes', 'Leave notes on a workout, form check or recovery day, for yourself or between athlete and coach.'],
+        ['trophy', 'Stronger recruiting profile', 'Camera-measured results, form-check scores and training consistency, with your team colors on the export.'],
+      ],
+    },
     {
       version: '0.2.0',
       date: '2026-11-03',
