@@ -266,7 +266,9 @@
       notes: String(input.notes || '').trim(),
       avgHr: Number(input.avgHr) > 0 ? Math.round(Number(input.avgHr)) : null,
       maxHr: Number(input.maxHr) > 0 ? Math.round(Number(input.maxHr)) : null,
-      source: ['gpx', 'tcx', 'whoop', 'garmin', 'oura', 'polar'].includes(input.source) ? input.source : null,
+      source: ['gpx', 'tcx', 'whoop', 'garmin', 'oura', 'polar', 'calendar'].includes(input.source) ? input.source : null,
+      ...(input.eventId ? { eventId: String(input.eventId).slice(0, 80) } : {}), // practice or game it was counted from (team-plus.js)
+      ...(input.edited ? { edited: true } : {}), // changed by hand, so automatic updates leave it alone
       ...(input.externalId ? { externalId: String(input.externalId).slice(0, 120) } : {}), // id at the device brand, for synced workouts
     };
   }
@@ -802,6 +804,9 @@
       // Imported device data: HRV, jumps, GPS, bar velocity. Normalised by importer.js.
       metrics: objList(input.metrics, 6000),
       partnerId: input.partnerId ? String(input.partnerId) : null, // training partner (another athlete id)
+      // Saved equipment setups ("School weight room", "Home", "Hotel") and the one in use (builder-plus.js).
+      equipmentProfiles: objList(input.equipmentProfiles, 12).map((x) => ({ id: String(x.id || uid()), name: String(x.name || 'My equipment').slice(0, 40), equipment: Array.isArray(x.equipment) ? x.equipment.map(String).slice(0, 30) : [] })),
+      equipmentActive: input.equipmentActive ? String(input.equipmentActive) : null,
       autoAdapt: input.autoAdapt !== false, // let the weekly adapter adjust upcoming sessions
       adapt: input.adapt && typeof input.adapt === 'object' ? JSON.parse(JSON.stringify(input.adapt)) : null,
       summarySeen: String(input.summarySeen || ''),
@@ -912,7 +917,7 @@
 
   // ---------- form analyses ----------
 
-  const FORM_EXERCISES = ['squat', 'deadlift', 'rdl', 'lunge', 'bss', 'bench', 'pushup', 'ohp', 'row', 'pullup', 'hipthrust', 'clean', 'landing', 'cut', 'sprintstart', 'running'];
+  const FORM_EXERCISES = ['squat', 'deadlift', 'rdl', 'lunge', 'bss', 'bench', 'pushup', 'ohp', 'row', 'pullup', 'hipthrust', 'clean', 'landing', 'cut', 'sprintstart', 'running', 'frontsquat', 'trapbar', 'kbswing', 'stepup', 'pushpress', 'nordic', 'plank', 'lateralbound'];
 
   function normalizeFormComment(input) {
     return {
@@ -1069,7 +1074,7 @@
     ['Broad jump', 'plyo', { s: 3, a: 3, r: 90 }],
     ['Pogo hops', 'plyo', { s: 3, a: 15, r: 45 }],
     ['Tuck jumps', 'plyo', { s: 3, a: 5, r: 60 }],
-    ['Lateral bound (skater)', 'plyo', { s: 3, a: 4, r: 60, e: 1 }],
+    ['Lateral bound (skater)', 'plyo', { s: 3, a: 4, r: 60, e: 1 }, 'lateralbound'],
     ['Single-leg hop', 'plyo', { s: 3, a: 4, r: 60, e: 1 }],
     ['Hurdle hops', 'plyo', { s: 3, a: 5, r: 90 }],
     ['Split squat jump', 'plyo', { s: 3, a: 4, r: 60, e: 1 }],
@@ -1081,18 +1086,18 @@
     ['Hang clean', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 70 }, 'clean'],
     ['Hang snatch', 'power', { s: 4, a: 3, r: 150, l: 'pct', v: 65 }],
     ['Clean pull', 'power', { s: 3, a: 3, r: 120, l: 'pct', v: 90 }],
-    ['Kettlebell swing', 'power', { s: 3, a: 12, r: 60, l: 'weight', v: 24 }],
+    ['Kettlebell swing', 'power', { s: 3, a: 12, r: 60, l: 'weight', v: 24 }, 'kbswing'],
     ['Jump squat', 'power', { s: 4, a: 5, r: 90, l: 'weight', v: 20.4 }],
     ['Med ball slam', 'power', { s: 3, a: 8, r: 45, l: 'weight', v: 6.8 }],
     ['Med ball chest pass', 'power', { s: 3, a: 6, r: 45, l: 'weight', v: 4.5 }],
     ['Med ball rotational throw', 'power', { s: 3, a: 6, r: 45, l: 'weight', v: 4.5, e: 1 }],
-    ['Push press', 'power', { s: 4, a: 3, r: 120, l: 'pct', v: 75 }, 'ohp'],
+    ['Push press', 'power', { s: 4, a: 3, r: 120, l: 'pct', v: 75 }, 'pushpress'],
     // strength
     ['Back squat', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'squat'],
-    ['Front squat', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 70 }, 'squat'],
+    ['Front squat', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 70 }, 'frontsquat'],
     ['Goblet squat', 'strength', { s: 3, a: 10, r: 90, l: 'weight', v: 22.7 }, 'squat'],
     ['Deadlift', 'strength', { s: 3, a: 5, r: 180, l: 'pct', v: 75 }, 'deadlift'],
-    ['Trap bar deadlift', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'deadlift'],
+    ['Trap bar deadlift', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'trapbar'],
     ['Romanian deadlift', 'strength', { s: 3, a: 8, r: 120, l: 'rpe', v: 7 }, 'rdl'],
     ['Bench press', 'strength', { s: 4, a: 5, r: 150, l: 'pct', v: 75 }, 'bench'],
     ['Incline dumbbell press', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }],
@@ -1105,10 +1110,10 @@
     ['Split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
     ['Bulgarian split squat', 'strength', { s: 3, a: 8, r: 90, l: 'rpe', v: 8, e: 1 }, 'bss'],
     ['Walking lunge', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 7, e: 1 }, 'lunge'],
-    ['Step-up', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
+    ['Step-up', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }, 'stepup'],
     ['Hip thrust', 'strength', { s: 3, a: 10, r: 90, l: 'rpe', v: 8 }, 'hipthrust'],
     ['Single-leg RDL', 'strength', { s: 3, a: 8, r: 60, l: 'rpe', v: 7, e: 1 }],
-    ['Nordic hamstring curl', 'strength', { s: 3, a: 5, r: 90, l: 'bw' }],
+    ['Nordic hamstring curl', 'strength', { s: 3, a: 5, r: 90, l: 'bw' }, 'nordic'],
     ['Copenhagen plank', 'strength', { s: 3, m: 'sec', a: 20, r: 45, l: 'bw', e: 1 }],
     ['Push-up', 'strength', { s: 3, a: 15, r: 60, l: 'bw' }, 'pushup'],
     ['Dips', 'strength', { s: 3, a: 10, r: 60, l: 'bw' }],
@@ -1116,7 +1121,7 @@
     ['Farmer carry', 'strength', { s: 3, m: 'dist', a: 27.432, r: 60, l: 'weight', v: 31.8 }],
     ['Calf raise', 'strength', { s: 3, a: 15, r: 45, l: 'rpe', v: 8 }],
     // core
-    ['Plank', 'core', { s: 3, m: 'sec', a: 45, r: 30 }],
+    ['Plank', 'core', { s: 3, m: 'sec', a: 45, r: 30 }, 'plank'],
     ['Side plank', 'core', { s: 3, m: 'sec', a: 30, r: 30, e: 1 }],
     ['Dead bug', 'core', { s: 3, a: 10, r: 30, e: 1 }],
     ['Bird dog', 'core', { s: 3, a: 8, r: 30, e: 1 }],
@@ -1258,7 +1263,11 @@
       prescribedBy: input.prescribedBy && typeof input.prescribedBy === 'object' ? { staffId: String(input.prescribedBy.staffId || ''), name: String(input.prescribedBy.name || '').slice(0, 60), role: String(input.prescribedBy.role || ''), creds: String(input.prescribedBy.creds || '').slice(0, 120), certified: !!input.prescribedBy.certified } : null,
       approvedBy: input.approvedBy && typeof input.approvedBy === 'object' ? { name: String(input.approvedBy.name || '').slice(0, 60), creds: String(input.approvedBy.creds || '').slice(0, 120) } : null,
       ...(input.feedbackApplied && typeof input.feedbackApplied === 'object' ? { feedbackApplied: { kind: String(input.feedbackApplied.kind || ''), at: Number(input.feedbackApplied.at) || Date.now() } } : {}),
-      adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [] } : null,
+      adjusted: input.adjusted && typeof input.adjusted === 'object' ? { level: String(input.adjusted.level || ''), at: Number(input.adjusted.at) || Date.now(), reasons: Array.isArray(input.adjusted.reasons) ? input.adjusted.reasons.map(String).slice(0, 6) : [], ...(Array.isArray(input.adjusted.changes) ? { changes: input.adjusted.changes.map(String).slice(0, 20) } : {}) } : null,
+      // Set by builder-plus.js: how a team program was fitted to this athlete, and game-week changes.
+      ...(Array.isArray(input.fitted) && input.fitted.length ? { fitted: input.fitted.map(String).slice(0, 12) } : {}),
+      ...(input.tapered ? { tapered: true } : {}),
+      ...(input.recoveryDay ? { recoveryDay: true } : {}),
     };
   }
 
@@ -1383,7 +1392,7 @@
   function emptyState() {
     return {
       version: SCHEMA_VERSION,
-      settings: { units: 'imperial', proMode: false },
+      settings: { units: 'imperial', proMode: false, legal: null, fastMode: 'auto' },
       session: { role: 'athlete', athleteId: 'me' },
       coach: { name: '' },
       athletes: [normalizeAthlete({ id: 'me', name: '', sport: 'run' })],
@@ -1407,6 +1416,7 @@
       nudges: [],
       notes: [], // session notes between coach and athlete
       brand: { color: '', logo: '' }, // team color and logo set by the coach
+      announcements: [],
     };
   }
 
@@ -1616,7 +1626,13 @@
     const session = raw.session || {};
     return {
       version: SCHEMA_VERSION,
-      settings: { units: unitSystem(raw.settings && raw.settings.units), proMode: !!(raw.settings && raw.settings.proMode) },
+      settings: {
+        units: unitSystem(raw.settings && raw.settings.units),
+        proMode: !!(raw.settings && raw.settings.proMode),
+        // Terms/privacy acceptance and age confirmation on this device (legal.js).
+        legal: raw.settings && raw.settings.legal && typeof raw.settings.legal === 'object' ? JSON.parse(JSON.stringify(raw.settings.legal)) : null,
+        fastMode: raw.settings && ['auto', 'on', 'off'].includes(raw.settings.fastMode) ? raw.settings.fastMode : 'auto', // lighter camera tracking for older phones
+      },
       session: {
         role: session.role === 'coach' ? 'coach' : 'athlete',
         athleteId: ids.has(session.athleteId) ? session.athleteId : athletes[0].id,
@@ -1644,6 +1660,8 @@
       nudges: objList(raw.nudges, 500).map((n) => ({ id: String(n.id || uid()), from: String(n.from || ''), to: String(n.to || ''), text: String(n.text || '').slice(0, 140), ts: Number(n.ts) || 0, seen: !!n.seen })),
       notes: (Array.isArray(raw.notes) ? raw.notes.map(normalizeNote) : []).filter((n) => ids.has(n.athleteId)).slice(-3000),
       brand: normalizeBrand(raw.brand),
+      // Coach posts to the team, optionally with a quick question athletes answer (coach-plus.js).
+      announcements: objList(raw.announcements, 500),
     };
   }
 

@@ -30,6 +30,14 @@
     cut: { valgus: ['Lateral band walk', 'Lateral bound (skater)'], trunk: ['Side plank', 'Pallof press'], wide: ['Lateral bound (skater)'], sink: ['Drop landing (stick it)'] },
     sprintstart: { lean: ['Sled sprint'], rise: ['Sled sprint'], shin: ['A-skips'], arms: ['High knees'] },
     running: { cadence: ['A-skips'], overstride: ['A-skips', 'B-skips'], kneeflex: ['Pogo hops'], lean: ['High knees'], bounce: ['A-skips'], arms: ['High knees'] },
+    frontsquat: { depth: ['Ankle rocks (knee to wall)', 'Deep squat hold'], lean: ['Tempo goblet squat', 'Wall slide'], heels: ['Ankle rocks (knee to wall)'], valgus: ['Mini-band squat', 'Lateral band walk'], shift: ['Lateral band walk'] },
+    trapbar: { back: ['Dowel hip hinge'], barpath: ['Wall hip hinge'], lockout: ['Glute bridge'], hiprise: ['Dowel hip hinge'] },
+    kbswing: { lockout: ['Glute bridge'], hinge: ['Wall hip hinge', 'Dowel hip hinge'], back: ['Dowel hip hinge'], leanback: ['Dead bug', 'Plank'] },
+    stepup: { lockout: ['Single-leg glute bridge'], lean: ['Split squat hold'], knee: ['Split squat hold'] },
+    pushpress: { lockout: ['Wall slide', 'Shoulder CARs'], barpath: ['Wall slide'], lean: ['Dead bug'], dip: ['Mini-band squat'], diptorso: ['Dead bug'] },
+    nordic: { range: ['Single-leg glute bridge'], hips: ['Glute bridge'], tempo: ['Single-leg glute bridge'] },
+    plank: { line: ['Dead bug', 'Glute bridge'], steady: ['Dead bug', 'Hollow hold'], time: ['Side plank'] },
+    lateralbound: { knee: ['Lateral band walk', 'Mini-band squat'], trunk: ['Side plank', 'Pallof press'], soft: ['Drop landing (stick it)'] },
   };
 
   // Faults older than this stop shaping the program (film again to refresh them).

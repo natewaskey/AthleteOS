@@ -1128,6 +1128,293 @@
       },
     },
 
+    // ---------- Motiq 1.0: eight more lifts ----------
+
+    frontsquat: {
+      label: 'Front squat',
+      icon: '🏋️',
+      views: ['side', 'front'],
+      signalLabel: 'Knee angle',
+      keyLabel: 'Bottom',
+      keyIs: 'min',
+      target: { value: 90, label: 'Parallel or below, torso upright' },
+      tips: 'Film side-on with the whole body and the bar in frame, phone at hip height. Facing the camera checks knee tracking.',
+      signal: (j, ctx) => EXERCISES.squat.signal(j, ctx),
+      // A back squat's rules with a stricter torso angle: the bar in front of the neck needs you upright.
+      evaluate(ctx, rep) {
+        const out = EXERCISES.squat.evaluate({ ...ctx, limits: { ...(ctx.limits || {}), squatLean: 30 } }, rep);
+        const lean = out.find((c) => c.id === 'lean');
+        if (lean) {
+          lean.target = '≤ 30° from vertical (the bar sits in front)';
+          lean.cue = 'Elbows up and chest tall so the bar stays on your shoulders. If your torso tips forward, the bar rolls off.';
+          lean.drill = 'Front-rack holds, paused front squats and upper-back mobility.';
+        }
+        return out;
+      },
+      ideal(ctx, j) {
+        if (ctx.view === 'front') return frontKneesOverToes(j);
+        const f = ctx.facing, L = ctx.L;
+        const an = j.an;
+        const kn = add(an, dir(38, f), L.shin);
+        const hip = add(kn, dir(-100, f), L.thigh);
+        const sh = add(hip, dir(22, f), L.torso);
+        return withFeet({ an, kn, hip, sh, nose: add(sh, dir(22, f), L.head) }, j, ctx);
+      },
+    },
+
+    trapbar: {
+      label: 'Trap bar deadlift',
+      icon: '🏋️',
+      views: ['side'],
+      signalLabel: 'Hip angle',
+      keyLabel: 'Start (handles at the floor)',
+      keyIs: 'min',
+      target: { value: 80, label: 'Hips and knees bend together' },
+      tips: 'Film side-on with the whole body in frame, phone at hip height, about 3 m away.',
+      signal: (j) => (visible(j.sh, j.hip, j.kn) ? angle3(j.sh, j.hip, j.kn) : null),
+      // Deadlift rules, but a trap bar lets you start more upright and the handles sit at your sides.
+      evaluate(ctx, rep) {
+        const out = EXERCISES.deadlift.evaluate(ctx, rep).filter((c) => c.id !== 'shoulders');
+        const back = out.find((c) => c.id === 'back');
+        if (back) {
+          back.status = grade(back.value, [28, 72], [18, 80]);
+          back.target = '30–70° at the start (more upright than a straight bar)';
+          back.cue = back.value < 28 ? 'Hips are too high: sit down a little more so your legs share the work.' : 'Hips are too low: hinge a little more so your hamstrings and glutes help.';
+        }
+        const bp = out.find((c) => c.id === 'barpath');
+        if (bp) {
+          bp.label = 'Handles over mid-foot';
+          bp.target = 'Handles in line with the middle of your feet';
+          bp.cue = 'Stand in the centre of the bar so the handles line up with the middle of your feet, and keep them there.';
+          bp.drill = 'Line the handles up with your ankle bones before every rep.';
+        }
+        return out;
+      },
+    },
+
+    kbswing: {
+      label: 'Kettlebell swing',
+      icon: '🔔',
+      views: ['side'],
+      signalLabel: 'Hip angle',
+      keyLabel: 'Bottom of the hinge',
+      keyIs: 'min',
+      target: { value: 170, label: 'Snap to a full stand at the top' },
+      tips: 'Film side-on with the whole body and the bell in frame, phone at hip height.',
+      signal: (j) => (visible(j.sh, j.hip, j.kn) ? angle3(j.sh, j.hip, j.kn) : null),
+      evaluate(ctx, rep) {
+        const k = ctx.J[rep.key];
+        const out = [];
+        let top = null;
+        for (let i = rep.start; i <= rep.end; i++) {
+          const j = ctx.J[i];
+          if (!visible(j.sh, j.hip, j.kn)) continue;
+          const a = angle3(j.sh, j.hip, j.kn);
+          if (!top || a > top.a) top = { a, j };
+        }
+        const lock = top ? top.a : null;
+        out.push(check('lockout', 'Hip snap', lock, grade(lock, [165, 185], [155, 185]), {
+          display: lock == null ? '—' : `${r0(lock)}° at the top`, target: 'Stand fully tall at the top: hips and knees straight', joint: 'hip', weight: 2,
+          cue: 'Snap your hips forward and squeeze your glutes so you finish standing tall, like a standing plank.',
+          drill: 'Banded pull-throughs and hip hinge drills.',
+        }));
+        const knee = visible(k.hip, k.kn, k.an) ? angle3(k.hip, k.kn, k.an) : null;
+        out.push(check('hinge', 'Hinge, not squat', knee, grade(knee, [128, 180], [112, 180]), {
+          display: knee == null ? '—' : `${r0(knee)}° at the knee at the bottom`, target: 'Soft knees; the hips go back, not down', joint: 'kn', weight: 2,
+          cue: 'Push your hips back toward the wall behind you. Your knees bend a little; this isn’t a squat.',
+          drill: 'Wall-touch hip hinges and kettlebell Romanian deadlifts.',
+        }));
+        const torso = fromVertical(k.hip, k.sh);
+        out.push(check('back', 'Back angle', torso, grade(torso, [35, 82], [25, 90]), {
+          display: `${r0(torso)}° forward at the bottom`, target: 'Chest over the bell: about 40–80° forward', joint: 'sh', weight: 1,
+          cue: torso < 35 ? 'Hinge further: chest down over the bell as it passes between your legs.' : 'Don’t let your chest drop below your hips. Stay long through your back.',
+          drill: 'Kettlebell deadlifts to learn the bottom position.',
+        }));
+        if (top) {
+          // Most lean-back anywhere in the rep (it peaks just after the hips finish extending).
+          let lean = -Infinity;
+          for (let i = rep.start; i <= rep.end; i++) {
+            const j = ctx.J[i];
+            if (visible(j.hip, j.sh)) lean = Math.max(lean, -signedLean(j.hip, j.sh, ctx.facing));
+          }
+          out.push(check('leanback', 'Finish position', lean, grade(lean, [-9, 10], [-9, 18]), {
+            display: lean <= 10 ? 'Standing straight' : `${r0(lean)}° leaning back`, target: 'Stand straight at the top, don’t lean back', joint: 'sh', weight: 1,
+            cue: 'Finish tall, not leaning back. Ribs down, glutes tight.',
+            drill: 'Plank holds and glute bridges so the hips finish the rep, not the lower back.',
+          }));
+        }
+        return out;
+      },
+    },
+
+    stepup: {
+      label: 'Step-up',
+      icon: '🪜',
+      views: ['side'],
+      signalLabel: 'Front knee angle',
+      keyLabel: 'Top (standing on the box)',
+      keyIs: 'max',
+      target: { value: 170, label: 'Stand all the way up on the box' },
+      tips: 'Film side-on with the box, both feet and your head in frame. Film one leg at a time.',
+      signal: (j) => (visible(j.hip, j.kn, j.an) ? angle3(j.hip, j.kn, j.an) : null),
+      evaluate(ctx, rep) {
+        const { L, facing } = ctx;
+        const k = ctx.J[rep.key];
+        const b = ctx.J[rep.start];
+        const out = [];
+        const knee = angle3(k.hip, k.kn, k.an);
+        const hip = angle3(k.sh, k.hip, k.kn);
+        const lock = Math.min(knee, hip);
+        out.push(check('lockout', 'Stand tall', lock, grade(lock, [163, 185], [150, 185]), {
+          display: `${r0(knee)}° knee · ${r0(hip)}° hip at the top`, target: 'Knee and hip fully straight on the box', joint: 'kn', weight: 2,
+          cue: 'Drive all the way up and finish standing tall on the box before stepping down.',
+          drill: 'Slow step-ups with a 2-second pause standing on the box.',
+        }));
+        const lean = fromVertical(b.hip, b.sh);
+        out.push(check('lean', 'Torso', lean, grade(lean, [0, 30], [0, 42]), {
+          display: `${r0(lean)}° forward at the start`, target: 'Chest tall, slight forward lean (≤ 30°)', joint: 'sh', weight: 1.5,
+          cue: 'Keep your chest up and push through the whole front foot instead of folding forward.',
+          drill: 'Goblet-hold step-ups to keep the torso tall.',
+        }));
+        const drift = visible(b.kn, b.ft) ? ((b.kn.x - b.ft.x) * facing) / (L.leg || 1) : null;
+        if (drift != null) {
+          out.push(check('knee', 'Knee over foot', drift, grade(drift, [-9, 0.12], [-9, 0.2]), {
+            display: drift <= 0.12 ? 'Over the foot' : 'Knee far past the toes', target: 'Knee roughly over the front foot', joint: 'kn', weight: 0.5,
+            cue: 'Sit the front hip back a little so the knee stays over your foot.',
+            drill: 'Lower box step-ups focusing on pushing through the heel.',
+          }));
+        }
+        return out.concat(tempoChecks(ctx, rep, { upOnly: true }));
+      },
+    },
+
+    pushpress: {
+      label: 'Push press',
+      icon: '🙌',
+      views: ['side'],
+      signalLabel: 'Elbow angle',
+      keyLabel: 'Lockout',
+      keyIs: 'max',
+      target: { value: 170, label: 'Short dip, drive, lock out' },
+      tips: 'Film side-on with the whole body and the bar overhead in frame.',
+      signal: (j) => (visible(j.sh, j.el, j.wr) ? angle3(j.sh, j.el, j.wr) : null),
+      // Overhead press rules plus the dip: short, straight down, chest up.
+      evaluate(ctx, rep) {
+        const out = EXERCISES.ohp.evaluate(ctx, rep).filter((c) => c.id !== 'tempo');
+        let low = null;
+        for (let i = rep.start; i <= rep.key; i++) {
+          const j = ctx.J[i];
+          if (!visible(j.hip, j.kn, j.an)) continue;
+          const a = angle3(j.hip, j.kn, j.an);
+          if (!low || a < low.a) low = { a, j };
+        }
+        if (low) {
+          const dip = 180 - low.a;
+          out.push(check('dip', 'Dip depth', dip, dip < 6 ? 'good' : grade(dip, [8, 35], [5, 48]), {
+            display: dip < 6 ? 'No dip (that’s a strict press)' : `${r0(dip)}° knee bend`, target: 'A short dip: about 10–30° of knee bend', joint: 'kn', weight: dip < 6 ? 0 : 1.5, info: dip < 6,
+            cue: dip > 35 ? 'Make the dip shorter and faster, like a quarter squat. Deep dips leak power.' : 'Use a quick dip and drive with the legs to get the bar moving.',
+            drill: 'Dip-and-drive drills with an empty bar, pausing in the dip.',
+          }));
+          const tilt = fromVertical(low.j.hip, low.j.sh);
+          out.push(check('diptorso', 'Torso in the dip', tilt, grade(tilt, [0, 10], [0, 18]), {
+            display: `${r0(tilt)}° forward`, target: 'Straight down, torso upright', joint: 'sh', weight: 1,
+            cue: 'Dip straight down with your chest up. Leaning forward sends the bar in front of you.',
+            drill: 'Dip holds with the bar in the front rack, back against a wall.',
+          }));
+        }
+        return out;
+      },
+    },
+
+    nordic: {
+      label: 'Nordic hamstring curl',
+      icon: '🦵',
+      views: ['side'],
+      signalLabel: 'Knee angle',
+      keyLabel: 'Lowest point you controlled',
+      keyIs: 'max',
+      target: { value: 150, label: 'Lower slowly, hips straight' },
+      tips: 'Film side-on with your knees, feet and head in frame. Kneel on a pad with your heels held down.',
+      signal: (j) => (visible(j.hip, j.kn, j.an) ? angle3(j.hip, j.kn, j.an) : null),
+      evaluate(ctx, rep) {
+        const t = ctx.frames;
+        const k = ctx.J[rep.key];
+        const out = [];
+        const range = angle3(k.hip, k.kn, k.an);
+        out.push(check('range', 'Range under control', range, grade(range, [148, 185], [125, 185]), {
+          display: `${r0(range)}° at the knee`, target: 'Lower as far as you can control (≈ 150°+)', joint: 'kn', weight: 1.5,
+          cue: 'Lower a little further each week before you catch yourself. Range comes with strength.',
+          drill: 'Band-assisted Nordics, or Nordics to a box in front of you.',
+        }));
+        const hips = angle3(k.sh, k.hip, k.kn);
+        out.push(check('hips', 'Hips straight', hips, grade(hips, [158, 185], [143, 185]), {
+          display: hips >= 158 ? 'Straight line from knees to shoulders' : `Hips bent (${r0(hips)}°)`, target: 'Knees, hips and shoulders in one line', joint: 'hip', weight: 2,
+          cue: 'Squeeze your glutes and keep a straight line from knees to shoulders. Bending at the hips takes the hamstrings out of it.',
+          drill: 'Tall-kneeling glute squeezes and partial-range Nordics with a straight body.',
+        }));
+        const down = t[rep.key].t - t[rep.start].t;
+        out.push(check('tempo', 'Lowering speed', down, grade(down, [2.5, 99], [1.5, 99]), {
+          display: `${down.toFixed(1)} s down`, target: 'Take 3 seconds or more to lower', weight: 1,
+          cue: 'Fight the fall: lower as slowly as you can. The slow lowering is what builds the hamstrings.',
+          drill: 'Three-second Nordic lowers, then push back up with your hands.',
+        }));
+        return out;
+      },
+    },
+
+    plank: {
+      label: 'Plank',
+      icon: '🧱',
+      views: ['side'],
+      signalLabel: 'Body line',
+      keyLabel: 'Middle of the hold',
+      keyIs: 'min',
+      target: null,
+      custom: 'hold',
+      tips: 'Film side-on from about 2 m with your whole body in frame, phone at floor to knee height. Hold for 20–60 seconds.',
+      signal: (j) => (visible(j.sh, j.hip, j.an) ? angle3(j.sh, j.hip, j.an) : null),
+    },
+
+    lateralbound: {
+      label: 'Lateral bound landing',
+      icon: '↔️',
+      views: ['front'],
+      signalLabel: 'Hip height',
+      keyLabel: 'Landing (deepest point)',
+      keyIs: 'min',
+      target: null,
+      tips: 'Face the camera from about 4 m. Bound side to side and stick each landing for 1–2 seconds. Do 4–6 bounds.',
+      signal: (j, ctx) => hipHeight(j, ctx),
+      evaluate(ctx, rep) {
+        const k = ctx.J[rep.key];
+        const L = ctx.L;
+        const out = [];
+        // Knee drifting toward the middle compared with the ankle under it, worst leg.
+        const cx = (k.hip.x + k.ohip.x) / 2;
+        const inward = (kn, an) => (Math.abs(an.x - cx) - Math.abs(kn.x - cx)) / (L.leg || 1);
+        const cave = Math.max(inward(k.kn, k.an), inward(k.okn, k.oan));
+        out.push(check('knee', 'Knee over foot', cave, grade(cave, [-9, 0.04], [-9, 0.08]), {
+          display: cave <= 0.04 ? 'Knee stays over the foot' : 'Knee caves inward on landing', target: 'Landing knee stays over the middle of the foot', joint: 'kn', weight: 3,
+          cue: 'Land with your knee pushed out over your toes, hip back, like a skater.',
+          drill: 'Lateral bound and stick drills with a mini band, single-leg glute work. Knee valgus on landing is a key knee-injury risk.',
+        }));
+        const trunk = fromVertical(mid(k.hip, k.ohip), mid(k.sh, k.osh));
+        out.push(check('trunk', 'Trunk control', trunk, grade(trunk, [0, 9], [0, 16]), {
+          display: trunk <= 9 ? 'Upright over the hip' : `${r0(trunk)}° side lean`, target: 'Chest stays over the landing hip', joint: 'sh', weight: 1.5,
+          cue: 'Keep your chest over your landing leg. Don’t let your upper body fall to the side.',
+          drill: 'Side planks and single-leg balance holds with a reach.',
+        }));
+        const standing = percentile(ctx.J.map((jj) => hipHeight(jj, ctx)), 0.9);
+        const drop = standing ? (standing - hipHeight(k, ctx)) / 100 : null;
+        out.push(check('soft', 'Absorb the landing', drop, grade(drop, [0.14, 9], [0.07, 9]), {
+          display: drop == null ? '—' : `Hips dropped ${Math.round(drop * 100)}% of leg length`, target: 'Sink into the hip and knee to absorb it', joint: 'kn', weight: 1.5,
+          cue: 'Land softly and sink into your hip, then hold it still.',
+          drill: 'Snap-downs and lateral hop-and-stick.',
+        }));
+        return out;
+      },
+    },
+
     sprintstart: {
       label: 'Sprint start (acceleration)',
       icon: '💨',
@@ -1225,7 +1512,7 @@
   // ---------- rep speed ----------
 
   // Point whose travel best tracks the bar/body for each lift.
-  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', rdl: 'hip', lunge: 'hip', bss: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr', row: 'wr', pullup: 'sh', hipthrust: 'hip' };
+  const VELOCITY_POINT = { squat: 'hip', deadlift: 'hip', rdl: 'hip', lunge: 'hip', bss: 'hip', bench: 'wr', pushup: 'sh', ohp: 'wr', row: 'wr', pullup: 'sh', hipthrust: 'hip', frontsquat: 'hip', trapbar: 'hip', stepup: 'hip', pushpress: 'wr' };
 
   /*
    * Concentric speed per rep (body-lengths per second from the tracked point), and speed loss
@@ -1413,6 +1700,46 @@
   }
 
   // Cutting: the plant on the outside leg (front view). Knee collapse and trunk lean are ACL risk signs.
+  // Holds (plank): body line, steadiness and time held across the whole clip.
+  function analyzeHold(ctx) {
+    const { J, L, frames } = ctx;
+    const pts = [];
+    for (let i = 0; i < J.length; i++) {
+      const j = J[i];
+      if (!visible(j.sh, j.hip, j.an)) continue;
+      // Hip distance from the shoulder-ankle line, + = below it (sagging), as a share of torso length.
+      const t = (j.hip.x - j.sh.x) / ((j.an.x - j.sh.x) || 1e-6);
+      const lineY = j.sh.y + (j.an.y - j.sh.y) * t;
+      const horizontal = fromVertical(j.an, j.sh) > 55;
+      if (horizontal) pts.push({ i, dev: (j.hip.y - lineY) / (L.torso || 1), t: frames[i].t });
+    }
+    if (pts.length < 10) return { error: 'No plank found. Film side-on with your whole body in frame and hold still for at least 10 seconds.' };
+    const devs = pts.map((p) => p.dev).sort((a, b) => a - b);
+    const med = devs[Math.floor(devs.length / 2)];
+    const held = pts[pts.length - 1].t - pts[0].t;
+    const mean = pts.reduce((s, p) => s + p.dev, 0) / pts.length;
+    const sd = Math.sqrt(pts.reduce((s, p) => s + (p.dev - mean) ** 2, 0) / pts.length);
+    const keyIndex = pts[Math.floor(pts.length / 2)].i;
+    const checks = [
+      check('line', 'Body line', med, grade(Math.abs(med), [0, 0.07], [0, 0.13]), {
+        display: Math.abs(med) <= 0.07 ? 'Straight from shoulders to heels' : med > 0 ? 'Hips sagging' : 'Hips too high', target: 'One straight line, shoulders to heels', joint: 'hip', weight: 2,
+        cue: med > 0 ? 'Lift your hips into line: squeeze your glutes and pull your belly button in.' : 'Lower your hips until your body is one straight line.',
+        drill: 'Shorter holds (20 s) with perfect position, and dead bugs.',
+      }),
+      check('steady', 'Steadiness', sd, grade(sd, [0, 0.03], [0, 0.06]), {
+        display: sd <= 0.03 ? 'Rock solid' : 'Hips moving', target: 'Hips stay still the whole hold', joint: 'hip', weight: 1,
+        cue: 'Brace like someone is about to poke your stomach, and breathe without letting your hips move.',
+        drill: 'Plank shoulder taps slowly, keeping the hips still.',
+      }),
+      check('time', 'Time held', held, grade(held, [20, 9999], [10, 9999]), {
+        display: `${Math.round(held)} s`, target: '20 seconds or more with good form', weight: 0.5,
+        cue: 'Build up the hold time 5 seconds at a time while keeping the line.',
+        drill: 'Plank holds, adding 5 seconds a week.',
+      }),
+    ];
+    return { checks, keyIndex };
+  }
+
   function analyzeCut(ctx) {
     const { J, L } = ctx;
     const hh = J.map((j) => hipHeight(j, ctx));
@@ -1517,7 +1844,7 @@
     for (const q of quality.issues) warnings.push(q.text);
 
     if (ex.custom) {
-      const c = (ex.custom === 'cut' ? analyzeCut : analyzeStart)(ctx);
+      const c = (ex.custom === 'cut' ? analyzeCut : ex.custom === 'hold' ? analyzeHold : analyzeStart)(ctx);
       if (c.error) return { exercise, label: ex.label, view: v, side, facing, L, reps: [], checks: [], series, times: good.map((f) => f.t), keyIndex: 0, error: c.error, warnings, quality };
       return finish({ exercise, label: ex.label, view: v, detectedView: detected, side, facing, L, reps: [], checks: c.checks, series, keyIndex: c.keyIndex, warnings, quality, frames: good });
     }
@@ -1575,12 +1902,12 @@
    * opts: { reps, fps, aspect, facing, depth, lean, heelLift, valgus, sag, hipsFirst, overstride, cadence, seconds }
    */
   function simulate(exercise, opts = {}) {
-    const o = { reps: 5, fps: 15, aspect: 16 / 9, facing: 1, repSeconds: exercise === 'landing' ? 1.6 : 2.4, ...((exercise === 'landing' || exercise === 'cut') && !opts.view ? { view: 'front' } : {}), ...(exercise === 'cut' ? { reps: 1 } : {}), ...opts };
+    const o = { reps: 5, fps: 15, aspect: 16 / 9, facing: 1, repSeconds: exercise === 'landing' || exercise === 'lateralbound' ? 1.8 : exercise === 'nordic' ? 6 : exercise === 'kbswing' ? 1.5 : 2.4, ...((exercise === 'landing' || exercise === 'cut' || exercise === 'lateralbound') && !opts.view ? { view: 'front' } : {}), ...(exercise === 'cut' ? { reps: 1 } : {}), ...opts };
     const A = o.aspect;
     const S = { shin: 0.2, thigh: 0.21, torso: 0.26, upper: 0.15, fore: 0.14, foot: 0.07, heelAnkle: 0.035, head: 0.085 };
     const f = o.facing;
     const frames = [];
-    const total = exercise === 'running' || exercise === 'sprintstart' ? o.seconds || (exercise === 'sprintstart' ? 2 : 8) : o.reps * o.repSeconds + 0.6;
+    const total = exercise === 'running' || exercise === 'sprintstart' || exercise === 'plank' ? o.seconds || (exercise === 'sprintstart' ? 2 : exercise === 'plank' ? 25 : 8) : o.reps * o.repSeconds + 0.6;
     const n = Math.round(total * o.fps);
     const ease = (x) => 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0, Math.min(1, x)));
     for (let i = 0; i < n; i++) {
@@ -1615,6 +1942,15 @@
       else if (exercise === 'clean') pose = simClean(p, S, o, f);
       else if (exercise === 'sprintstart') pose = simStart(t, S, o, f);
       else if (exercise === 'cut') pose = simFrontSquat(p, S, { ...o, depth: o.depth ?? -70 });
+      else if (exercise === 'frontsquat' && o.view === 'front') pose = simFrontSquat(p, S, o);
+      else if (exercise === 'frontsquat') pose = simSquat(p, S, { ...o, lean: o.lean ?? 22 }, f);
+      else if (exercise === 'trapbar') pose = simDeadlift(p, S, { ...o, hipAngle: o.hipAngle ?? -88, torso: o.torso ?? 40 }, f, up);
+      else if (exercise === 'kbswing') pose = simSwing(p, S, o, f);
+      else if (exercise === 'stepup') pose = simStepUp(p, S, o, f);
+      else if (exercise === 'pushpress') pose = simPushPress(p, S, o, f);
+      else if (exercise === 'nordic') pose = simNordic(p, S, o, f);
+      else if (exercise === 'plank') pose = simPlank(t, S, o, f);
+      else if (exercise === 'lateralbound') pose = simBoundLanding(p, S, o);
       frames.push({ t: +t.toFixed(3), lm: toLandmarks(pose, A, o.view === 'front') });
     }
     return { frames, aspect: A, width: 1280, height: Math.round(1280 / A), duration: total };
@@ -1927,6 +2263,89 @@
     const oel = add(sh, dir(180 - 70 * Math.sin(ph), f), S.upper);
     const owr = add(oel, dir(120 - 70 * Math.sin(ph), f), S.fore);
     return { an: a.an, kn: a.kn, oan: b.an, okn: b.kn, hip, ohip: hip, sh, osh: sh, el, wr, oel, owr, ...feet(a.an, S, f), nose: add(sh, dir(lean, f), S.head) };
+  }
+
+  // ---------- Motiq 1.0 simulations ----------
+
+  // Kettlebell swing: soft knees, hips back. o.squat bends the knees (fault), o.leanBack leans back at the top.
+  function simSwing(p, S, o, f) {
+    const an = { x: 0.85, y: 0.86, v: 1 };
+    const kn = add(an, dir(lerp(0, o.squat ? 30 : 10, p), f), S.shin);
+    const hip = add(kn, dir(lerp(0, o.squat ? -72 : -28, p), f), S.thigh);
+    const torsoA = lerp(-(o.leanBack || 0), o.torso ?? 62, p);
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const armA = lerp(80, 175, p); // arms out in front at the top, between the legs at the bottom
+    const el = add(sh, dir(torsoA + armA, f), S.upper);
+    const wr = add(el, dir(torsoA + armA, f), S.fore);
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  // Step-up: lead foot on a box. p = 1 is standing tall on the box.
+  function simStepUp(p, S0, o, f) {
+    // Filmed from further back so the head stays in frame on top of the box.
+    const S = Object.fromEntries(Object.entries(S0).map(([k, v]) => [k, v * 0.82]));
+    const an = { x: 0.9, y: 0.74, v: 1 };
+    const k = lerp(95, o.lockout ?? 176, p);
+    const shinA = lerp(o.shinLean ?? 22, 0, p);
+    const kn = add(an, dir(shinA, f), S.shin);
+    const hip = add(kn, dir(shinA - (180 - k), f), S.thigh);
+    const torsoA = lerp(o.lean ?? 18, 3, p);
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const arms = armsFromShoulder(sh, S, f);
+    const oan = { x: lerp(an.x - f * 0.3, hip.x - f * 0.04, p), y: lerp(0.9, hip.y + (S.thigh + S.shin) * 0.85, p), v: 1 };
+    const okn = ik2(hip, oan, S.thigh, S.shin, f > 0 ? -1 : 1);
+    return { an, kn, hip, sh, ...arms, ...feet(an, S, f), oan, okn, ohip: { ...hip }, ohe: { x: oan.x - f * 0.02, y: oan.y + 0.02, v: 1 }, oft: { x: oan.x + f * 0.05, y: oan.y + 0.03, v: 1 }, nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  // Push press: a short dip and drive before the press. o.dip sets knee bend, o.dipLean tips the torso in the dip.
+  function simPushPress(p, S, o, f) {
+    const an = { x: 0.85, y: 0.86, v: 1 };
+    const bend = p < 0.35 ? Math.sin((Math.PI * p) / 0.35) * (o.dip ?? 24) : 0;
+    const kn = add(an, dir(bend / 2, f), S.shin);
+    const hip = add(kn, dir(-bend / 2, f), S.thigh);
+    const torsoA = -lerp(0, o.lean ?? 3, p) + (o.dipLean || 0) * (bend / Math.max(1, o.dip ?? 24));
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const q = Math.max(0, (p - 0.2) / 0.8);
+    const rack = { x: sh.x + f * 0.03, y: sh.y - 0.01 };
+    const over = { x: an.x + f * (o.forward || 0.02), y: sh.y - (S.upper + S.fore) * (o.lockout ?? 0.99) };
+    const wr = { x: lerp(rack.x, over.x, q), y: lerp(rack.y, over.y, q), v: 1 };
+    const el = ik2(sh, wr, S.upper, S.fore, f);
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  // Nordic curl: kneeling, heels held, the body falls forward from the knees. o.range = how far (degrees from
+  // vertical), o.hipBend bends at the hips (fault).
+  function simNordic(p, S, o, f) {
+    const kn = { x: 0.7, y: 0.84, v: 1 };
+    const an = { x: kn.x - f * S.shin, y: 0.85, v: 1 };
+    const thighA = lerp(0, o.range ?? 72, p);
+    const hip = add(kn, dir(thighA, f), S.thigh);
+    const torsoA = thighA + (o.hipBend || 0) * p;
+    const sh = add(hip, dir(torsoA, f), S.torso);
+    const el = add(sh, dir(torsoA + 150, f), S.upper);
+    const wr = add(el, dir(torsoA + 60, f), S.fore);
+    return { an, kn, hip, sh, el, wr, he: { x: an.x - f * 0.02, y: an.y - 0.03, v: 1 }, ft: { x: an.x - f * 0.05, y: an.y, v: 1 }, nose: add(sh, dir(torsoA, f), S.head) };
+  }
+
+  // Forearm plank held for o.seconds. o.sag > 0 drops the hips, < 0 piks them; o.wobble adds movement.
+  function simPlank(t, S, o, f) {
+    const an = { x: 0.35, y: 0.84, v: 1 };
+    const sag = (o.sag || 0) + (o.wobble || 0) * Math.sin(t * 5);
+    const base = 76 + Math.sin(t * 1.3) * 0.4; // breathing
+    const kn = add(an, dir(base, f), S.shin);
+    const hip = add(kn, dir(base + sag * 0.8, f), S.thigh);
+    const sh = add(hip, dir(base - sag * 1.6, f), S.torso);
+    const el = { x: sh.x, y: sh.y + S.upper, v: 1 };
+    const wr = add(el, dir(90, f), S.fore);
+    return { an, kn, hip, sh, el, wr, ...feet(an, S, f), nose: add(sh, dir(base + 4, f), S.head) };
+  }
+
+  // Lateral bound landing from the front: a front-on squat-shaped landing; o.trunk leans the upper body sideways.
+  function simBoundLanding(p, S, o) {
+    const pose = simFrontSquat(p, S, { ...o, depth: o.depth ?? -78 });
+    const lean = (o.trunk || 0) * p;
+    for (const k of ['sh', 'osh', 'el', 'oel', 'wr', 'owr', 'nose']) if (pose[k]) pose[k] = { ...pose[k], x: pose[k].x + lean };
+    return pose;
   }
 
   function toLandmarks(pose, aspect, front) {

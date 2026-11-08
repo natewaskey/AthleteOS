@@ -1,0 +1,8 @@
+{
+  "appId": "app.motiq.mobile",
+  "appName": "Motiq",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "ios": { "contentInset": "always" },
+  "plugins": { "SplashScreen": { "backgroundColor": "#08090b", "launchShowDuration": 600 } }
+}

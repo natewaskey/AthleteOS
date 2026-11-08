@@ -64,6 +64,7 @@
     const coach = ctx.role() === 'coach';
     const mine = programs().filter((p) => coach || p.ownerId === ctx.me().id).sort((a, b) => b.createdAt - a.createdAt);
     return `<div class="row" style="margin-bottom:.75rem"><p class="muted" style="margin:0;flex:1">Multi-week programs with automatic progression and deload weeks. Build one yourself or generate it from your goals, with the built-in engine or Claude.</p>
+        <button class="btn" data-prog-action="import-code" title="Paste a program code from another coach">⇩ Import code</button>
         <button class="btn btn-primary" data-prog-action="new">✨ Generate a program</button></div>
       ${
         mine.length
@@ -141,6 +142,7 @@
         </div>
         ${fvHint()}
         ${knownHTML(f)}
+        ${equipProfilesHTML(f)}
         <fieldset><legend>Equipment available</legend><div class="row">${Object.entries(P.EQUIPMENT).filter(([k]) => !['none', 'field'].includes(k)).map(([k, v]) => chip('equipment', k, v, f.equipment.includes(k))).join('')}</div>
           <p class="hint" style="margin:.4rem 0 0">Bodyweight and open space (a field or park) are always assumed.</p></fieldset>
         <fieldset><legend>Extra focus</legend><div class="row">${Object.entries(P.FOCUS).map(([k, v]) => chip('focus', k, v, f.focus.includes(k))).join('')}</div></fieldset>
@@ -165,6 +167,155 @@
     if (!list) return '';
     const cur = Sports().positionFor(f.sport, f.position);
     return `<label>Position <select name="position"><option value="">Any / mixed</option>${list.map((x) => `<option value="${x.id}" ${cur && cur.id === x.id ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>`;
+  }
+
+  // ---------- Motiq 1.0: equipment profiles, compare, swaps, share codes, report cards ----------
+
+  const BP = () => root.BuilderPlus;
+  // Coaches keep their own saved setups on this device; athletes keep theirs on their profile.
+  const COACH_EQUIP = 'motiq:coach-equipment';
+  function coachProfiles() {
+    try {
+      return JSON.parse(localStorage.getItem(COACH_EQUIP) || '[]');
+    } catch {
+      return [];
+    }
+  }
+  function equipProfilesHTML(f) {
+    if (!BP()) return '';
+    const mine = ctx.role() === 'athlete' ? BP().profiles(ctx.me()) : coachProfiles();
+    const same = (list) => list.length === f.equipment.length && list.every((e) => f.equipment.includes(e));
+    const chip = (id, name, list) => `<button type="button" class="chip" data-prog-action="equip-profile" data-id="${esc(id)}" aria-pressed="${same(list)}">${esc(name)}</button>`;
+    return `<div class="row equip-profiles" style="margin:.25rem 0 .5rem;gap:.35rem;align-items:center"><span class="small muted">Where are you training?</span>
+      ${Object.entries(BP().PRESETS).map(([k, v]) => chip('preset:' + k, v.name, v.equipment)).join('')}
+      ${mine.map((x) => chip(x.id, x.name, x.equipment)).join('')}
+      <button type="button" class="btn btn-sm btn-ghost" data-prog-action="equip-save">+ Save this setup</button></div>`;
+  }
+  function pickProfile(id) {
+    const el = $('#gen-form');
+    if (el) form = { ...readForm(el), engine: form ? form.engine : 'builtin' };
+    let list = null;
+    if (id.startsWith('preset:')) list = BP().PRESETS[id.slice(7)].equipment;
+    else {
+      const mine = ctx.role() === 'athlete' ? BP().profiles(ctx.me()) : coachProfiles();
+      const p = mine.find((x) => x.id === id);
+      list = p && p.equipment;
+      if (p && ctx.role() === 'athlete') {
+        ctx.me().equipmentActive = p.id;
+        ctx.save();
+      }
+    }
+    if (list) form.equipment = [...list];
+    rerender();
+  }
+  async function saveProfile() {
+    const el = $('#gen-form');
+    if (el) form = readForm(el);
+    const name = await Dialogs.prompt('Name this setup', { title: 'Save equipment', placeholder: 'e.g. School weight room', ok: 'Save', required: true });
+    if (!name) return;
+    if (ctx.role() === 'athlete') BP().setProfile(ctx.me(), { name, equipment: form.equipment });
+    else {
+      const list = coachProfiles().filter((x) => x.name !== name);
+      list.push({ id: 'eq-' + Date.now().toString(36), name: name.slice(0, 40), equipment: form.equipment });
+      try {
+        localStorage.setItem(COACH_EQUIP, JSON.stringify(list.slice(-12)));
+      } catch {}
+    }
+    ctx.save();
+    ctx.toast('Setup saved');
+    rerender();
+  }
+
+  // Side-by-side with another version of the same request.
+  let compareWith = null;
+  function compareHTML(p) {
+    if (!compareWith || !BP()) return '';
+    const c = BP().compare(p, compareWith);
+    const list = (names, only) => names.map((n) => `<li class="${only.includes(n) ? 'diff' : ''}">${esc(n)}</li>`).join('') || '<li class="muted">Rest day</li>';
+    return `<section class="card compare-card" style="margin-bottom:1rem">
+      <div class="card-head"><h3>This version vs another version</h3><button class="btn btn-sm btn-ghost" data-prog-action="compare-close" aria-label="Close comparison">✕</button></div>
+      <ul class="small">${c.summary.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <div class="table-wrap"><table class="team-table compare-table"><thead><tr><th>Day</th><th>This one</th><th>Other version</th></tr></thead><tbody>
+      ${c.rows.map((r) => `<tr><td>${DAY[r.day]}</td><td><ul class="plain">${list(r.a, r.onlyA)}</ul></td><td><ul class="plain">${list(r.b, r.onlyB)}</ul></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="hint">Highlighted exercises are only in that version.</p>
+      <div class="row"><button class="btn btn-sm" data-prog-action="compare-keep">Keep this one</button><button class="btn btn-sm btn-primary" data-prog-action="compare-use">Use the other version</button><button class="btn btn-sm btn-ghost" data-prog-action="compare-again">Try another</button></div>
+    </section>`;
+  }
+  function makeVariation() {
+    const f = { ...form, variation: (form.variation || 0) + 1 + Math.floor(Math.random() * 3) };
+    const alt = P.generateProgram(f);
+    form.variation = f.variation;
+    return alt;
+  }
+
+  async function swapItem(si, itemId) {
+    const s = preview.sessions[si];
+    if (!s) return;
+    let target = null, block = null;
+    for (const b of s.plan.blocks) for (const i of b.items) if (i.id === itemId) (target = i), (block = b);
+    if (!target) return;
+    const me = ctx.role() === 'athlete' ? ctx.me() : null;
+    const equipment = (form && form.equipment) || preview.equipment || (me && BP().activeEquipment(me)) || null;
+    const injuries = me ? P.activeInjuries(ctx.state(), me.id) : [];
+    const opts = BP().swapOptions(target.name, { equipment, injuries, limit: 8 });
+    if (!opts.length) return ctx.toast('No close swaps in the library for that one');
+    const pick = await Dialogs.html(`<h2 id="app-dialog-title">Swap ${esc(target.name)}</h2>
+      <p class="muted small">Best matches first: same movement, same muscles, and fits ${equipment ? 'your equipment' : 'any equipment'}.</p>
+      <div class="swap-list">${opts.map((o) => `<button type="button" class="swap-opt" data-dlg-value="${esc(o.name)}"><strong>${esc(o.name)}</strong><span class="muted small">${esc(o.reasons.join(' · '))}</span></button>`).join('')}</div>
+      <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-dlg-cancel>Cancel</button></div>`);
+    if (!pick) return;
+    const n = C.normalizePlanItem({ name: pick }, block.type);
+    const from = target.name;
+    Object.assign(target, { name: n.name, measure: n.measure, amount: n.amount, loadType: n.loadType, loadValue: n.loadValue, restSec: n.restSec, eachSide: n.eachSide, swappedFrom: from, swapReason: `Swapped from ${from}` });
+    delete target.why;
+    ctx.toast(`${from} → ${n.name}`);
+    rerender();
+  }
+
+  async function shareCode(p) {
+    const code = BP().toShareCode(p, { by: ctx.role() === 'coach' ? ctx.coachName() : (ctx.me() && ctx.me().name) || '' });
+    await Dialogs.showText(code, { title: 'Program code', intro: 'Send this code to another coach or athlete. In Motiq they tap Train › Plan › Import code and paste it. Codes contain the program only, never athletes or results.', rows: 5 });
+  }
+  async function importCode() {
+    const code = await Dialogs.prompt('Paste the program code', { title: 'Import a program', placeholder: 'MOTIQ1.…', ok: 'Import', multiline: true, required: true, maxlength: 400000 });
+    if (!code) return;
+    try {
+      const { program, by } = BP().fromShareCode(code);
+      program.name = program.name || 'Imported program';
+      program.description = [program.description, by ? `Shared by ${by}.` : ''].filter(Boolean).join(' ');
+      preview = program;
+      previewWeek = 0;
+      talk = null;
+      form = null;
+      ctx.toast('Program imported. Review it, then save.');
+      ctx.go('plan', 'program:preview');
+    } catch (e) {
+      ctx.toast(e.message);
+    }
+  }
+
+  // Report card for a finished (or running) block: one athlete, or each athlete on it for coaches.
+  async function reportCard(p) {
+    const st = ctx.state();
+    const ids = [...new Set(st.assignments.filter((x) => x.programId === p.id).map((x) => x.athleteId))].filter((id) => ctx.athleteById(id));
+    const who = ctx.role() === 'athlete' ? [ctx.me().id].filter((id) => ids.includes(id)) : ids;
+    if (!who.length) return ctx.toast(ctx.role() === 'athlete' ? 'Start this program to get a report card' : 'Assign this program to get report cards');
+    const kgu = (kg) => (ctx.units() === 'metric' ? `${Math.round(kg)} kg` : `${Math.round(kg / 0.45359237)} lb`);
+    const cards = who.map((id) => {
+      const a = ctx.athleteById(id);
+      const r = BP().blockReport(st, a, p, today());
+      if (!r) return '';
+      return `<section class="report-card">
+        ${who.length > 1 ? `<h3>${esc(ctx.athleteName(a))}</h3>` : ''}
+        <div class="stat-row"><div><span class="eyebrow">Sessions</span><strong class="num">${r.done}/${r.due}</strong></div><div><span class="eyebrow">Adherence</span><strong class="num">${r.adherence == null ? '–' : r.adherence + '%'}</strong></div><div><span class="eyebrow">Status</span><strong>${r.finished ? 'Finished' : 'In progress'}</strong></div></div>
+        ${r.lifts.length ? `<h4>Estimated maxes</h4><ul class="small">${r.lifts.map((l) => `<li><strong>${esc(l.name)}</strong>: ${kgu(l.before)} → ${kgu(l.after)} <span class="${l.change > 0 ? 'good-text' : 'muted'}">(${l.change > 0 ? '+' : ''}${kgu(l.change)})</span></li>`).join('')}</ul>` : '<p class="small muted">Log weights on main lifts to see strength changes here.</p>'}
+        ${r.form.length ? `<h4>Form scores</h4><ul class="small">${r.form.map((f) => `<li>${esc((root.Movement && root.Movement.EXERCISES[f.exercise] && root.Movement.EXERCISES[f.exercise].label) || f.exercise)}: ${f.before} → ${f.after}</li>`).join('')}</ul>` : ''}
+        ${r.tests.length ? `<h4>Tests</h4><ul class="small">${r.tests.map((t) => `<li>${esc(t.name)}: ${t.before} → ${t.after} ${t.better ? '✅' : '➖'}</li>`).join('')}</ul>` : ''}
+        <h4>Next block</h4><ul class="small">${r.next.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      </section>`;
+    });
+    await Dialogs.html(`<h2 id="app-dialog-title">Report card · ${esc(p.name)}</h2>${cards.join('')}<div class="dialog-actions"><button type="button" class="btn" onclick="window.print()">Print / PDF</button><button type="button" class="btn btn-primary" data-dlg-cancel>Done</button></div>`, { wide: true });
   }
 
   // Where the emphasis came from, for athletes with a jump force-velocity profile.
@@ -278,12 +429,16 @@
           <div class="muted small">${p.weeks} weeks · ${p.sessions.length} sessions/week · ${esc(P.PHASES[p.phase])} · ${p.source === 'claude' ? `✨ designed by Claude${p.meta && p.meta.fallbackUsed ? ' (fallback model)' : ''}` : p.source === 'generator' ? 'built-in generator' : 'manual'}</div></div>
         <div class="row">
           ${saved ? '' : '<button class="btn" data-prog-action="regenerate">↻ Regenerate</button>'}
+          ${!saved && form && form.engine !== 'claude' && BP() ? '<button class="btn" data-prog-action="compare">⇄ Compare</button>' : ''}
+          ${saved && BP() ? '<button class="btn" data-prog-action="share-code">Share code</button>' : ''}
+          ${saved && BP() && ctx.state().assignments.some((x) => x.programId === p.id) ? '<button class="btn" data-prog-action="report-card">Report card</button>' : ''}
           <button class="btn" data-prog-action="save">${saved ? 'Save changes' : 'Save to library'}</button>
           <button class="btn btn-primary" data-prog-action="assign">${coach ? 'Assign to athletes' : 'Start this program'}</button>
         </div>
       </div>
       ${p.description ? `<div class="cue coach"><div>${esc(p.description)}</div></div>` : ''}
       ${warningsHTML(p)}
+      ${compareHTML(p)}
       ${talkHTML()}
       <section class="card" style="margin-bottom:1rem">
         <h3>Progression</h3>
@@ -308,7 +463,7 @@
             ${plan.blocks
               .map(
                 (b) => `<div class="prog-block"><div class="small"><strong>${C.BLOCK_TYPES[b.type].icon} ${esc(b.title || C.BLOCK_TYPES[b.type].label)}</strong></div>
-                <ul class="prog-items">${b.items.map((i) => `<li><span>${root.ExerciseDemo && root.ExerciseDemo.thumb ? root.ExerciseDemo.thumb(i.name, 'prog-thumb') : ''}${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}</span></li>`).join('')}</ul></div>`
+                <ul class="prog-items">${b.items.map((i) => `<li><span>${root.ExerciseDemo && root.ExerciseDemo.thumb ? root.ExerciseDemo.thumb(i.name, 'prog-thumb') : ''}${i.group ? `<b>${esc(i.group)}</b> ` : ''}<button type="button" class="link-btn" data-prog-action="howto" data-name="${esc(i.name)}" title="Demo and coaching cues">${esc(i.name)}</button>${i.why ? `<small class="prog-why">${esc(i.why)}</small>` : ''}${i.swapReason ? `<small class="prog-why">↔ ${esc(i.swapReason)}</small>` : ''}</span><span class="muted">${esc(root.PlanUI.prescription(i, ctx.role() === 'athlete' ? ctx.me() : null))}${BP() ? ` <button type="button" class="btn-icon swap-btn" data-prog-action="swap-item" data-si="${si}" data-item="${esc(i.id)}" aria-label="Swap ${esc(i.name)}" title="Swap">↔</button>` : ''}</span></li>`).join('')}</ul></div>`
               )
               .join('')}
             <div class="row" style="margin-top:.5rem">
@@ -456,12 +611,15 @@
       if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
       const saved = savePreview();
       const list = P.expandProgram(saved, start, [ctx.me().id], { coachNote: 'Self-programmed', assignedBy: 'athlete' });
+      // Fit to the athlete's injuries and active equipment, and plan around their games.
+      const fitted = BP() ? BP().fitToAthlete(list, ctx.me(), { injuries: P.activeInjuries(ctx.state(), ctx.me().id), experience: form ? form.experience : null }) : [];
+      const games = BP() ? BP().aroundGames(ctx.state(), list, ctx.athleteById) : { moved: 0, tapered: 0, recovery: 0 };
       const extra = root.Asymmetry ? root.Asymmetry.applyToAssignments(list, ctx.athleteById, today()) : 0;
       const bal = root.Balance && (!form || form.useData !== false) ? root.Balance.applyToAssignments(ctx.state(), list, ctx.athleteById, today()) : 0;
       const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'athlete', assignments: list });
       if (res === 'blocked') return;
       ctx.save();
-      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan${extra ? ' · extra sets on your weaker side included' : ''}${bal ? ' · balance and prevention work built in' : ''}`);
+      if (res === 'done') ctx.toast(`${list.length} sessions added to your plan${extra ? ' · extra sets on your weaker side included' : ''}${bal ? ' · balance and prevention work built in' : ''}${fitted.length ? ' · fitted to your injuries and equipment' : ''}${games.moved + games.tapered + games.recovery ? ' · planned around your games' : ''}`);
       return ctx.go('plan');
     }
     if (!dialog) {
@@ -486,6 +644,8 @@
       <label class="check"><input type="checkbox" name="notify" checked/> Message athletes about it</label>
       ${asymCount ? `<label class="check"><input type="checkbox" name="asym" checked/> Add a weak-side set for athletes with a left/right gap <span class="muted small">(${asymCount} on the team)</span></label>` : ''}
       ${root.Balance ? `<label class="check"><input type="checkbox" name="balance" checked/> Fill each athlete’s training gaps and add their prevention and prep work <span class="muted small">(from their body balance map)</span></label>` : ''}
+      ${BP() ? `<label class="check"><input type="checkbox" name="fit" checked/> Fit to each athlete <span class="muted small">(swaps for injuries and their equipment; fewer sets for beginners, one more for advanced)</span></label>
+      <label class="check"><input type="checkbox" name="games" checked/> Train around games <span class="muted small">(move sessions off game days, taper the day before, recover the day after)</span></label>` : ''}
       <div class="dialog-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" type="submit">${root.StaffUI.assignLabel('Assign program')}</button></div>
     </form>`;
     const f = $('#program-assign-form', dialog);
@@ -502,12 +662,20 @@
       const list = P.expandProgram(saved, f.start.value, ids, { coachNote: f.note.value.trim() });
       if (f.asym && f.asym.checked) Asym.applyToAssignments(list, ctx.athleteById, today());
       if (f.balance && f.balance.checked && root.Balance) root.Balance.applyToAssignments(ctx.state(), list, ctx.athleteById, today());
+      let fittedCount = 0;
+      if (f.fit && f.fit.checked) {
+        for (const id of ids) {
+          const mine = list.filter((x) => x.athleteId === id);
+          if (BP().fitToAthlete(mine, ctx.athleteById(id), { injuries: P.activeInjuries(ctx.state(), id) }).length) fittedCount++;
+        }
+      }
+      const games = f.games && f.games.checked ? BP().aroundGames(ctx.state(), list, ctx.athleteById) : null;
       const messages = f.notify.checked ? ids.map((id) => C.normalizeMessage({ athleteId: id, from: 'coach', text: `New program: ${saved.name}, ${saved.weeks} weeks starting ${ctx.fmtDate(f.start.value, { month: 'short', day: 'numeric' })}. It’s in your Plan tab.` })) : [];
       const res = root.StaffUI.submit({ title: saved.name, source: isAI(saved) ? 'ai' : 'coach', assignments: list, messages });
       ctx.save();
       dialog.close();
       if (res === 'pending') return ctx.go('approvals');
-      ctx.toast(`Assigned ${list.length} sessions`);
+      ctx.toast(`Assigned ${list.length} sessions${fittedCount ? ` · fitted for ${fittedCount} athlete${fittedCount === 1 ? '' : 's'}` : ''}${games && games.moved + games.tapered + games.recovery ? ` · ${games.moved} moved off game days, ${games.tapered} tapered` : ''}`);
       ctx.go('plan');
     });
     dialog.showModal();
@@ -528,12 +696,45 @@
     switch (el.dataset.progAction) {
       case 'howto':
         return root.LiveUI && root.LiveUI.openHowTo(el.dataset.name);
+      case 'equip-profile':
+        return pickProfile(el.dataset.id);
+      case 'equip-save':
+        return saveProfile();
+      case 'compare':
+        if (!form) return;
+        compareWith = makeVariation();
+        return rerender();
+      case 'compare-again':
+        if (!form) return;
+        compareWith = makeVariation();
+        return rerender();
+      case 'compare-close':
+      case 'compare-keep':
+        compareWith = null;
+        return rerender();
+      case 'compare-use':
+        if (!compareWith) return;
+        compareWith.id = preview.id;
+        preview = compareWith;
+        compareWith = null;
+        previewWeek = 0;
+        ctx.toast('Switched to the other version');
+        return rerender();
+      case 'swap-item':
+        return swapItem(+el.dataset.si, el.dataset.item);
+      case 'share-code':
+        return shareCode(preview);
+      case 'import-code':
+        return importCode();
+      case 'report-card':
+        return reportCard(preview);
       case 'new':
         form = form || defaults();
         return ctx.go('plan', 'program:new');
       case 'back':
         preview = null;
         talk = null;
+        compareWith = null;
         return ctx.go('plan', 'programs');
       case 'back-form':
         return ctx.go('plan', 'program:new');

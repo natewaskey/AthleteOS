@@ -1,12 +1,13 @@
 {
   "name": "motiq",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Training log, load management and readiness tracking for athletes. Zero dependencies.",
   "scripts": {
     "start": "python3 -m http.server 8080",
     "test": "node --test",
-    "accuracy": "node tools/accuracy.js"
+    "accuracy": "node tools/accuracy.js",
+    "e2e": "node --test --test-concurrency=1 e2e/*.e2e.js"
   },
   "license": "UNLICENSED"
 }

@@ -368,3 +368,226 @@ create or replace function public.wearable_status(t uuid) returns table (athlete
   where c.team_id = t and ((my_role(t) = 'coach' and not awaiting_parent(t, c.athlete_id)) or (my_role(t) = 'athlete' and c.athlete_id = my_athlete(t)))
 $$;
 grant execute on function public.wearable_status(uuid) to authenticated;
+
+-- ---------- Error reports (Motiq 1.0) ----------
+-- The app sends a scrubbed note (no names, emails or workout data) when something breaks.
+-- Anyone signed in can add one; nobody can read them through the app (view them in the Supabase dashboard).
+create table if not exists public.error_reports (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  user_id uuid default auth.uid(),
+  message text not null check (char_length(message) <= 500),
+  stack text check (char_length(stack) <= 1500),
+  route text check (char_length(route) <= 40),
+  version text check (char_length(version) <= 20),
+  user_agent text check (char_length(user_agent) <= 200)
+);
+alter table public.error_reports enable row level security;
+drop policy if exists "add own error report" on public.error_reports;
+create policy "add own error report" on public.error_reports for insert to authenticated with check (user_id = auth.uid());
+
+-- ---------- Motiq 1.0: schools and clubs (idea 26) ----------
+-- An athletic director or club admin sees every linked team, as totals only (never athlete records).
+create table if not exists public.orgs (
+  id uuid primary key default gen_random_uuid(),
+  name text not null default '',
+  admin_code text unique not null default upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 8)), -- coaches link a team with this
+  created_by uuid references auth.users on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.org_admins (
+  org_id uuid not null references public.orgs on delete cascade,
+  user_id uuid not null references auth.users on delete cascade,
+  primary key (org_id, user_id)
+);
+alter table public.teams add column if not exists org_id uuid references public.orgs on delete set null;
+alter table public.orgs enable row level security;
+alter table public.org_admins enable row level security;
+drop policy if exists orgs_read on public.orgs;
+create policy orgs_read on public.orgs for select using (exists (select 1 from public.org_admins a where a.org_id = id and a.user_id = auth.uid()));
+drop policy if exists org_admins_read on public.org_admins;
+create policy org_admins_read on public.org_admins for select using (user_id = auth.uid());
+
+-- Creates a school or club with the caller as admin; links the caller's coached team if given. Returns the code.
+create or replace function public.create_org(org_name text, t uuid default null) returns text language plpgsql security definer set search_path = public as $$
+declare o public.orgs;
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  insert into orgs (name) values (left(coalesce(org_name, ''), 80)) returning * into o;
+  insert into org_admins (org_id, user_id) values (o.id, auth.uid());
+  if t is not null and my_role(t) = 'coach' then update teams set org_id = o.id where id = t; end if;
+  if t is null then update teams set org_id = o.id where id in (select team_id from team_members where user_id = auth.uid() and role = 'coach') and org_id is null; end if;
+  return o.admin_code;
+end $$;
+
+-- A team's coach links the team to a school or club with its code.
+create or replace function public.link_team_to_org(code text, t uuid) returns void language plpgsql security definer set search_path = public as $$
+declare o uuid;
+begin
+  if my_role(t) is distinct from 'coach' then raise exception 'Only a coach of this team can link it'; end if;
+  select id into o from orgs where admin_code = upper(code);
+  if o is null then raise exception 'Unknown code'; end if;
+  update teams set org_id = o where id = t;
+end $$;
+
+-- School view needs the school plan once billing is on (plans and billing section below).
+create or replace function public.org_overview_allowed() returns boolean language plpgsql stable security definer set search_path = public as $$
+begin
+  return not coalesce((select billing_enabled from app_config), false)
+    or exists (select 1 from org_admins a join teams t on t.org_id = a.org_id where a.user_id = auth.uid() and public.team_plan(t.id) = 'school');
+exception when undefined_table or undefined_function then
+  return true;
+end $$;
+
+-- Per-team totals for each org the caller runs. Aggregates only: no names, no athlete data.
+create or replace function public.org_overview() returns table (org_id uuid, org_name text, admin_code text, teams jsonb) language sql stable security definer set search_path = public as $$
+  select o.id, o.name, o.admin_code, coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'team_name', tm.name,
+      'athletes', (select count(*) from records r where r.team_id = tm.id and r.coll = 'athletes' and not r.deleted),
+      'coaches', (select count(*) from team_members m where m.team_id = tm.id and m.role = 'coach'),
+      'checkins_7d', (select count(*) from records r, jsonb_array_elements(coalesce(r.data->'checkins', '[]'::jsonb)) c where r.team_id = tm.id and r.coll = 'athletes' and not r.deleted and c->>'date' >= to_char(current_date - 7, 'YYYY-MM-DD')),
+      'workouts_7d', (select count(*) from records r, jsonb_array_elements(coalesce(r.data->'workouts', '[]'::jsonb)) w where r.team_id = tm.id and r.coll = 'athletes' and not r.deleted and w->>'date' >= to_char(current_date - 7, 'YYYY-MM-DD')),
+      'last_active', (select max(r.updated_at) from records r where r.team_id = tm.id)
+    ) order by tm.name) from teams tm where tm.org_id = o.id), '[]'::jsonb)
+  from orgs o join org_admins a on a.org_id = o.id and a.user_id = auth.uid()
+  where public.org_overview_allowed()
+$$;
+grant execute on function public.create_org(text, uuid), public.link_team_to_org(text, uuid), public.org_overview() to authenticated;
+
+-- ---------- Motiq 1.0: delete my account (idea 28) ----------
+-- Deletes the caller's login and their data. Teams where they're the only coach are deleted with
+-- everything in them; an athlete's own records are tombstoned (so other devices drop them on sync).
+-- Videos in Storage are removed by the app first (Storage files can't be deleted from SQL).
+create or replace function public.delete_my_account() returns jsonb language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); m record; gone int := 0;
+begin
+  if uid is null then raise exception 'Sign in first'; end if;
+  for m in select tm.team_id, tm.role, tm.athlete_id, t.solo from team_members tm join teams t on t.id = tm.team_id where tm.user_id = uid loop
+    if m.solo or (m.role = 'coach' and not exists (select 1 from team_members x where x.team_id = m.team_id and x.role = 'coach' and x.user_id <> uid)) then
+      delete from teams where id = m.team_id; -- cascades records, members, invites, parent links, wearable data
+      gone := gone + 1;
+    elsif m.role = 'athlete' and m.athlete_id is not null then
+      update records set deleted = true, data = null
+        where team_id = m.team_id and (athlete_id = m.athlete_id or (coll in ('athletes', 'roster') and id = m.athlete_id));
+      delete from guardian_links where team_id = m.team_id and athlete_id = m.athlete_id;
+      delete from athlete_invites where team_id = m.team_id and athlete_id = m.athlete_id;
+      delete from wearable_data where team_id = m.team_id and athlete_id = m.athlete_id;
+    end if;
+  end loop;
+  delete from records where owner = uid and is_private;
+  delete from error_reports where user_id = uid;
+  delete from wearable_states where user_id = uid;
+  delete from orgs o where exists (select 1 from org_admins a where a.org_id = o.id and a.user_id = uid)
+    and not exists (select 1 from org_admins a where a.org_id = o.id and a.user_id <> uid);
+  update guardian_links set guardian = null, guardian_name = '', consent_at = null where guardian = uid;
+  delete from auth.users where id = uid; -- memberships and wearable connections cascade
+  return jsonb_build_object('teams_deleted', gone);
+end $$;
+revoke all on function public.delete_my_account() from public;
+grant execute on function public.delete_my_account() to authenticated;
+
+-- ---------- Motiq 1.0: plans and billing (idea 36) ----------
+-- Billing is OFF until app_config.billing_enabled is set to true (after Stripe is set up), and while
+-- it's off every team has full access. When on, paid features are checked here on the server, not
+-- just hidden in the app.
+create table if not exists public.app_config (
+  id boolean primary key default true check (id),
+  billing_enabled boolean not null default false,
+  free_athlete_limit int not null default 15,
+  team_athlete_limit int not null default 40
+);
+alter table public.app_config add column if not exists team_athlete_limit int not null default 40;
+insert into public.app_config (id) values (true) on conflict (id) do nothing;
+alter table public.app_config enable row level security;
+drop policy if exists app_config_read on public.app_config;
+create policy app_config_read on public.app_config for select using (true);
+
+create table if not exists public.subscriptions (
+  team_id uuid primary key references public.teams on delete cascade,
+  plan text not null check (plan in ('free', 'plus', 'team', 'school')),
+  status text not null default 'active', -- Stripe status: active, trialing, past_due, canceled
+  current_period_end timestamptz,
+  stripe_customer text,
+  stripe_subscription text,
+  updated_at timestamptz not null default now()
+);
+alter table public.subscriptions enable row level security;
+drop policy if exists subscriptions_read on public.subscriptions;
+create policy subscriptions_read on public.subscriptions for select using (public.my_role(team_id) is not null);
+-- Only the billing edge function (service role) writes subscriptions.
+
+-- The plan a team is on right now. 'full' while billing is switched off.
+create or replace function public.team_plan(t uuid) returns text language sql stable security definer set search_path = public as $$
+  select case
+    when not coalesce((select billing_enabled from app_config), false) then 'full'
+    when exists (select 1 from subscriptions s where s.team_id = t and s.status in ('active', 'trialing', 'past_due') and (s.current_period_end is null or s.current_period_end > now() - interval '3 days')) then (select plan from subscriptions where team_id = t)
+    else 'free' end
+$$;
+grant execute on function public.team_plan(uuid) to authenticated;
+
+-- Roster size by plan: free (and plus) teams up to free_athlete_limit, team plan up to
+-- team_athlete_limit, school unlimited. The database refuses more.
+create or replace function public.enforce_plan_limits() returns trigger language plpgsql security definer set search_path = public as $$
+declare lim int; p text;
+begin
+  if new.coll = 'athletes' and not new.deleted
+     and not exists (select 1 from records r where r.team_id = new.team_id and r.coll = 'athletes' and r.id = new.id) then
+    p := public.team_plan(new.team_id);
+    if p in ('full', 'school') then return new; end if;
+    select case when p = 'team' then team_athlete_limit else free_athlete_limit end into lim from app_config;
+    if (select count(*) from records r where r.team_id = new.team_id and r.coll = 'athletes' and not r.deleted) >= lim then
+      raise exception 'Your plan includes up to % athletes. Upgrade to add more.', lim using errcode = 'P0001';
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists records_plan_limits on public.records;
+create trigger records_plan_limits before insert on public.records for each row execute function public.enforce_plan_limits();
+
+
+
+-- ---------- Motiq 1.0: beta program (idea 40) ----------
+create table if not exists public.beta_invites (
+  code text primary key,
+  note text not null default '',
+  max_uses int not null default 50,
+  uses int not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.beta_invites enable row level security; -- only reachable through redeem_beta
+
+create table if not exists public.beta_members (
+  user_id uuid primary key references auth.users on delete cascade,
+  code text,
+  joined_at timestamptz not null default now()
+);
+alter table public.beta_members enable row level security;
+drop policy if exists beta_members_read on public.beta_members;
+create policy beta_members_read on public.beta_members for select using (user_id = auth.uid());
+
+create or replace function public.redeem_beta(c text) returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  update beta_invites set uses = uses + 1 where code = upper(trim(c)) and uses < max_uses;
+  if not found then return false; end if;
+  insert into beta_members (user_id, code) values (auth.uid(), upper(trim(c))) on conflict (user_id) do nothing;
+  return true;
+end $$;
+grant execute on function public.redeem_beta(text) to authenticated;
+
+create table if not exists public.feedback (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  user_id uuid default auth.uid() references auth.users on delete cascade,
+  kind text not null default 'idea' check (kind in ('bug', 'idea', 'love', 'other')),
+  message text not null check (char_length(message) between 1 and 2000),
+  route text check (char_length(route) <= 40),
+  version text check (char_length(version) <= 20),
+  role text check (char_length(role) <= 10)
+);
+alter table public.feedback enable row level security;
+drop policy if exists feedback_insert on public.feedback;
+create policy feedback_insert on public.feedback for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists feedback_read_own on public.feedback;
+create policy feedback_read_own on public.feedback for select using (user_id = auth.uid());

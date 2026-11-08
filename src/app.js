@@ -16,7 +16,7 @@
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history', 'library'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['library', 'Exercises']] },
     { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
     { id: 'recover', label: 'Recover', icon: 'battery', routes: ['recover'] },
-    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
+    { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'lifts', 'speed', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['lifts', 'Lifts'], ['speed', 'Speed'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'], team: true },
     { id: 'me', label: 'Profile', icon: 'user', routes: ['profile', 'settings'], sub: [['profile', 'Recruiting profile'], ['settings', 'Settings']] },
@@ -25,7 +25,7 @@
   const COACH_SECTIONS = [
     { id: 'team', label: 'Team', icon: 'users', routes: ['team', 'body'] },
     { id: 'training', label: 'Training', icon: 'dumbbell', routes: ['plan', 'calendar', 'approvals', 'library'], sub: [['plan', 'Plan & library'], ['calendar', 'Calendar'], ['approvals', 'Approvals'], ['library', 'Exercises']] },
-    { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
+    { id: 'performance', label: 'Performance', icon: 'trophy', routes: ['performance', 'reports', 'challenges', 'screen', 'summary', 'profile'], sub: [['performance', 'Testing'], ['reports', 'Reports'], ['challenges', 'Challenges'], ['screen', 'Movement screens']] },
     { id: 'health', label: 'Health', icon: 'shield', routes: ['health', 'recover'], sub: [['health', 'Injuries'], ['recover', 'Recovery']] },
     { id: 'form', label: 'Form review', icon: 'video', routes: ['form'] },
     { id: 'messages', label: 'Messages', icon: 'chat', routes: ['messages'] },
@@ -33,7 +33,7 @@
     { id: 'help', label: 'Help & FAQ', icon: 'help', routes: ['help'] },
   ];
   // Routes reachable from buttons but not listed in a section.
-  const HIDDEN_ROUTES = ['records'];
+  const HIDDEN_ROUTES = ['records', 'org', 'trust'];
   const ICONS = {
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
     dumbbell: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>',
@@ -669,7 +669,7 @@
       const qa = (attrs, ic, label) => `<button class="qa" ${attrs}>${icon(ic)}<span>${label}</span></button>`;
 
       // Home: header, one inbox for nudges and plan changes, then a grid of data tiles.
-      const inbox = Smart.nudgeBanner(a) + Smart.adaptBanner(a);
+      const inbox = Smart.nudgeBanner(a) + Smart.adaptBanner(a) + (window.BuilderPlusUI ? BuilderPlusUI.finishedBanner(a) : '') + (window.TeamPlusUI && !solo() ? TeamPlusUI.athleteInbox(a) : '');
       return `
         ${consentBanner}
         ${guide ? `<div class="grid" style="margin-bottom:1rem">${guide}</div>` : ''}
@@ -803,6 +803,18 @@
       return LiveCam.view(ui.id);
     },
 
+    lifts() {
+      return window.BuilderPlusUI ? BuilderPlusUI.view(me()) : '';
+    },
+
+    speed() {
+      return window.TeamPlusUI ? TeamPlusUI.speedView(me()) : '';
+    },
+
+    trust() {
+      return window.Legal ? Legal.trustView() : '';
+    },
+
     records() {
       const { endHTML, strHTML } = recordsTables(me());
       return `<button class="btn btn-sm btn-ghost" data-tab-link="progress" style="margin-bottom:.5rem">‹ Progress</button><h1 class="page-title">Personal records</h1>
@@ -847,6 +859,7 @@
     messages() {
       const a = me();
       return `<h1 class="page-title">Messages</h1>
+        ${window.TeamPlusUI ? TeamPlusUI.athleteInbox(a) : ''}
         ${window.Notes ? window.Notes.recentCard() : ''}
         <section class="card chat-card">
           <div class="chat-head"><div class="avatar coach">${esc(initials(coachName()))}</div>
@@ -887,13 +900,18 @@
               <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
+          ${window.BuilderPlusUI ? BuilderPlusUI.equipmentCard(a) : ''}
+          ${window.FormPlus ? FormPlus.fastCard(state.settings.fastMode) : ''}
+          ${window.Legal ? Legal.trustCard() : ''}
+          ${window.Plans ? Plans.card() : ''}
+          ${window.Beta ? Beta.card() : ''}
           ${window.Wearables ? Wearables.devicesCard() : ''}
           ${window.CloudUI ? window.CloudUI.card() : ''}
           ${modeCard()}
           ${solo() ? '' : guardianCard(a)}
           ${window.Shell ? Shell.installCard() + Shell.reminderCard() : ''}
           ${window.WhatsNew ? WhatsNew.card() : ''}
-          ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard())}
+          ${advanced(myDataCard(a) + aiCard() + dataCard() + explainerCard() + (window.Errors ? Errors.card() : ''))}
         </div>`;
     },
   };
@@ -995,6 +1013,7 @@
           <span>Add your certifications, set up your team roster and prescribe training, testing and return-to-play.</span></button>
       </div>
       <p class="muted small" style="text-align:center">You can switch any time in Settings. Or <button class="btn-link" data-action="load-sample">Explore with a demo team</button></p>
+      <p class="legal-links small"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a> · <a href="terms.html" target="_blank" rel="noopener">Terms</a></p>
       ${window.CloudUI && window.Cloud.enabled() ? '<p class="muted small" style="text-align:center">Have an account or a code from your coach? <button class="btn-link" data-cloud="back-to-login">Sign in</button></p>' : ''}
     </div>`;
   }
@@ -1102,6 +1121,7 @@
         <p class="muted" style="margin-top:0">${state.team.name ? esc(state.team.name) + ' · ' : ''}${esc(fmtDate(t, { weekday: 'long', month: 'long', day: 'numeric' }))} · ${state.athletes.length} athletes</p>
         <div class="grid">
           ${window.Guide ? Guide.coachCard(state, { staff: activeStaff(), cloud: window.CloudUI ? CloudUI.teamInfo() : null }) : ''}
+          ${window.TeamPlusUI ? TeamPlusUI.commandCard() : ''}
           <section class="card span-3"><h3>Checked in</h3><div class="stat">${checkedIn}<small>/ ${state.athletes.length}</small></div>
             <div class="muted">${state.athletes.length - checkedIn ? `${state.athletes.length - checkedIn} still to check in` : 'Everyone is in'}</div></section>
           <section class="card span-3"><h3>Team readiness</h3><div class="stat">${avgReady.length ? Math.round(avgReady.reduce((s, v) => s + v, 0) / avgReady.length) : '—'}<small>avg</small></div>
@@ -1138,6 +1158,18 @@
 
     plan() {
       return Plan.view(ui.id);
+    },
+
+    reports() {
+      return window.TeamPlusUI ? TeamPlusUI.reportsView() : '';
+    },
+
+    org() {
+      return window.TeamPlusUI ? TeamPlusUI.orgView() : '';
+    },
+
+    trust() {
+      return window.Legal ? Legal.trustView() : '';
     },
 
     performance() {
@@ -1217,6 +1249,7 @@
             ${composerHTML({ broadcast: true })}`;
       return `<h1 class="page-title">Messages</h1>
         ${window.Notes ? window.Notes.recentCard() : ''}
+        ${window.TeamPlusUI ? TeamPlusUI.coachAnnouncements() : ''}
         <section class="card inbox ${selected ? 'has-selection' : ''}">${listHTML}<div class="chat-pane">${pane}</div></section>`;
     },
 
@@ -1232,6 +1265,10 @@
             </form>
           </section>
           ${brandCard()}
+          ${window.TeamPlusUI ? TeamPlusUI.orgCard() : ''}
+          ${window.Legal ? Legal.trustCard() : ''}
+          ${window.Plans ? Plans.card() : ''}
+          ${window.Beta ? Beta.card() : ''}
           <section class="card span-6"><div class="card-head"><h3>Roster</h3></div>
             <ul class="list">${state.athletes
               .map(
@@ -1258,7 +1295,7 @@
           ${modeCard()}
           ${window.Shell ? Shell.installCard() : ''}
           ${window.WhatsNew ? WhatsNew.card() : ''}
-          ${advanced(aiCard() + dataCard())}
+          ${advanced(aiCard() + dataCard() + (window.FormPlus ? FormPlus.fastCard(state.settings.fastMode) : '') + (window.Errors ? Errors.card() : ''))}
         </div>`;
     },
   };
@@ -1619,6 +1656,12 @@
       $('#view').innerHTML = step;
       return;
     }
+    if (window.Legal && Legal.needsGate(state)) {
+      renderChrome(true);
+      $('#view').innerHTML = Legal.gateHTML();
+      return;
+    }
+    if (window.TeamPlusUI) TeamPlusUI.syncLoad(); // practices and games count toward training load
     const views = role() === 'coach' ? coachViews : athleteViews;
     const allowed = !!sectionOf(ui.tab) || HIDDEN_ROUTES.includes(ui.tab);
     if (!views[ui.tab] || !allowed) {
@@ -1935,6 +1978,7 @@
       rpe: wForm.rpe.value,
       notes: wForm.notes.value,
       exercises: info.strength ? exercises : [],
+      ...(() => { const old = editingId && a.workouts.find((x) => x.id === editingId); return old && old.source ? { source: old.source, eventId: old.eventId, externalId: old.externalId, edited: true } : {}; })(),
     });
     const file = wForm.video.files[0];
     const sendToCoach = wForm.sendToCoach.checked;
@@ -2228,6 +2272,7 @@
       case 'load-sample':
         if (hasData() && !(await Dialogs.confirm('Replace your current data with the demo team?', { title: 'Load demo team?', ok: 'Replace' }))) return;
         state = C.sampleState(today());
+        state.settings.legal = { sample: true }; // exploring fake data; terms are asked before real use
         if (window.DemoRich) window.DemoRich.enrich(state, today());
         save();
         Media.clear().catch(() => {});
@@ -2710,6 +2755,13 @@
   Prof.init(shared);
   Summary.init(shared);
   if (window.Shell) Shell.init({ ...shared, today });
+  if (window.Errors) Errors.init(shared);
+  if (window.BuilderPlusUI) BuilderPlusUI.init(shared);
+  if (window.FormPlus) FormPlus.init(shared);
+  if (window.TeamPlusUI) TeamPlusUI.init(shared);
+  if (window.Legal) Legal.init(shared);
+  if (window.Plans) Plans.init(shared);
+  if (window.Beta) Beta.init(shared);
   Help.init(shared);
   Library.init(shared);
   Staff.init({ ...shared, activeStaff });
@@ -2719,7 +2771,7 @@
   Progress.init({ C, state: () => state, save, render, toast, esc, role, me, athleteById, athleteName, coachName, relTime, fmtDate, units, U, recordsTables });
 
   if (window.WhatsNew) WhatsNew.init({ icon, esc });
-  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, units, U, sportOptions, fmtDate });
+  Programs.init({ C, state: () => state, save, render, go, toast, esc, role, me, solo, athleteById, athleteName, coachName, units, U, sportOptions, fmtDate });
   Live.init({ C, state: () => state, save, render, esc, units, U, role, toast, me });
 
   Plan.init({

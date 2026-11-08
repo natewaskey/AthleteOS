@@ -150,7 +150,7 @@
   for (const [name, [demo, setup, cues, avoid]] of Object.entries(H)) BY[name.toLowerCase()] = { name, demo, setup, cues, avoid };
 
   // Form-check lifts (Movement.EXERCISES ids) → library names.
-  const FORM = { squat: 'Back squat', deadlift: 'Deadlift', rdl: 'Romanian deadlift', lunge: 'Split squat', bss: 'Bulgarian split squat', bench: 'Bench press', pushup: 'Push-up', ohp: 'Overhead press', landing: 'Drop landing (stick it)', row: 'Barbell row', pullup: 'Pull-up', hipthrust: 'Hip thrust', clean: 'Power clean', sprintstart: 'Acceleration sprint', cut: null, running: 'Easy run' };
+  const FORM = { squat: 'Back squat', deadlift: 'Deadlift', rdl: 'Romanian deadlift', lunge: 'Split squat', bss: 'Bulgarian split squat', bench: 'Bench press', pushup: 'Push-up', ohp: 'Overhead press', landing: 'Drop landing (stick it)', row: 'Barbell row', pullup: 'Pull-up', hipthrust: 'Hip thrust', clean: 'Power clean', sprintstart: 'Acceleration sprint', cut: null, running: 'Easy run', frontsquat: 'Front squat', trapbar: 'Trap bar deadlift', kbswing: 'Kettlebell swing', stepup: 'Step-up', pushpress: 'Push press', nordic: 'Nordic hamstring curl', plank: 'Plank', lateralbound: 'Lateral bound (skater)' };
   const EXTRA = {
     cut: { name: 'Cutting test', demo: 'cut', setup: 'Sprint at a cone about 5 yd away.', cues: ['Lower your hips into the plant', 'Plant the outside foot, knee over toes', 'Push off hard at 45°'], avoid: 'Knee caving in on the plant foot.' },
     cmj: { name: 'Countermovement jump', demo: 'cmj', cues: ['Hands on hips the whole time', 'Quick dip, then jump as high as you can', 'Land on the same spot with straight legs'], avoid: 'Tucking the knees in the air: it inflates the height.' },
