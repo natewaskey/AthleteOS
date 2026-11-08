@@ -6,8 +6,8 @@ This is a checklist, not legal advice. Have a lawyer review the privacy policy a
 
 | Where | What to add |
 |---|---|
-| `privacy.html` and `terms.html`, every `[contact email to be added]` | An email you check, e.g. privacy@yourdomain. Use a business address, not a personal one. |
-| `terms.html`, `[state to be added]` | The US state whose law governs the terms (usually where you or your LLC are). |
+| `privacy.html` and `terms.html`, contact email | Set to waskey@toptierwins.com (2026-11-08). Change it if you get a dedicated address. |
+| `terms.html`, governing law | Set to Nevada (2026-11-08). Update it if you move or form an LLC elsewhere. |
 | Both pages, "Effective" date and version | Change when you edit them, and bump `VERSION` in `src/legal.js` so everyone is asked to accept the new version. |
 
 ## What the app now does
