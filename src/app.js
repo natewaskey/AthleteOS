@@ -12,9 +12,9 @@
   // Navigation: a few sections, each with optional sub-pages (pills at the top of the page).
   // Routes stay the same as before, so every link inside the app keeps working.
   const ATHLETE_SECTIONS = [
-    { id: 'home', label: 'Home', icon: 'home', routes: ['today'] },
+    { id: 'home', label: 'Today', icon: 'home', routes: ['today'] },
     { id: 'train', label: 'Train', icon: 'dumbbell', routes: ['plan', 'calendar', 'history', 'library'], sub: [['plan', 'Plan'], ['calendar', 'Calendar'], ['history', 'History'], ['library', 'Exercises']] },
-    { id: 'form', label: 'Form check', icon: 'video', routes: ['form', 'live'] },
+    { id: 'form', label: 'Form', icon: 'video', routes: ['form', 'live'] },
     { id: 'recover', label: 'Recover', icon: 'battery', routes: ['recover'] },
     { id: 'progress', label: 'Progress', icon: 'chart', routes: ['progress', 'lifts', 'speed', 'body', 'challenges', 'screen', 'goals', 'summary', 'records'], sub: [['progress', 'Overview'], ['lifts', 'Lifts'], ['speed', 'Speed'], ['body', 'Body'], ['goals', 'Goals'], ['challenges', 'Challenges']] },
     { id: 'wellness', label: 'Wellness', icon: 'heart', routes: ['wellness', 'health'] },
@@ -689,6 +689,7 @@
         ${inbox ? `<div class="updates" role="region" aria-label="Updates">${inbox}</div>` : ''}
         <div class="bento">
           ${sessionTile(session, next, t)}
+          ${window.Fusion ? Fusion.bodyTile(state, a, t) : ''}
           ${readyTile(a, ready, t)}
           ${loadTile(a, t)}
           ${goalTile(a, t)}
@@ -1641,6 +1642,7 @@
     document.body.classList.toggle('sheet-open', !!show);
   }
 
+  let lastRendered = null;
   function render() {
     if (window.Theme) window.Theme.setBrand(state.brand);
     document.body.classList.toggle('pro', pro() && state.mode != null);
@@ -1679,7 +1681,15 @@
     // Form-check faults add drills and hold weights on upcoming sessions (and undo them once fixed).
     if (window.FormPlan && state.athletes.reduce((ch, a) => window.FormPlan.syncAthlete(state, a, today()) || ch, false)) save();
     renderChrome();
-    $('#view').innerHTML = views[ui.tab]();
+    const view = $('#view');
+    // New page: let its sections rise in once (plain re-renders of the same page don't animate).
+    if (lastRendered !== ui.tab) {
+      view.classList.remove('enter');
+      void view.offsetWidth;
+      view.classList.add('enter');
+      lastRendered = ui.tab;
+    }
+    view.innerHTML = views[ui.tab]();
     hydrateVideos($('#view'));
     Form.mount($('#view'));
     Plan.mount();

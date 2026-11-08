@@ -84,5 +84,5 @@
     </div>`;
   }
 
-  root.BodyMap = { render, legend };
+  root.BodyMap = { render, legend, FRONT, BACK };
 })(typeof window !== 'undefined' ? window : globalThis);
