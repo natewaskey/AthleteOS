@@ -28,7 +28,7 @@ h1 span { font-weight: 600; background: linear-gradient(90deg, var(--accent), va
 .lead { color: var(--muted); font-size: 19px; margin: 0 0 24px; }
 .cta { display: flex; gap: 10px; flex-wrap: wrap; }
 .phones { display: flex; gap: 14px; justify-content: center; }
-.phones img { width: 46%; max-width: 230px; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.phones img { width: 46%; max-width: 230px; height: auto; aspect-ratio: 390 / 844; object-fit: cover; border-radius: 22px; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
 .phones img:nth-child(2) { margin-top: 40px; }
 section { padding: 48px 0; border-top: 1px solid var(--line); }
 h2 { font-size: 30px; margin: 0 0 8px; }
@@ -38,7 +38,7 @@ h2 { font-size: 30px; margin: 0 0 8px; }
 .card h3 { margin: 0 0 6px; font-size: 18px; }
 .card p { margin: 0; color: var(--muted); font-size: 15px; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; }
-.split img { width: 100%; max-width: 300px; border-radius: 22px; border: 1px solid var(--line); justify-self: center; }
+.split img { width: 100%; max-width: 300px; height: auto; aspect-ratio: 390 / 844; object-fit: cover; border-radius: 22px; border: 1px solid var(--line); justify-self: center; }
 ul.ticks { list-style: none; padding: 0; margin: 0; }
 ul.ticks li { padding: 6px 0 6px 28px; position: relative; }
 ul.ticks li::before { content: ""; position: absolute; left: 4px; top: 14px; width: 10px; height: 6px; border-left: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(-45deg); }
