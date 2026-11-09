@@ -591,3 +591,31 @@ drop policy if exists feedback_insert on public.feedback;
 create policy feedback_insert on public.feedback for insert to authenticated with check (user_id = auth.uid());
 drop policy if exists feedback_read_own on public.feedback;
 create policy feedback_read_own on public.feedback for select using (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------------------------------
+-- Beta waitlist from the landing page (welcome.html). Anyone can join through join_waitlist();
+-- nobody can read the list through the API. See it in the Supabase table editor.
+-- ---------------------------------------------------------------------------------------------
+create table if not exists public.waitlist (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  email text not null unique check (char_length(email) between 5 and 200 and email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  name text check (char_length(name) <= 100),
+  team text check (char_length(team) <= 120),
+  role text check (role in ('coach', 'athlete', 'parent', 'other')),
+  sport text check (char_length(sport) <= 40),
+  team_size text check (char_length(team_size) <= 20)
+);
+alter table public.waitlist enable row level security;
+revoke all on public.waitlist from anon, authenticated;
+
+create or replace function public.join_waitlist(p_email text, p_name text default null, p_team text default null, p_role text default null, p_sport text default null, p_team_size text default null)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.waitlist (email, name, team, role, sport, team_size)
+  values (lower(trim(p_email)), nullif(trim(p_name), ''), nullif(trim(p_team), ''), nullif(p_role, ''), nullif(trim(p_sport), ''), nullif(p_team_size, ''))
+  on conflict (email) do nothing;
+  return true;
+end $$;
+revoke all on function public.join_waitlist(text, text, text, text, text, text) from public;
+grant execute on function public.join_waitlist(text, text, text, text, text, text) to anon, authenticated;
