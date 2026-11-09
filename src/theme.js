@@ -23,8 +23,9 @@
   ];
   // [light-mode shade, dark-mode shade]
   const ACCENTS = [
-    { id: 'orange', label: 'Motiq orange', light: '#f04d0f', dark: '#ff5a1f' },
-    { id: 'ice', label: 'Ice blue', light: '#0b7fd1', dark: '#4cb4ff' },
+    { id: 'aurora', label: 'Motiq aurora', light: '#0a86b0', dark: '#7fe8ff' },
+    { id: 'orange', label: 'Orange', light: '#c94a0c', dark: '#ff7a3d' },
+    { id: 'ice', label: 'Ice blue', light: '#0b6fc0', dark: '#4cb4ff' },
     { id: 'lime', label: 'Lime', light: '#4d8a00', dark: '#a3e635' },
     { id: 'violet', label: 'Violet', light: '#6d3fe0', dark: '#a78bfa' },
     { id: 'red', label: 'Red', light: '#d6283b', dark: '#ff4d5e' },
@@ -90,13 +91,13 @@
       if (d === 'black' || d === 'contrast') el.dataset.display = d;
       else delete el.dataset.display;
       const dark = isDark();
-      const bg = d === 'black' || d === 'contrast' ? '#000000' : dark ? '#08090b' : '#f6f7f9';
+      const bg = d === 'black' || d === 'contrast' ? '#000000' : dark ? '#070a12' : '#eef1f8';
       const a = accent();
       let color = null;
       if ((a === 'auto' || a === 'team') && brand.color) color = readable(brand.color, bg);
       else {
         const pick = ACCENTS.find((x) => x.id === a);
-        if (pick && pick.id !== 'orange') color = dark ? pick.dark : pick.light;
+        if (pick && pick.id !== 'aurora') color = dark ? pick.dark : pick.light;
       }
       if (color) {
         el.style.setProperty('--accent', color);
@@ -106,7 +107,7 @@
         el.style.removeProperty('--accent-ink');
       }
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute('content', dark ? (d === 'black' || d === 'contrast' ? '#000000' : '#08090b') : '#f6f7f9');
+      if (meta) meta.setAttribute('content', dark ? (d === 'black' || d === 'contrast' ? '#000000' : '#070a12') : '#eef1f8');
       // Team logo next to the app name.
       document.querySelectorAll('.brand').forEach((b) => {
         let img = b.querySelector('.team-logo');

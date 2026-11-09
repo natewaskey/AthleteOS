@@ -6,8 +6,8 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#08090b",
-  "theme_color": "#08090b",
+  "background_color": "#070a12",
+  "theme_color": "#070a12",
   "share_target": {
     "action": "./share-target",
     "method": "POST",

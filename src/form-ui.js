@@ -207,7 +207,7 @@
       </div>
       <div class="small" style="margin-top:.5rem">${esc(topIssue(an))}</div>
       <div class="row" style="margin-top:.5rem;gap:.35rem">
-        ${isNew ? `<span class="pill bad">${coach ? 'New' : 'New feedback'}</span>` : ''}
+        ${isNew ? `<span class="pill new">${coach ? 'New' : 'New feedback'}</span>` : ''}
         ${!coach && !solo() ? (an.sharedWithCoach ? '<span class="pill info">Shared with coach</span>' : '<span class="pill">Private</span>') : ''}
         ${an.coachCues.length ? `<span class="pill good">${an.coachCues.length} coach cue${an.coachCues.length > 1 ? 's' : ''}</span>` : ''}
         ${an.demo ? '<span class="pill">Demo</span>' : ''}

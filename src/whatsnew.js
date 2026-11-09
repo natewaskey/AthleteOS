@@ -6,10 +6,21 @@
   'use strict';
 
   const node = typeof module !== 'undefined' && module.exports;
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const SEEN_KEY = 'motiq.seenVersion';
 
   const RELEASES = [
+    {
+      version: '1.1.0',
+      date: '2026-11-08',
+      title: 'A new look: Fusion',
+      items: [
+        ['sparkle', 'Frosted glass and a new look', 'Glass cards over a soft glowing background, new fonts, and big slanted numbers for your stats. Light, dark, true black and high contrast all updated.'],
+        ['heart', 'Your body, glowing', 'Today shows your body lit up where you trained this week, from blue (rested) to violet (worked hard). Tap it for the full body view.'],
+        ['shield', 'Warnings that mean something', 'Hard training shows in cool colors. Amber means something is worth watching, and red means it needs attention, so real problems stand out.'],
+        ['grid', 'Simpler navigation', 'Today, Train, Form and Recover come first, with a floating dock on phones. Everything else is one tap away under More.'],
+      ],
+    },
     {
       version: '1.0.0',
       date: '2026-11-04',
